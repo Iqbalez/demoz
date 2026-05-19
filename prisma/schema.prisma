@@ -1,0 +1,342 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../tenant-backend/node_modules/.prisma/client"
+}
+
+/// System-wide authorization roles for platform users
+enum UserRole {
+  OWNER
+  HR
+  EMPLOYEE
+}
+
+enum PaymentMethod {
+  BANK
+  CHAPA_WALLET
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum TenantStatus {
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+}
+
+/// Represents subscriber corporate entities (companies) on the Demoz platform
+model Tenant {
+  id                    String       @id @default(uuid()) @db.Uuid
+  name                  String       @db.VarChar(255)
+  companyCode           String       @unique @db.VarChar(50) // Unique constraint automatically indexes for fast USSD lookups
+  status                TenantStatus @default(ACTIVE)
+  planTier              String       @default("FREE") @db.VarChar(50)
+  maxEmployees          Int          @default(10) @db.Integer
+  subscriptionExpiresAt DateTime?    @db.Timestamptz(6)
+  isActive              Boolean      @default(true) @db.Boolean
+  createdAt             DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime     @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  users          User[]
+  branches       Branch[]
+  departments    Department[]
+  employees      Employee[]
+  attendances    Attendance[]
+  attendanceLogs AttendanceLog[]
+  payrollRuns          PayrollRun[]
+  aiAuditReports       AiAuditReport[]
+  auditLogs            AuditLog[]
+  subscriptionInvoices SubscriptionInvoice[]
+
+  @@index([status, subscriptionExpiresAt])
+  @@map("tenants") // Maps Prisma model to plural lowercase PostgreSQL table name
+}
+
+/// Represents individual user accounts belonging to subscriber companies
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  email        String   @db.VarChar(255)
+  passwordHash String   @db.VarChar(255)
+  phoneNumber  String   @unique @db.VarChar(20) // Globally unique for USSD credentials lookup
+  role             UserRole
+  twoFactorSecret  String?  @db.VarChar(255)
+  isActive         Boolean  @default(true) @db.Boolean
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employee     Employee?
+  auditLogs    AuditLog[]
+
+  // Indexes & Constraints
+  @@unique([tenantId, email], name: "tenant_email_unique") // Strict tenant-level email uniqueness
+  @@index([tenantId]) // Index foreign key for optimal join performance
+  @@index([phoneNumber]) // Explicit index for fast USSD authentication
+  @@map("users") // Maps Prisma model to plural lowercase PostgreSQL table name
+}
+
+model Branch {
+  id                   String       @id @default(uuid()) @db.Uuid
+  tenantId             String       @db.Uuid
+  name                 String       @db.VarChar(255)
+  location             String?      @db.VarChar(255)
+  latitude             Decimal?     @db.Decimal(10, 8)
+  longitude            Decimal?     @db.Decimal(11, 8)
+  geofenceRadiusMeters Int          @default(100) @db.Integer
+  createdAt            DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime     @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  departments Department[]
+
+  @@index([tenantId])
+  @@index([tenantId, id])
+  @@map("branches")
+}
+
+model Department {
+  id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String     @db.Uuid
+  branchId  String     @db.Uuid
+  name      String     @db.VarChar(255)
+  createdAt DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  employees Employee[]
+
+  @@index([tenantId])
+  @@index([tenantId, id])
+  @@map("departments")
+}
+
+model Employee {
+  id                 String          @id @default(uuid()) @db.Uuid
+  tenantId           String          @db.Uuid
+  userId             String?         @unique @db.Uuid
+  departmentId       String          @db.Uuid
+  firstName          String          @db.VarChar(100)
+  lastName           String          @db.VarChar(100)
+  employeeIdNumber   String          @db.VarChar(50)
+  phoneNumber        String          @unique @db.VarChar(20)
+  baseSalary         Decimal         @db.Decimal(12, 2) // Decimal ensures high accuracy for payroll financial calculations
+  paymentMethod      PaymentMethod   @default(BANK)
+  bankName           String?         @db.VarChar(100)
+  bankAccount        String?         @db.VarChar(100)
+  bankCode           String?         @db.VarChar(50)
+  accountName        String?         @db.VarChar(150)
+  status             EmployeeStatus  @default(ACTIVE)
+  ussdPin            String?         @db.VarChar(4) @default("1234") // Default USSD PIN for simple frontend authorization
+  ussdPinHash        String?         @db.VarChar(255)
+  faydaNumber        String?         @unique @db.VarChar(12)
+  hireDate           DateTime        @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department         Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  attendances        Attendance[]
+  attendanceLogs     AttendanceLog[]
+  payrollLineItems   PayrollLineItem[]
+
+  // Composite indexes make searching incredibly fast within a company context
+  @@unique([tenantId, employeeIdNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([phoneNumber])
+  @@map("employees")
+}
+
+model Attendance {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tenantId             String    @db.Uuid
+  employeeId           String    @db.Uuid
+  date                 DateTime  @db.Date
+  checkInTime          DateTime  @db.Timestamptz(6)
+  checkOutTime         DateTime? @db.Timestamptz(6)
+  checkInLatitude      Decimal?  @db.Decimal(10, 8)
+  checkInLongitude     Decimal?  @db.Decimal(11, 8)
+  checkOutLatitude     Decimal?  @db.Decimal(10, 8)
+  checkOutLongitude    Decimal?  @db.Decimal(11, 8)
+  checkInMethod        String    @db.VarChar(50) // 'PWA' or 'USSD'
+  checkOutMethod       String?   @db.VarChar(50) // 'PWA' or 'USSD'
+  status               String    @db.VarChar(50) // 'PRESENT', 'ABSENT', 'LATE', 'INFRACTION', etc.
+  complianceInfraction Boolean   @default(false)
+  notes                String?   @db.Text
+  createdAt            DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee             Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date]) // Ensures atomic single-check-in per day per employee
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([date])
+  @@index([tenantId, date])
+  @@map("attendance")
+}
+
+enum AttendanceSource {
+  USSD
+  WEB_PWA
+}
+
+enum AttendanceType {
+  CLOCK_IN
+  CLOCK_OUT
+}
+
+model AttendanceLog {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @db.Uuid
+  employeeId    String           @db.Uuid
+  timestamp     DateTime         @default(now()) @db.Timestamptz(6)
+  type          AttendanceType
+  source        AttendanceSource
+  latitude      Decimal?         @db.Decimal(10, 8)
+  longitude     Decimal?         @db.Decimal(11, 8)
+  isAnomaly     Boolean          @default(false)
+  anomalyReason String?          @db.VarChar(255)
+  telemetry     Json             @default("{}")
+
+  // Relations
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, employeeId, timestamp])
+  @@map("attendance_logs")
+}
+
+enum PayrollStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DRAFT
+  AI_AUDITED
+  OWNER_APPROVED
+  PROCESSING_PAYOUT
+  PAID
+  PAYOUT_FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model PayrollRun {
+  id           String        @id @default(uuid()) @db.Uuid
+  tenantId     String        @db.Uuid
+  status       PayrollStatus @default(PENDING)
+  periodStart  DateTime      @db.Timestamptz(6)
+  periodEnd    DateTime      @db.Timestamptz(6)
+  totalGross   Decimal       @default(0) @db.Decimal(12, 2)
+  totalNet     Decimal       @default(0) @db.Decimal(12, 2)
+  totalTax     Decimal       @default(0) @db.Decimal(12, 2)
+  errorMessage String?       @db.Text
+  createdAt    DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payrollLineItems PayrollLineItem[]
+  aiAuditReport    AiAuditReport?
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("payroll_runs")
+}
+
+model PayrollLineItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  payrollRunId      String   @db.Uuid
+  employeeId        String   @db.Uuid
+  baseSalary        Decimal  @db.Decimal(12, 2)
+  taxableAllowances Decimal  @default(0) @db.Decimal(12, 2)
+  incomeTax         Decimal      @default(0) @db.Decimal(12, 2)
+  pensionDeduction  Decimal      @default(0) @db.Decimal(12, 2)
+  netPay            Decimal      @default(0) @db.Decimal(12, 2)
+  chapaReference    String?      @unique @db.VarChar(255)
+  payoutStatus      PayoutStatus @default(PENDING)
+  createdAt         DateTime     @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([payrollRunId])
+  @@index([employeeId])
+  @@map("payroll_line_items")
+}
+
+model AiAuditReport {
+  id                String   @id @default(uuid()) @db.Uuid
+  payrollRunId      String   @unique @db.Uuid
+  tenantId          String   @db.Uuid
+  totalLogsAnalyzed Int      @db.Integer
+  fraudRiskScore    Float    @db.DoublePrecision
+  flaggedEmployeeIds Json    @db.JsonB
+  insightsSummary   String   @db.Text
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("ai_audit_reports")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  action    String   @db.VarChar(255)
+  metadata  Json     @default("{}") @db.JsonB
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Append-only chronological index
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+model SubscriptionInvoice {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @db.Uuid
+  amount                Decimal  @db.Decimal(12, 2)
+  currency              String   @default("ETB") @db.VarChar(3)
+  billingPeriodStart    DateTime @db.Timestamptz(6)
+  billingPeriodEnd      DateTime @db.Timestamptz(6)
+  isPaid                Boolean  @default(false) @db.Boolean
+  chapaPaymentReference String?  @unique @db.VarChar(255)
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isPaid])
+  @@map("subscription_invoices")
+}

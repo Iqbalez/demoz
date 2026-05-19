@@ -1,0 +1,87 @@
+[
+  {
+    "id": "62c24152-5d7e-45c1-ac07-b0eb0fe05f2c",
+    "title": "Research Ethiopian Compliance Requirements",
+    "status": "done"
+  },
+  {
+    "id": "121be8d2-ee72-4307-820d-ae03cabd453e",
+    "title": "System Architecture and Schema Design",
+    "status": "done"
+  },
+  {
+    "id": "0d869983-4bbd-4c2b-97c5-d70995799dfd",
+    "title": "Research Payment Provider API Documentation",
+    "status": "done"
+  },
+  {
+    "id": "c21af2ba-1851-4ff4-a2f3-1ffe1c65b373",
+    "title": "Initialize Repo and Implement Core Compliance Engine",
+    "status": "done"
+  },
+  {
+    "id": "1b8fe224-e723-4a69-91aa-55c407ad8f8e",
+    "title": "Implement Attendance and Geofencing Module",
+    "status": "done"
+  },
+  {
+    "id": "1c19cb49-f1bc-447b-b9c0-a0a277c4bde7",
+    "title": "Research Ethiopian Tax Reporting & Payslip Standards",
+    "status": "done"
+  },
+  {
+    "id": "d72aed7c-63a7-4f3e-b006-f0db04e53785",
+    "title": "Implement Chapa Bulk Payment Integration",
+    "status": "done"
+  },
+  {
+    "id": "0d689238-3de0-4037-bd34-3e6f1c4f6f4e",
+    "title": "Define End-to-End Compliance & Payroll Workflow",
+    "status": "done"
+  },
+  {
+    "id": "5c9d3f05-909c-4fd0-ae04-ced4bdcaf768",
+    "title": "Research UI/UX Preferences for Ethiopian Market",
+    "status": "done"
+  },
+  {
+    "id": "11f7c693-f754-45f2-bef9-cfc6f43e3a54",
+    "title": "System Integrity Audit & Backend Refinement",
+    "status": "done"
+  },
+  {
+    "id": "967a0594-980f-4d01-89c3-82a91d94a7a6",
+    "title": "Frontend Initialization: Mobile & Admin Dashboard",
+    "status": "done"
+  },
+  {
+    "id": "348e85db-1622-4ae6-a746-31e653581867",
+    "title": "Expand Payslip Entity & Enhanced Breakdown API",
+    "status": "done"
+  },
+  {
+    "id": "e36be8c1-92dc-48c6-8fa4-ba81faeca4bc",
+    "title": "Frontend Integration: Authentication & Core Attendance Flow",
+    "status": "done"
+  },
+  {
+    "id": "7dc2010d-963e-487c-9f9a-2d3985d83d18",
+    "title": "Resolve Backend Compilation Errors & Build Fix",
+    "status": "review"
+  },
+  {
+    "id": "e7921eca-44c9-4267-9c5c-5e885f49c8fe",
+    "title": "Research 2026 Ethiopian Public Holidays",
+    "status": "done"
+  },
+  {
+    "id": "cf97c1f6-4151-43ce-a313-b05780e093c0",
+    "title": "Frontend: Payroll Approval View Implementation",
+    "status": "done"
+  },
+  {
+    "id": "8339c1a6-543b-488b-a661-2e37ff11399d",
+    "title": "Integrate 2026 Public Holidays into Compliance Engine",
+    "status": "in-progress"
+  }
+]

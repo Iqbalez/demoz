@@ -1,0 +1,5 @@
+[
+  {
+    "result": "{\"summary\":\"Researched and documented all Ethiopian public holidays for 2026 to support the overtime calculation engine.\\n\\nKey findings:\\n- **Total Holidays:** Identified 12 public holidays for 2026.\\n- **Calendar Mapping:** Provided both Gregorian and Ethiopic dates (2018/2019 E.C.) for all holidays.\\n- **Moveable Holidays:** Determined exact 2026 dates for Easter (Fasika), Good Friday (Siklet), Eid al-Fitr, Eid al-Adha, and Mawlid.\\n- **Holiday Overlap:** Noted that May 28, 2026, involves an overlap between the Downfall of the Derg and Eid al-Adha.\\n- **Compliance Rule:** Confirmed the 2.5x overtime multiplier for all identified dates.\\n\\nThe data is ready for the engineering team to populate the system's holiday calendar.\",\"artifacts\":[\"/home/team/shared/ethiopia_2026_holidays.md\"]}"
+  }
+]

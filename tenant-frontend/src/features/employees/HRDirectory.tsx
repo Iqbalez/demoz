@@ -1,0 +1,768 @@
+"use client";
+
+import React, { useState, useEffect, useTransition } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Skeleton } from "../../components/ui/skeleton";
+import { toast } from "../../components/ui/toast";
+
+export interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeIdNumber: string;
+  phoneNumber: string;
+  departmentName: string;
+  baseSalary: number;
+  faydaNumber: string;
+  status: "ACTIVE" | "SUSPENDED";
+  hireDate: string;
+  faydaVerified?: boolean;
+}
+
+export interface HRDirectoryProps {
+  employees: Employee[];
+  maxEmployees: number;
+  onAddEmployee: (employee: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => { success: boolean; message: string };
+  onUpdateEmployee: (id: string, updates: Partial<Employee>) => { success: boolean; message: string };
+}
+
+export default function HRDirectory({
+  employees,
+  maxEmployees,
+  onAddEmployee,
+  onUpdateEmployee,
+}: HRDirectoryProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  
+  // Local optimistic state for employees list
+  const [localEmployees, setLocalEmployees] = useState<Employee[]>(employees);
+
+  useEffect(() => {
+    setLocalEmployees(employees);
+  }, [employees]);
+
+  // Onboarding Wizard steps: 1 (Personal) | 2 (Financial) | 3 (Biometrics & Review)
+  const [wizardStep, setWizardStep] = useState(1);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+
+  // Form States (for onboarding and updates)
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [empId, setEmpId] = useState("");
+  const [phone, setPhone] = useState("");
+  const [department, setDepartment] = useState("Operations");
+  const [salary, setSalary] = useState("15000");
+  const [fayda, setFayda] = useState("");
+  const [status, setStatus] = useState<"ACTIVE" | "SUSPENDED">("ACTIVE");
+  const [faydaVerified, setFaydaVerified] = useState(true);
+
+  // Local URL filter inputs
+  const currentSearch = searchParams.get("search") || "";
+  const currentStatus = searchParams.get("status") || "ALL";
+  const currentPage = parseInt(searchParams.get("page") || "1", 10);
+  const itemsPerPage = 3;
+
+  const [searchInput, setSearchInput] = useState(currentSearch);
+
+  // Sync search parameters to the router URL
+  const updateUrlParams = (newParams: Record<string, string | number>) => {
+    startTransition(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(newParams).forEach(([key, val]) => {
+        if (val === "" || val === "ALL") {
+          params.delete(key);
+        } else {
+          params.set(key, String(val));
+        }
+      });
+      router.push(`${pathname}?${params.toString()}`);
+    });
+  };
+
+  // Perform search input query updates
+  useEffect(() => {
+    const delayDebounce = setTimeout(() => {
+      if (searchInput !== currentSearch) {
+        updateUrlParams({ search: searchInput, page: 1 });
+      }
+    }, 450);
+    return () => clearTimeout(delayDebounce);
+  }, [searchInput]);
+
+  // Filter & Paginate
+  const filteredEmployees = localEmployees.filter((emp) => {
+    const matchesSearch =
+      `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(currentSearch.toLowerCase()) ||
+      emp.employeeIdNumber.toLowerCase().includes(currentSearch.toLowerCase()) ||
+      emp.phoneNumber.includes(currentSearch);
+
+    const matchesStatus = currentStatus === "ALL" || emp.status === currentStatus;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const paginatedEmployees = filteredEmployees.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleOpenAddModal = () => {
+    if (localEmployees.length >= maxEmployees) {
+      toast.error(
+        "Plan seat limit reached!",
+        `You have used ${employees.length}/${maxEmployees} seats. Upgrade plan to expand.`
+      );
+      return;
+    }
+    setFirstName("");
+    setLastName("");
+    setEmpId(`EMP-${Math.floor(1000 + Math.random() * 9000)}`);
+    setPhone("09");
+    setSalary("15000");
+    setFayda("");
+    setWizardStep(1);
+    setShowAddModal(true);
+  };
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (!firstName || !lastName || !empId || !phone || !salary) {
+        toast.warning("Incomplete Fields", "Please populate all mandatory fields.");
+        return;
+      }
+
+      const result = onAddEmployee({
+        firstName,
+        lastName,
+        employeeIdNumber: empId,
+        phoneNumber: phone,
+        departmentName: department,
+        baseSalary: parseFloat(salary),
+        faydaNumber: fayda || `FYD-${Math.floor(100000 + Math.random() * 900000)}`,
+        status: "ACTIVE",
+      });
+
+      if (result.success) {
+        toast.success("Onboarding Completed", `${firstName} ${lastName} is now active.`);
+        setShowAddModal(false);
+      } else {
+        toast.error("Registry Failed", result.message);
+      }
+    } catch (err: any) {
+      toast.error("Internal Form Error", err.message || "An exception occurred.");
+    }
+  };
+
+  const handleOpenEditModal = (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setFirstName(emp.firstName);
+    setLastName(emp.lastName);
+    setEmpId(emp.employeeIdNumber);
+    setPhone(emp.phoneNumber);
+    setDepartment(emp.departmentName);
+    setSalary(emp.baseSalary.toString());
+    setFayda(emp.faydaNumber || "");
+    setStatus(emp.status);
+    setFaydaVerified(emp.faydaVerified !== false);
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmployee) return;
+
+    if (!firstName || !lastName || !phone || !salary) {
+      toast.warning("Incomplete Fields", "Please populate all mandatory fields.");
+      return;
+    }
+
+    // Capture previous state for rollback
+    const previousEmployees = [...localEmployees];
+
+    // 1. Optimistic Update (Immediate 0ms response)
+    const updatedEmployee: Employee = {
+      ...selectedEmployee,
+      firstName,
+      lastName,
+      phoneNumber: phone,
+      departmentName: department,
+      baseSalary: parseFloat(salary),
+      faydaNumber: fayda,
+      status: status,
+      faydaVerified: faydaVerified,
+    };
+
+    setLocalEmployees((prev) =>
+      prev.map((emp) => (emp.id === selectedEmployee.id ? updatedEmployee : emp))
+    );
+    setShowEditModal(false);
+
+    // 2. Dispatch to server in background
+    try {
+      const result = await onUpdateEmployee(selectedEmployee.id, {
+        firstName,
+        lastName,
+        phoneNumber: phone,
+        departmentName: department,
+        baseSalary: parseFloat(salary),
+        faydaNumber: fayda,
+        status: status,
+        faydaVerified: faydaVerified,
+      });
+
+      if (!result.success) {
+        // Rollback
+        setLocalEmployees(previousEmployees);
+        toast.error("Registry Sync Failed", `${result.message || "A constraint breach was detected."}. Rollback performed.`);
+      } else {
+        toast.success("Profile Updated", `${firstName}'s settings are synchronized.`);
+      }
+    } catch (err: any) {
+      // Rollback on exception
+      setLocalEmployees(previousEmployees);
+      toast.error("Sync Network Error", `SRE Synchronization failed. Registry state rolled back.`);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-slide-up">
+      {/* Upper Panel Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#0c1424] p-6 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl">
+        <div className="space-y-1">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-50 font-outfit">Employee Directory</h2>
+          <p className="text-xs text-slate-400">
+            Onboard enterprise staff, register biometric Fayda National IDs, and manage compliance.
+          </p>
+        </div>
+
+        <button
+          onClick={handleOpenAddModal}
+          className="px-4.5 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-2xl shadow-xl shadow-emerald-950/20 font-bold text-xs transition-all active:scale-[0.97] cursor-pointer flex items-center gap-1.5"
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+          </svg>
+          Onboard Biometric Employee
+        </button>
+      </div>
+
+      {/* Grid Filters */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 bg-white dark:bg-[#0c1424] p-4 rounded-2xl border border-slate-100 dark:border-zinc-800/80 shadow-lg">
+        <div className="relative flex-1 w-full">
+          <input
+            type="text"
+            placeholder="Search by worker name, employee ID, phone..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 focus:border-emerald-500"
+          />
+          <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider shrink-0 select-none">Status:</span>
+          <select
+            value={currentStatus}
+            onChange={(e) => updateUrlParams({ status: e.target.value, page: 1 })}
+            className="w-full sm:w-auto px-3 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-semibold focus:outline-none cursor-pointer"
+          >
+            <option value="ALL">All States</option>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="SUSPENDED">SUSPENDED</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Server-Side Synchronized Directory Table */}
+      <div className="rounded-3xl bg-white dark:bg-[#0c1424] overflow-hidden border border-slate-100 dark:border-zinc-800/80 shadow-2xl relative">
+        
+        {/* Dynamic Transition Loader Overlay */}
+        {isPending && (
+          <div className="absolute inset-0 bg-slate-100/20 dark:bg-black/10 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in" />
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 dark:bg-zinc-900/10 text-slate-400 dark:text-zinc-500 text-[10px] font-extrabold uppercase tracking-wider border-b border-slate-100 dark:border-zinc-800/80">
+                <th className="py-4 px-6">Employee Registry</th>
+                <th className="py-4 px-5">Enterprise ID</th>
+                <th className="py-4 px-5">Department Allocation</th>
+                <th className="py-4 px-5">Basic Salary (ETB)</th>
+                <th className="py-4 px-5">Fayda National Validation</th>
+                <th className="py-4 px-5 text-center">Status</th>
+                <th className="py-4 px-6 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-xs">
+              
+              {/* Render Transition Skeleton States */}
+              {isPending ? (
+                Array.from({ length: itemsPerPage }).map((_, idx) => (
+                  <tr key={idx} className="border-b">
+                    <td className="py-4 px-6 flex items-center gap-3">
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <div className="space-y-1">
+                        <Skeleton className="h-3.5 w-24" />
+                        <Skeleton className="h-2.5 w-20" />
+                      </div>
+                    </td>
+                    <td className="py-4 px-5"><Skeleton className="h-3 w-16" /></td>
+                    <td className="py-4 px-5"><Skeleton className="h-3.5 w-20" /></td>
+                    <td className="py-4 px-5"><Skeleton className="h-3.5 w-16" /></td>
+                    <td className="py-4 px-5"><Skeleton className="h-3 w-28" /></td>
+                    <td className="py-4 px-5 text-center"><Skeleton className="h-4 w-12 rounded-full mx-auto" /></td>
+                    <td className="py-4 px-6 text-right"><Skeleton className="h-7 w-16 rounded-lg ml-auto" /></td>
+                  </tr>
+                ))
+              ) : paginatedEmployees.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                    No active corporate employee records found matching query filters.
+                  </td>
+                </tr>
+              ) : (
+                paginatedEmployees.map((emp) => (
+                  <tr
+                    key={emp.id}
+                    className="hover:bg-slate-50/40 dark:hover:bg-zinc-900/5 transition-all text-slate-700 dark:text-zinc-200"
+                  >
+                    {/* Employee Profile */}
+                    <td className="py-4 px-6 flex items-center gap-3">
+                      <div className="w-8.5 h-8.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-extrabold text-xs select-none">
+                        {emp.firstName[0]}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-900 dark:text-zinc-100">
+                          {emp.firstName} {emp.lastName}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">{emp.phoneNumber}</div>
+                      </div>
+                    </td>
+                    {/* ID */}
+                    <td className="py-4 px-5 font-mono text-[10px] font-bold text-slate-800 dark:text-zinc-400">
+                      {emp.employeeIdNumber}
+                    </td>
+                    {/* Department */}
+                    <td className="py-4 px-5 font-medium">{emp.departmentName}</td>
+                    {/* Salary */}
+                    <td className="py-4 px-5 font-mono font-semibold">
+                      {emp.baseSalary.toLocaleString()} ETB
+                    </td>
+                    {/* Fayda National Biometrics */}
+                    <td className="py-4 px-5">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">{emp.faydaNumber}</span>
+                        {emp.faydaVerified !== false ? (
+                          <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-500 uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            ✓ Fayda Matched
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[8px] font-bold text-amber-500 uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            ● Verification Pending
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {/* Status */}
+                    <td className="py-4 px-5 text-center">
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                          emp.status === "ACTIVE"
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-red-500/10 text-red-600 border-red-500/20"
+                        }`}
+                      >
+                        {emp.status}
+                      </span>
+                    </td>
+                    {/* Actions */}
+                    <td className="py-4 px-6 text-right">
+                      <button
+                        onClick={() => handleOpenEditModal(emp)}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 rounded-xl text-[10px] font-bold transition-all active:scale-95 cursor-pointer shadow-sm border border-slate-200/40 dark:border-zinc-800/40"
+                      >
+                        Settings
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Server-Side Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center px-6 py-4 bg-slate-50/50 dark:bg-zinc-900/10 border-t border-slate-100 dark:border-zinc-800/80 text-xs">
+            <span className="text-slate-400 font-semibold">
+              Showing page {currentPage} of {totalPages} ({filteredEmployees.length} filtered results)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1 || isPending}
+                onClick={() => updateUrlParams({ page: currentPage - 1 })}
+                className="px-3 py-1.5 bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                disabled={currentPage === totalPages || isPending}
+                onClick={() => updateUrlParams({ page: currentPage + 1 })}
+                className="px-3 py-1.5 bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3-STEP BIOMETRIC ONBOARDING WIZARD MODAL */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
+            
+            {/* Modal Wizard Header */}
+            <div className="p-5 border-b border-slate-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950/20">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-50 font-outfit">Biometric Worker Onboarding</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Wizard Step {wizardStep} of 3</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-zinc-100 cursor-pointer">✕</button>
+            </div>
+
+            {/* Stepper Progress Bar */}
+            <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-300"
+                style={{ width: `${(wizardStep / 3) * 100}%` }}
+              />
+            </div>
+
+            <form onSubmit={handleAddSubmit} className="p-5 space-y-4">
+              
+              {/* Wizard Step 1: Personal Details */}
+              {wizardStep === 1 && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase">Step 1: Personal Identity</span>
+                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">Gather essential biographical information and department assignments.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">First Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs dark:text-zinc-100 focus:outline-none focus:border-emerald-500"
+                        placeholder="Abebe"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Last Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs dark:text-zinc-100 focus:outline-none focus:border-emerald-500"
+                        placeholder="Kebede"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Employee ID (Generated)</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={empId}
+                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono font-semibold focus:outline-none select-none text-slate-400"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Phone</label>
+                      <input
+                        type="text"
+                        required
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none text-mono"
+                        placeholder="0911000000"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Department Allocation</label>
+                    <select
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none cursor-pointer font-medium"
+                    >
+                      <option value="Operations">Operations</option>
+                      <option value="Tech / Engineering">Tech & Engineering</option>
+                      <option value="Finance">Finance</option>
+                      <option value="HR / Admin">HR / Admin</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(2)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
+                    >
+                      Next: Financial Package →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Wizard Step 2: Financial Details */}
+              {wizardStep === 2 && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase">Step 2: Financial Package</span>
+                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">Determine compensation metrics for compliant Ethiopian tax computation.</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Base Salary (ETB)</label>
+                    <input
+                      type="number"
+                      required
+                      value={salary}
+                      onChange={(e) => setSalary(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 font-semibold"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Payment Method</label>
+                      <select className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none font-medium">
+                        <option value="BANK">Bank Transfer</option>
+                        <option value="CHAPA_WALLET">Chapa Wallet</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Bank Name Code</label>
+                      <input
+                        type="text"
+                        defaultValue="961"
+                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none text-slate-400 select-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(1)}
+                      className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(3)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
+                    >
+                      Next: Biometrics & Review →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Wizard Step 3: Biometrics & Review */}
+              {wizardStep === 3 && (
+                <div className="space-y-4">
+                  <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
+                    <span className="text-[9px] text-purple-600 dark:text-purple-400 font-extrabold uppercase">Step 3: Biometric Credentials</span>
+                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">Validate the national biometric card signature via Fayda system APIs.</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda National ID</label>
+                    <input
+                      type="text"
+                      required
+                      value={fayda}
+                      onChange={(e) => setFayda(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono focus:outline-none dark:text-zinc-100 focus:border-emerald-500"
+                      placeholder="FYD-192837465"
+                    />
+                  </div>
+
+                  <div className="p-4 bg-slate-50 dark:bg-zinc-950/20 border border-slate-100 dark:border-zinc-800 rounded-2xl text-[10px] space-y-2 select-none">
+                    <div className="font-bold text-slate-800 dark:text-zinc-300 font-outfit border-b pb-1 dark:border-zinc-800/80">Worker Summary Review:</div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-400 font-semibold">
+                      <div>Name: <span className="text-slate-700 dark:text-zinc-200 font-bold">{firstName} {lastName}</span></div>
+                      <div>Phone: <span className="text-slate-700 dark:text-zinc-200 font-mono font-bold">{phone}</span></div>
+                      <div>Gross: <span className="text-emerald-500 font-bold">{parseFloat(salary || "0").toLocaleString()} ETB</span></div>
+                      <div>Dept: <span className="text-slate-700 dark:text-zinc-200 font-bold">{department}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(2)}
+                      className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
+                    >
+                      ✓ Finalize Onboard
+                    </button>
+                  </div>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PROFILE MODAL */}
+      {showEditModal && selectedEmployee && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
+            
+            <div className="p-5 border-b border-slate-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950/20">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-50 font-outfit">Update Employee settings</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-zinc-100 cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">First Name</label>
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Last Name</label>
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Phone</label>
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Base Salary (ETB)</label>
+                  <input
+                    type="number"
+                    value={salary}
+                    onChange={(e) => setSalary(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Department</label>
+                  <select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none font-semibold cursor-pointer"
+                  >
+                    <option value="Operations">Operations</option>
+                    <option value="Tech / Engineering">Tech / Engineering</option>
+                    <option value="Finance">Finance</option>
+                    <option value="HR / Admin">HR / Admin</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda Verification</label>
+                  <select
+                    value={faydaVerified ? "true" : "false"}
+                    onChange={(e) => setFaydaVerified(e.target.value === "true")}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none font-semibold cursor-pointer"
+                  >
+                    <option value="true">Biometrics Verified</option>
+                    <option value="false">Unverified Profile</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Status</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as "ACTIVE" | "SUSPENDED")}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none font-semibold cursor-pointer"
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="SUSPENDED">SUSPENDED</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda Number</label>
+                  <input
+                    type="text"
+                    value={fayda}
+                    onChange={(e) => setFayda(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono focus:outline-none dark:text-zinc-100"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
+                >
+                  Save Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
