@@ -4,7 +4,9 @@
   "description": "",
   "author": "",
   "private": true,
-  "license": "UNLICENSED",
+  "prisma": {
+    "schema": "../prisma/schema.prisma"
+  },
   "scripts": {
     "build": "npx prisma generate --schema=../prisma/schema.prisma && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
