@@ -1,4 +1,13 @@
 {
+  "name": "demoz-root",
+  "private": true,
+  "scripts": {
+    "install": "cd tenant-backend && npm install",
+    "build": "cd tenant-backend && npm run build",
+    "start": "cd tenant-backend && npm run start",
+    "start:dev": "cd tenant-backend && npm run start:dev",
+    "start:prod": "cd tenant-backend && npm run start:prod"
+  },
   "dependencies": {
     "@prisma/client": "^7.8.0",
     "class-transformer": "^0.5.1",
