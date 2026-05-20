@@ -1,5 +1,0 @@
-[
-  {
-    "result": "{\"summary\":\"**BUILD SUCCEEDED** - Clean build with exit code 0.\\n\\nFixed all compilation errors:\\n1. **`@nestjs/testing` missing** - Already installed `@nestjs/testing@10.4.22` as devDependency. NestJS build now succeeds.\\n\\n2. **`checkOutLocation` type mismatch** - Entity already has `geofenceId: string | null`; the direct assignment was causing issues due to TypeScript's strict narrowing. Changed assignment to direct: `record.checkOutLocation = { lat: location.lat, lng: location.lng, geofenceId: geofence?.id ?? null };`\\n\\n3. **Test file imports** - Already corrected to `../services/payment.service` and `../services/chapa.service`.\\n\\nAll production code in `attendance/`, `auth/`, `common/`, `payment/`, `payroll/`, `user/` compiled to dist/ successfully.\\n\\nNow proceeding to integrate 2026 public holidays into compliance engine.\",\"artifacts\":[\"/home/team/shared/demoz-api/dist/\",\"/home/team/shared/demoz-api/src/payment/__tests__/payment.service.spec.ts\",\"/home/team/shared/demoz-api/src/attendance/entities/attendance-record.entity.ts\"]}"
-  }
-]
