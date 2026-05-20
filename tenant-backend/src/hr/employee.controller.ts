@@ -23,12 +23,14 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { FaydaOidcService } from './fayda-oidc.service';
 
 @Controller('employees')
 export class EmployeeController {
   constructor(
     private readonly employeeService: EmployeeService,
     @InjectQueue('fayda-queue') private readonly faydaQueue: Queue,
+    private readonly oidcService: FaydaOidcService,
   ) {}
 
   @Get()
@@ -96,5 +98,62 @@ export class EmployeeController {
       throw new BadRequestException('A spreadsheet/CSV file upload is required.');
     }
     return this.employeeService.bulkUpload(file.buffer);
+  }
+
+  /**
+   * Generates standard MOSIP eSignet OIDC authorization redirect URL.
+   */
+  @Get('fayda/auth-url')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  getFaydaAuthUrl(
+    @Query('clientId') clientId?: string,
+    @Query('redirectUri') redirectUri?: string,
+    @Query('state') state?: string,
+  ) {
+    const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || '${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees';
+    return {
+      url: this.oidcService.getAuthUrl(cid, ruri, state),
+    };
+  }
+
+  /**
+   * eSignet OIDC Callback Handler - exchanges authorization code for verified demographic claims.
+   */
+  @Post('fayda/callback')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async handleFaydaCallback(
+    @Body('code') code: string,
+    @Body('clientId') clientId?: string,
+    @Body('clientSecret') clientSecret?: string,
+    @Body('redirectUri') redirectUri?: string,
+  ) {
+    if (!code) {
+      throw new BadRequestException('OIDC authorization code is required.');
+    }
+    const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
+    const csec = clientSecret || process.env.FAYDA_CLIENT_SECRET || 'demoz_secret';
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || '${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees';
+
+    return this.oidcService.exchangeCodeAndGetClaims(code, cid, csec, ruri);
+  }
+
+  @Get('fayda/callback')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async handleFaydaCallbackGet(
+    @Query('code') code: string,
+    @Query('clientId') clientId?: string,
+    @Query('clientSecret') clientSecret?: string,
+    @Query('redirectUri') redirectUri?: string,
+  ) {
+    if (!code) {
+      throw new BadRequestException('OIDC authorization code is required.');
+    }
+    const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
+    const csec = clientSecret || process.env.FAYDA_CLIENT_SECRET || 'demoz_secret';
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || '${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees';
+
+    return this.oidcService.exchangeCodeAndGetClaims(code, cid, csec, ruri);
   }
 }

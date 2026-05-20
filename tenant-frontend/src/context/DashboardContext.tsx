@@ -24,6 +24,7 @@ interface DashboardContextProps {
     attendanceRate: number;
     monthlyPayroll: number;
     planTier: string;
+    companyName: string;
   };
   backendStatus: "CONNECTED" | "MOCK";
   isThemeDark: boolean;
@@ -40,7 +41,7 @@ const DashboardContext = createContext<DashboardContextProps | undefined>(undefi
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [backendStatus, setBackendStatus] = useState<"CONNECTED" | "MOCK">("MOCK");
-  const [isThemeDark, setIsThemeDark] = useState(true);
+  const [isThemeDark, setIsThemeDark] = useState(false);
 
   // Stats State
   const [stats, setStats] = useState({
@@ -48,8 +49,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     maxEmployees: 10,
     attendanceRate: 92,
     monthlyPayroll: 97500,
-    planTier: "FREE",
+    planTier: "GROWTH",
+    companyName: "qali",
   });
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedTier = localStorage.getItem("demoz_tier");
+      const storedCompany = localStorage.getItem("demoz_company");
+      if (storedTier || storedCompany) {
+        setStats(prev => ({
+          ...prev,
+          planTier: storedTier || prev.planTier,
+          companyName: storedCompany || prev.companyName,
+          maxEmployees: storedTier === "ENTERPRISE" ? 1000 : storedTier === "GROWTH" ? 50 : 10
+        }));
+      }
+    }
+  }, []);
 
   // Seed Employees
   const [employees, setEmployees] = useState<Employee[]>([
@@ -179,7 +197,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const res = await fetch("http://localhost:3001/company-data/login-test", {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}`}/company-data/login-test`, {
           method: "GET",
           headers: { "Content-Type": "application/json" },
         });

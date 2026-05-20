@@ -5,15 +5,18 @@ import { PrismaService } from '../prisma.service';
 import { SubscriptionModule } from '../subscription/subscription.module';
 import { BullModule } from '@nestjs/bullmq';
 import { FaydaProcessor } from './fayda.processor';
+import { FaydaOidcService } from './fayda-oidc.service';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
     SubscriptionModule,
+    JwtModule.register({}),
     BullModule.registerQueue({
       name: 'fayda-queue',
     }),
   ],
   controllers: [EmployeeController],
-  providers: [EmployeeService, PrismaService, FaydaProcessor],
+  providers: [EmployeeService, PrismaService, FaydaProcessor, FaydaOidcService],
 })
 export class HrModule {}

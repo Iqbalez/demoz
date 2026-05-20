@@ -3,7 +3,9 @@ import { BullModule } from '@nestjs/bullmq';
 import { PayrollController } from './payroll.controller';
 import { PayrollProcessor } from './payroll.processor';
 import { AiAuditService } from './ai-audit.service';
+import { OvertimeService } from './overtime.service';
 import { PrismaService } from '../prisma.service';
+import { ReportsController } from './reports.controller';
 
 @Module({
   imports: [
@@ -11,8 +13,8 @@ import { PrismaService } from '../prisma.service';
       name: 'payroll-queue',
     }),
   ],
-  controllers: [PayrollController],
-  providers: [PayrollProcessor, AiAuditService, PrismaService],
-  exports: [AiAuditService],
+  controllers: [PayrollController, ReportsController],
+  providers: [PayrollProcessor, AiAuditService, OvertimeService, PrismaService],
+  exports: [AiAuditService, OvertimeService],
 })
 export class PayrollModule {}

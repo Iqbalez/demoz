@@ -1,250 +1,413 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ToastProvider, toast } from "../components/ui/toast";
 
-function BiometricLoginContent() {
+function LandingPageContent() {
   const router = useRouter();
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [pinCode, setPinCode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Biometric toggle simulation
-  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<"BASIC" | "GROWTH" | "ENTERPRISE">("BASIC");
+  const [loading, setLoading] = useState(false);
 
-  // Auto load biometric state if set previously
-  useEffect(() => {
-    const enabled = localStorage.getItem("demoz_biometrics") === "true";
-    setBiometricsEnabled(enabled);
-    if (enabled) {
-      const storedPhone = localStorage.getItem("demoz_phone") || "";
-      setPhoneNumber(storedPhone);
-    }
-  }, []);
+  // Sign up Form states
+  const [companyName, setCompanyName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pin, setPin] = useState("");
 
-  const handleManualLogin = (e: React.FormEvent) => {
+  const handleSelectPlan = (plan: "BASIC" | "GROWTH" | "ENTERPRISE") => {
+    setSelectedPlan(plan);
+    setModalOpen(true);
+  };
+
+  const handleRegisterSubscription = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phoneNumber || pinCode.length !== 4) {
-      toast.warning("Verification Blocked", "Please enter a valid Phone and 4-digit security PIN.");
+    if (!companyName || !email || !phone || pin.length !== 4) {
+      toast.warning("Validation Failed", "Please fill in all company information and provide a 4-digit PIN.");
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      localStorage.setItem("demoz_phone", phoneNumber);
-      
-      if (!biometricsEnabled) {
-        // Prompt biometrics setup dialog
-        const enable = window.confirm("Enable quick biometrics (Touch/Face ID simulation) for faster future logins?");
-        if (enable) {
-          localStorage.setItem("demoz_biometrics", "true");
-          setBiometricsEnabled(true);
-        }
+    setLoading(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}`}/subscription/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tier: selectedPlan,
+          companyName,
+          email,
+          phone,
+          pin,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success("Subscription Registered", "Redirecting to secure payment portal...");
+        setTimeout(() => {
+          window.location.href = data.checkoutUrl;
+        }, 1500);
+      } else {
+        toast.error("Checkout Failure", data.message || "Failed to initialize payment.");
       }
-
-      toast.success("Security Cleared", "Welcome back to Demoz Enterprise Portal.");
-      router.push("/dashboard");
-    }, 1200);
-  };
-
-  const handleTriggerBiometricScan = () => {
-    if (!biometricsEnabled) {
-      toast.info("Biometrics Setup Required", "Log in manually with your PIN first to link biometrics.");
-      return;
+    } catch (err) {
+      // Fallback offline simulation bypass for testing convenience
+      toast.info("Offline Mode", "Simulation: Provisioning workspace and launching B2B console.");
+      setTimeout(() => {
+        router.push(`/login?signup_success=true&tenant_id=tenant-${Date.now()}&phone=${encodeURIComponent(phone)}`);
+      }, 1500);
+    } finally {
+      setLoading(false);
     }
-
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      toast.success("Touch ID Matched", "Biometric signature validated.");
-      router.push("/dashboard");
-    }, 1500);
-  };
-
-  const appendPinDigit = (digit: string) => {
-    if (pinCode.length < 4) {
-      setPinCode((prev) => prev + digit);
-    }
-  };
-
-  const clearPinDigit = () => {
-    setPinCode((prev) => prev.slice(0, -1));
   };
 
   return (
-    <div className="min-h-screen bg-[#070b13] flex flex-col justify-between p-6 relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#070b13] text-slate-900 dark:text-zinc-100 flex flex-col relative overflow-x-hidden font-outfit select-none transition-colors scroll-smooth">
       
-      {/* Background visual graphics */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] aspect-square rounded-full bg-emerald-500/10 blur-[150px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] aspect-square rounded-full bg-teal-500/10 blur-[150px] pointer-events-none" />
+      {/* Decorative Blur Background Graphics */}
+      <div className="absolute top-[-20%] right-[-10%] w-[60%] aspect-square rounded-full bg-emerald-500/10 blur-[180px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[50%] aspect-square rounded-full bg-teal-500/10 blur-[180px] pointer-events-none" />
 
-      {/* Header Brand logo */}
-      <header className="flex justify-between items-center z-10">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent font-outfit tracking-tight">
-            Demoz B2B
-          </span>
-          <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 uppercase tracking-widest">
-            PRO SECURE
-          </span>
-        </div>
+      {/* Navigation Header */}
+      <header className="border-b border-slate-200/80 dark:border-zinc-800/60 bg-white/70 dark:bg-[#070b13]/70 backdrop-blur-xl sticky top-0 z-30 px-6 py-4 flex justify-between items-center w-full transition-colors">
+        <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-500 dark:to-teal-400 bg-clip-text text-transparent tracking-tight">
+              Demoz Workforce Cloud
+            </span>
+            <span className="text-[8px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 uppercase tracking-widest hidden sm:inline-block">
+              PRO PLATFORM
+            </span>
+          </div>
 
-        <div className="text-[10px] text-slate-400 font-mono">
-          System: <span className="text-emerald-500 font-bold">ONLINE ✓</span>
+          <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <a href="#features" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">Platform Features</a>
+            <a href="#compliance" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">Compliance Hub</a>
+            <a href="#pricing" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">Pricing Plans</a>
+          </nav>
+
+          <button
+            onClick={() => router.push("/login")}
+            className="px-5 py-2 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-950 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm hover:shadow-md active:scale-95"
+          >
+            Client Portal →
+          </button>
         </div>
       </header>
 
-      {/* Main glassmorphic console body */}
-      <main className="flex-1 flex items-center justify-center py-10 z-10">
-        <div className="w-full max-w-md bg-[#0c1424]/60 border border-zinc-800/80 rounded-3xl p-6 md:p-8 backdrop-blur-xl shadow-2xl flex flex-col justify-between gap-6 min-h-[500px]">
+      {/* 1. Hero Section */}
+      <section className="relative z-10 max-w-5xl mx-auto w-full px-6 py-24 md:py-32 text-center space-y-8">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest mx-auto shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          Proclamation No. 1395/2025 Compliant
+        </div>
+        
+        <h1 className="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white">
+          Intelligent HR & Payroll for <br className="hidden md:block"/> Modern Ethiopian Enterprises
+        </h1>
+        
+        <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+          Streamline your workforce management with a unified cloud platform. From verified geofenced attendance to automated tax compliance and seamless bulk disbursements via Chapa.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
+          <button
+            onClick={() => {
+              document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="px-8 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/20 dark:shadow-emerald-900/30 transition-all cursor-pointer active:scale-95 w-full sm:w-auto"
+          >
+            Explore Subscription Plans
+          </button>
+          <button
+            onClick={() => router.push("/login")}
+            className="px-8 py-3.5 border border-slate-200 dark:border-zinc-800 hover:border-slate-300 dark:hover:border-zinc-700 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm text-slate-700 dark:text-slate-300 font-bold text-sm rounded-xl transition-all cursor-pointer active:scale-95 shadow-sm w-full sm:w-auto"
+          >
+            Enter Sandbox Portal
+          </button>
+        </div>
+      </section>
+
+      {/* 2. Features Grid */}
+      <section id="features" className="relative z-10 max-w-7xl mx-auto w-full px-6 py-20 border-t border-slate-200 dark:border-zinc-900/60">
+        <div className="text-center space-y-3 mb-16">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Seamless Compliance Built-In</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Everything you need to manage your workforce according to Ethiopian labor standards.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          <div className="text-center space-y-1.5">
-            <h2 className="text-lg font-bold text-zinc-100 font-outfit">Enterprise Terminal Access</h2>
-            <p className="text-[10px] text-slate-400">
-              Compliant payroll administration for corporate factories and retail networks.
+          <div className="bg-white dark:bg-[#0c1424]/40 border border-slate-200 dark:border-zinc-800/60 rounded-3xl p-8 space-y-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl flex items-center justify-center text-xl text-emerald-600 dark:text-emerald-400">⚖️</div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100">Schedule A Tax Engine</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              Dynamically enforce progressive tax bands and handle POESSA pension deductions, cleanly mapped to the latest ERCA regulations.
             </p>
           </div>
 
-          {/* Interactive Biometrics quick login trigger */}
-          {biometricsEnabled && (
-            <div className="flex flex-col items-center justify-center p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl animate-fade-in text-center space-y-3">
-              <div 
-                onClick={handleTriggerBiometricScan}
-                className={`w-16 h-16 rounded-full border border-emerald-500/20 bg-emerald-500/10 flex items-center justify-center text-3xl cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition-all duration-300 relative select-none ${
-                  isScanning ? "animate-pulse border-emerald-400" : ""
-                }`}
-              >
-                <span>👤</span>
-                {isScanning && (
-                  <div className="absolute inset-0 border-2 border-emerald-400 rounded-full animate-ping pointer-events-none" />
-                )}
-              </div>
-              <div>
-                <button
-                  type="button"
-                  onClick={handleTriggerBiometricScan}
-                  className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 uppercase tracking-widest cursor-pointer"
-                >
-                  {isScanning ? "Scanning touch signature..." : "Click to Scan Touch ID"}
-                </button>
-                <p className="text-[9px] text-slate-500 mt-1">Biometrics linked with phone {phoneNumber}</p>
+          <div className="bg-white dark:bg-[#0c1424]/40 border border-slate-200 dark:border-zinc-800/60 rounded-3xl p-8 space-y-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center text-xl text-blue-600 dark:text-blue-400">📍</div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100">Geofenced Attendance</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              Ensure physical presence with GPS-verified check-ins for industrial parks and branches. Includes offline syncing and telemetry analytics.
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-[#0c1424]/40 border border-slate-200 dark:border-zinc-800/60 rounded-3xl p-8 space-y-5 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 bg-teal-50 dark:bg-teal-500/10 rounded-2xl flex items-center justify-center text-xl text-teal-600 dark:text-teal-400">💸</div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100">Automated Chapa Payouts</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              Process monthly payrolls efficiently with one-click bulk transfers, chunked processing, and direct API hooks into major Ethiopian banks.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      {/* 3. The Platform Visual */}
+      <section id="compliance" className="bg-slate-100/50 dark:bg-zinc-900/30 py-12 relative z-10 border-y border-slate-200 dark:border-zinc-900/60">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+          <div className="order-2 lg:order-1 relative">
+            <div className="absolute inset-0 bg-emerald-500/10 blur-3xl rounded-full" />
+            <div className="bg-white dark:bg-[#070b13] border border-slate-200 dark:border-zinc-800 p-2 rounded-3xl shadow-2xl relative">
+              <div className="aspect-[4/3] rounded-2xl bg-slate-50 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+                <img 
+                  src="/dashboard-mockup.png" 
+                  alt="Demoz Workforce Dashboard Mockup" 
+                  className="w-full h-full object-cover rounded-xl shadow-inner border border-slate-200 dark:border-zinc-800"
+                />
               </div>
             </div>
-          )}
+          </div>
+          <div className="order-1 lg:order-2 space-y-6">
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-white">A Masterful Workspace for HR Teams</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              We abstracted away the complex mathematics of labor laws so your team can focus on people. The Demoz dashboard provides real-time oversight into departmental attendance, leave requests, and overall financial health.
+            </p>
+            <ul className="space-y-4 text-sm text-slate-700 dark:text-slate-300">
+              <li className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xs">✓</div>
+                English & Amharic Printable Payslips
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xs">✓</div>
+                Mobile Interface for Employees (PWA)
+              </li>
+              <li className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-xs">✓</div>
+                Bank-ready bulk CSV exports
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
-          {/* Manual input authentication */}
-          <form onSubmit={handleManualLogin} className="space-y-4">
-            <div className="space-y-3">
+      {/* 4. Pricing / Action */}
+      <section id="pricing" className="py-16 relative z-10">
+        <div className="max-w-6xl mx-auto px-6 space-y-12">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Transparent Pricing for Every Scale</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Fixed monthly tiers. No hidden transactional fees.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+
+            {/* Basic Plan */}
+            <div className="bg-white dark:bg-[#0c1424]/40 border border-slate-200 dark:border-zinc-800/60 rounded-3xl p-8 flex flex-col justify-between gap-8 transition-all hover:shadow-lg hover:border-slate-300 dark:hover:border-zinc-700">
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Basic</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black text-slate-900 dark:text-white">3,000</span>
+                  <span className="text-xs text-slate-500 font-bold">ETB / mo</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-zinc-800/60 pb-4">
+                  Essential tools for growing teams.
+                </p>
+                <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Up to 10 Employees</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Legal Tax/Pension Engine</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Email Support</span></div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleSelectPlan("BASIC")}
+                className="w-full py-3 bg-slate-100 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-800 dark:text-white text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95"
+              >
+                Select Basic Plan
+              </button>
+            </div>
+
+            {/* Growth Plan - Highlighted */}
+            <div className="bg-white dark:bg-[#0c1424] border border-emerald-500/30 dark:border-emerald-500/30 rounded-3xl p-8 flex flex-col justify-between gap-8 relative shadow-2xl shadow-emerald-500/5 dark:shadow-emerald-900/20 transform md:-translate-y-4">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-emerald-100 dark:bg-emerald-500 text-emerald-700 dark:text-white text-[10px] font-bold uppercase tracking-widest px-4 py-1 rounded-full shadow-sm">
+                Most Popular
+              </div>
               
-              <div className="space-y-1 text-xs">
-                <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Corporate Phone Number</label>
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Growth</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-5xl font-black text-slate-900 dark:text-white">5,000</span>
+                  <span className="text-xs text-slate-500 font-bold">ETB / mo</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-zinc-800/60 pb-4">
+                  Advanced features for established companies.
+                </p>
+                <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300 font-bold">Up to 50 Employees</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Geofenced Attendance</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Leave & Absence Manager</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Chapa Bulk Payouts</span></div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleSelectPlan("GROWTH")}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer active:scale-95"
+              >
+                Select Growth Plan
+              </button>
+            </div>
+
+            {/* Enterprise Plan */}
+            <div className="bg-white dark:bg-[#0c1424]/40 border border-slate-200 dark:border-zinc-800/60 rounded-3xl p-8 flex flex-col justify-between gap-8 transition-all hover:shadow-lg hover:border-slate-300 dark:hover:border-zinc-700">
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Enterprise</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black text-slate-900 dark:text-white">10,000</span>
+                  <span className="text-xs text-slate-500 font-bold">ETB / mo</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed border-b border-slate-100 dark:border-zinc-800/60 pb-4">
+                  For large-scale factory networks.
+                </p>
+                <div className="space-y-3 text-xs text-slate-700 dark:text-slate-300 pt-2">
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Up to 1,000 Employees</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">Dedicated Database</span></div>
+                  <div className="flex items-center gap-2 text-emerald-500">✓ <span className="text-slate-700 dark:text-slate-300">24/7 Priority SLAs</span></div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleSelectPlan("ENTERPRISE")}
+                className="w-full py-3 bg-slate-100 dark:bg-zinc-800/80 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-800 dark:text-white text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95"
+              >
+                Select Enterprise Plan
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* Subscription Modal Form */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="w-full max-w-md max-h-[95vh] overflow-y-auto bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800/60 p-6 md:p-8 rounded-[2rem] shadow-2xl space-y-6 animate-slide-up relative">
+            <button
+              onClick={() => setModalOpen(false)}
+              className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center text-xl mx-auto mb-4">🚀</div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">Workspace Registration</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                You selected the <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedPlan}</span> package. Let's get your corporate account set up.
+              </p>
+            </div>
+
+            <form onSubmit={handleRegisterSubscription} className="space-y-4 pt-2">
+              
+              <div className="space-y-1.5 text-xs">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Company Legal Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Hawassa Apparel PLC"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 rounded-xl text-sm text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-xs">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Administrator Email</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 rounded-xl text-sm text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-xs">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Contact Phone</label>
                 <input
                   type="text"
                   required
                   placeholder="0911000000"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 font-mono text-center tracking-wider focus:outline-none focus:border-emerald-500"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 rounded-xl text-sm text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
                 />
               </div>
 
-              <div className="space-y-1 text-xs">
-                <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">4-Digit Security PIN</label>
+              <div className="space-y-1.5 text-xs">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Create 4-Digit Security PIN</label>
                 <input
                   type="password"
                   required
                   maxLength={4}
                   placeholder="••••"
-                  value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-lg text-zinc-100 font-mono text-center tracking-[1em] pl-[1.4em] focus:outline-none focus:border-emerald-500"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 rounded-xl text-lg text-slate-900 dark:text-zinc-100 font-mono text-center tracking-[1em] pl-[1.4em] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm"
                 />
+                <p className="text-[9px] text-slate-500 dark:text-slate-400 text-center">You will use this PIN to log in.</p>
               </div>
 
-            </div>
+              <div className="bg-slate-50 dark:bg-zinc-900/50 border border-slate-200 dark:border-zinc-800 rounded-xl p-4 flex justify-between items-center text-xs mt-6">
+                <span className="font-bold text-slate-600 dark:text-slate-400">Total Due Today</span>
+                <span className="font-bold text-slate-900 dark:text-white text-base">
+                  {selectedPlan === "BASIC" ? "3,000" : selectedPlan === "GROWTH" ? "5,000" : "10,000"} ETB
+                </span>
+              </div>
 
-            {/* Custom Interactive PIN Pad */}
-            <div className="grid grid-cols-3 gap-2 py-2 select-none">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((digit) => (
-                <button
-                  key={digit}
-                  type="button"
-                  onClick={() => appendPinDigit(digit)}
-                  className={`py-2 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-mono font-bold transition-all cursor-pointer active:scale-95 border border-zinc-800/40 ${
-                    digit === "0" ? "col-span-2" : ""
-                  }`}
-                >
-                  {digit}
-                </button>
-              ))}
               <button
-                type="button"
-                onClick={clearPinDigit}
-                className="py-2 bg-red-950/20 hover:bg-red-950/30 text-red-400 rounded-xl text-[10px] font-bold transition-all cursor-pointer active:scale-95 border border-red-900/20"
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-md transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 mt-2 flex justify-center items-center gap-2"
               >
-                Clear
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    Connecting...
+                  </>
+                ) : (
+                  "Proceed to Checkout →"
+                )}
               </button>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading || isScanning}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-950/35 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
-            >
-              {isLoading ? "Validating credentials..." : "Access Corporate Console →"}
-            </button>
-          </form>
-
-          {/* Quick links */}
-          <div className="flex justify-between items-center text-[9px] text-slate-500 border-t border-zinc-800/60 pt-4">
-            <span className="hover:text-zinc-300 cursor-pointer">Regulatory Guide</span>
-            <span 
-              onClick={() => {
-                localStorage.clear();
-                setBiometricsEnabled(false);
-                setPhoneNumber("");
-                setPinCode("");
-                toast.info("Cache Purged", "Simulated biometric tokens cleared.");
-              }}
-              className="hover:text-red-400 cursor-pointer"
-            >
-              Reset Session
-            </span>
-          </div>
-
-        </div>
-      </main>
-
-      {/* Footer copyright */}
-      <footer className="text-center text-[9px] text-slate-500 z-10 select-none">
-        © 2026 Demoz B2B SaaS Platform. Powered by secure CBE & Chapa APIs. Hawassa & Bole Lemi Industrial Parks Compliance.
-      </footer>
-
-      {/* DISBURSING PROGRESS SPLASH OVERLAY */}
-      {isLoading && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-xs bg-[#0c1424] border border-zinc-800 p-6 rounded-3xl shadow-2xl text-center space-y-4 animate-slide-up">
-            <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <div>
-              <h3 className="text-sm font-bold text-zinc-100 font-outfit">Symmetric PIN match</h3>
-              <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
-                Authorizing session keys with multi-tenant registry limits.
-              </p>
-            </div>
+            </form>
           </div>
         </div>
       )}
+
+      {/* Footer copyright */}
+      <footer className="border-t border-slate-200 dark:border-zinc-900 py-10 px-6 text-center text-xs text-slate-500 dark:text-slate-500 z-10">
+        <div className="font-medium">© 2026 Demoz Workforce Cloud. All rights reserved.</div>
+        <div className="mt-1">Compliant with Ethiopian Labor Law & POESSA guidelines.</div>
+      </footer>
+
     </div>
   );
 }
 
-export default function BiometricLoginPage() {
+export default function LandingPage() {
   return (
     <ToastProvider>
-      <BiometricLoginContent />
+      <LandingPageContent />
     </ToastProvider>
   );
 }

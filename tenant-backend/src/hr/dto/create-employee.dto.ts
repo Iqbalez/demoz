@@ -41,14 +41,32 @@ export class CreateEmployeeDto {
   @MaxLength(20)
   phoneNumber: string;
 
-  @IsNotEmpty()
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  tin?: string; // Taxpayer Identification Number — required for ERCA/SIGTAS monthly tax filing
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  pensionId?: string; // POESSA Pension ID — required for monthly pension contribution reporting
+
+  @IsOptional()
   @Matches(/^\d{12}$/, { message: 'faydaNumber must be exactly a 12-digit numeric string' })
-  faydaNumber: string;
+  faydaNumber?: string;
 
   @IsNotEmpty()
   @IsNumber()
   @IsPositive()
   baseSalary: number;
+
+  @IsOptional()
+  @IsNumber()
+  transportAllowance?: number; // Non-taxable up to 25% of basic salary or 2,200 ETB (whichever lower)
+
+  @IsOptional()
+  @IsNumber()
+  positionAllowance?: number; // Taxable position/responsibility allowance
 
   @IsOptional()
   @IsEnum(PaymentMethod)

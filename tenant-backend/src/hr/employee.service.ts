@@ -94,11 +94,13 @@ export class EmployeeService {
     }
 
     // 3. Fayda National ID global uniqueness check (Phase 2 primary key constraint)
-    const existingFayda = await this.prisma.employee.findFirst({
-      where: { faydaNumber: dto.faydaNumber },
-    });
-    if (existingFayda) {
-      throw new BadRequestException('Fayda National ID is already registered.');
+    if (dto.faydaNumber) {
+      const existingFayda = await this.prisma.employee.findFirst({
+        where: { faydaNumber: dto.faydaNumber },
+      });
+      if (existingFayda) {
+        throw new BadRequestException('Fayda National ID is already registered.');
+      }
     }
 
     // TenantId is automatically injected at query execution time by our Prisma Extension
@@ -194,7 +196,6 @@ export class EmployeeService {
       'lastName',
       'employeeIdNumber',
       'phoneNumber',
-      'faydaNumber', // Phase 2 required field
       'baseSalary',
       'paymentMethod',
       'departmentId',
@@ -291,16 +292,16 @@ export class EmployeeService {
       }
 
       // Check Fayda ID uniqueness and 12-digit numeric constraint (file vs DB)
-      if (!faydaNumber) {
-        errors.push('faydaNumber is required.');
-      } else if (!faydaRegex.test(faydaNumber)) {
-        errors.push(`faydaNumber "${faydaNumber}" must be exactly a 12-digit numeric string.`);
-      } else if (fileFaydaNumbers.has(faydaNumber)) {
-        errors.push(`Duplicate faydaNumber "${faydaNumber}" detected in the uploaded file.`);
-      } else if (existingDbFaydaNumbers.has(faydaNumber)) {
-        errors.push(`faydaNumber "${faydaNumber}" is already registered globally.`);
-      } else {
-        fileFaydaNumbers.add(faydaNumber);
+      if (faydaNumber) {
+        if (!faydaRegex.test(faydaNumber)) {
+          errors.push(`faydaNumber "${faydaNumber}" must be exactly a 12-digit numeric string.`);
+        } else if (fileFaydaNumbers.has(faydaNumber)) {
+          errors.push(`Duplicate faydaNumber "${faydaNumber}" detected in the uploaded file.`);
+        } else if (existingDbFaydaNumbers.has(faydaNumber)) {
+          errors.push(`faydaNumber "${faydaNumber}" is already registered globally.`);
+        } else {
+          fileFaydaNumbers.add(faydaNumber);
+        }
       }
 
       // Salary validation
@@ -328,7 +329,7 @@ export class EmployeeService {
           lastName,
           employeeIdNumber,
           phoneNumber: phoneNumber.replace(/\s+/g, ''),
-          faydaNumber,
+          faydaNumber: faydaNumber || null,
           baseSalary: salary,
           paymentMethod: paymentMethod || 'BANK',
           bankName,

@@ -14,6 +14,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { PayrollModule } from './payroll/payroll.module';
 import { FinanceModule } from './finance/finance.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { LeaveModule } from './leave/leave.module';
 import { TenantLifecycleGuard } from './auth/tenant-lifecycle.guard';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 
@@ -32,6 +33,7 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
     PayrollModule,
     FinanceModule,
     SubscriptionModule,
+    LeaveModule,
   ],
   controllers: [AppController],
   providers: [

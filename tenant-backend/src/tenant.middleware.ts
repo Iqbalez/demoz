@@ -23,12 +23,16 @@ export class TenantMiddleware implements NestMiddleware {
       tenantId = `tenant_id_${companyCode.toLowerCase()}`;
     }
 
-    // 3. If we can't find who they belong to, block them (except public USSD requests)
+    // 3. If we can't find who they belong to, block them (except public USSD, reports, subscription, and auth requests)
     if (!tenantId) {
-      if (req.originalUrl.includes('/ussd') || req.path.includes('/ussd')) {
+      if (req.originalUrl.includes('/ussd') || req.path.includes('/ussd') || req.originalUrl.includes('/subscription') || req.path.includes('/subscription') || req.originalUrl.includes('/auth') || req.path.includes('/auth')) {
         return next();
       }
-      throw new UnauthorizedException('We do not know which company you belong to!');
+      if (req.originalUrl.includes('/payroll/reports') || req.path.includes('/payroll/reports')) {
+        tenantId = 'tenant_id_google'; // Default fallback tenant ID for public reports downloads
+      } else {
+        throw new UnauthorizedException('We do not know which company you belong to!');
+      }
     }
 
     // 4. Put the tenantId into our magical pocket for the rest of this request's lifespan

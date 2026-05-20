@@ -6,14 +6,8 @@ import { useDashboard } from "../../../context/DashboardContext";
 import { Skeleton } from "../../../components/ui/skeleton";
 
 function BillingPageContent() {
-  const { stats, handleUpgradePlan } = useDashboard();
-
   return (
-    <BillingPortal
-      currentPlan={stats.planTier}
-      maxEmployees={stats.maxEmployees}
-      onUpgradePlan={handleUpgradePlan}
-    />
+    <BillingPortal />
   );
 }
 

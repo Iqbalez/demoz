@@ -51,6 +51,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="leave"
+        options={{
+          title: 'Request Leave',
+          tabBarLabel: 'Leave',
+          headerTitle: 'LEAVE PLANNER',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18, fontWeight: 'bold' }}>📅</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="wallet"
         options={{
           title: 'My Wallet',

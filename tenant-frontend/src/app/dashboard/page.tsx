@@ -13,7 +13,7 @@ export default function DashboardOverviewPage() {
       {/* Top Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/20 via-slate-900/10 to-transparent flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-100 dark:border-zinc-800/80 bg-white dark:bg-[#0c1424]">
         <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-50 font-outfit">Welcome back, Demoz Manager!</h2>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-50 font-outfit">Welcome {stats.companyName} Manager</h2>
           <p className="text-xs text-slate-400 mt-1">Here is the compliant multi-tenant overview for your organization today.</p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 shadow-sm">

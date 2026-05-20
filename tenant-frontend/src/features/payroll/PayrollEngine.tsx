@@ -8,15 +8,15 @@ export interface PayrollEngineProps {
   onTriggerDisbursement: () => void;
 }
 
-// Progressive Income Tax Brackets (Federal Ethiopian Labor Law - Schedule A)
-export function calculateEthiopianTax(salary: number): number {
-  if (salary <= 600) return 0;
-  if (salary <= 1650) return salary * 0.10 - 60;
-  if (salary <= 3200) return salary * 0.15 - 142.50;
-  if (salary <= 5250) return salary * 0.20 - 302.50;
-  if (salary <= 7800) return salary * 0.25 - 565;
-  if (salary <= 10900) return salary * 0.30 - 955;
-  return salary * 0.35 - 1500;
+// Progressive Income Tax Brackets (Proclamation No. 1395/2025 - Schedule A)
+// Taxable Income = Gross Salary - Employee Pension (7%) - Non-taxable Allowances
+export function calculateEthiopianTax(taxableVal: number): number {
+  if (taxableVal <= 2000) return 0;
+  if (taxableVal <= 4000) return taxableVal * 0.15 - 300;
+  if (taxableVal <= 7000) return taxableVal * 0.20 - 500;
+  if (taxableVal <= 10000) return taxableVal * 0.25 - 850;
+  if (taxableVal <= 14000) return taxableVal * 0.30 - 1350;
+  return taxableVal * 0.35 - 2050;
 }
 
 export default function PayrollEngine({
@@ -58,16 +58,20 @@ export default function PayrollEngine({
     : activeEmployees.reduce((acc, emp) => acc + emp.baseSalary, 0);
 
   const totalPensionEmployee = payrollRun
-    ? Number(payrollRun.totalGross || 0) * 0.07
-    : activeEmployees.reduce((acc, emp) => acc + emp.baseSalary * 0.07, 0);
+    ? Number(payrollRun.totalGross || 0) * 0.07 // Visual fallback for processed sets
+    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary, 15000) * 0.07, 0);
 
   const totalPensionEmployer = payrollRun
     ? Number(payrollRun.totalGross || 0) * 0.11
-    : activeEmployees.reduce((acc, emp) => acc + emp.baseSalary * 0.11, 0);
+    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary, 15000) * 0.11, 0);
 
   const totalTax = payrollRun
     ? Number(payrollRun.totalTax || 0)
-    : activeEmployees.reduce((acc, emp) => acc + calculateEthiopianTax(emp.baseSalary), 0);
+    : activeEmployees.reduce((acc, emp) => {
+        const pension = Math.min(emp.baseSalary, 15000) * 0.07;
+        const taxable = emp.baseSalary - pension;
+        return acc + calculateEthiopianTax(taxable);
+      }, 0);
 
   const totalNet = payrollRun
     ? Number(payrollRun.totalNet || 0)
@@ -78,7 +82,7 @@ export default function PayrollEngine({
     setTimeout(() => {
       setIsAuditing(false);
       setShowAiAuditReport(true);
-      toast.success("AI Security Audit Completed", "Risk Score evaluated. Low risk anomalies matched.");
+      toast.success("Smart Compliance Audit Completed", "Rule matches analyzed. Low risk anomalies flagged.");
     }, 900);
   };
 
@@ -86,7 +90,7 @@ export default function PayrollEngine({
   const handleMakerSubmit = async () => {
     try {
       // Dispatch real enqueuing event to NestJS
-      const res = await fetch("http://localhost:3001/api/v1/payroll/run", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}`}/api/v1/payroll/run`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -244,7 +248,7 @@ export default function PayrollEngine({
             </h4>
             <p className="text-[10px] text-slate-400">
               {payrollStatus === "DRAFT"
-                ? "Maker reviews attendance and AI compliant blocks before locking the payroll period."
+                ? "Maker reviews attendance and automated compliance rules before locking the payroll period."
                 : payrollStatus === "SUBMITTED"
                 ? "Checker (Owner) must verify Chapa bulk ledger and enter dynamic 2FA to dispatch payouts."
                 : "Bulk transaction settles with secure logs recorded inside the tenant scoped ledger."}
@@ -348,10 +352,10 @@ export default function PayrollEngine({
                 <div className="p-3 bg-amber-500/5 border border-amber-500/15 rounded-xl flex justify-between items-center">
                   <div>
                     <span className="font-bold text-amber-600 block">7% Employee Pension</span>
-                    <span className="text-[8px] text-slate-400">POESSA private organization regulations.</span>
+                    <span className="text-[8px] text-slate-400">POESSA private organization regulations (capped at 15,000 ETB salary).</span>
                   </div>
                   <span className="font-mono font-bold text-amber-600">
-                    -{(selectedBreakdownEmp.baseSalary * 0.07).toLocaleString()} ETB
+                    -{(Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -359,10 +363,10 @@ export default function PayrollEngine({
                 <div className="p-3 bg-amber-500/5 border border-amber-500/15 rounded-xl flex justify-between items-center">
                   <div>
                     <span className="font-bold text-amber-600 block">11% Employer Pension (Corporate Expense)</span>
-                    <span className="text-[8px] text-slate-400">Paid directly by the company, not deducted from basic salary.</span>
+                    <span className="text-[8px] text-slate-400">Paid directly by the company (capped at 15,000 ETB salary).</span>
                   </div>
                   <span className="font-mono font-bold text-amber-600">
-                    +{(selectedBreakdownEmp.baseSalary * 0.11).toLocaleString()} ETB
+                    +{(Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.11).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -371,11 +375,11 @@ export default function PayrollEngine({
                   <div>
                     <span className="font-bold text-red-500 block">Federal progressive Income Tax</span>
                     <span className="text-[8px] text-slate-400">
-                      Computed under Schedule A tax brackets (up to 35% above 10,900 ETB).
+                      Computed under Schedule A tax brackets (Proclamation No. 1395/2025) on basic salary minus pension.
                     </span>
                   </div>
                   <span className="font-mono font-bold text-red-500">
-                    -{calculateEthiopianTax(selectedBreakdownEmp.baseSalary).toLocaleString()} ETB
+                    -{calculateEthiopianTax(selectedBreakdownEmp.baseSalary - Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -395,8 +399,8 @@ export default function PayrollEngine({
                 <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                   {(
                     selectedBreakdownEmp.baseSalary -
-                    selectedBreakdownEmp.baseSalary * 0.07 -
-                    calculateEthiopianTax(selectedBreakdownEmp.baseSalary)
+                    Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07 -
+                    calculateEthiopianTax(selectedBreakdownEmp.baseSalary - Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07)
                   ).toLocaleString()}{" "}
                   ETB
                 </span>
@@ -426,8 +430,9 @@ export default function PayrollEngine({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-slate-700 dark:text-zinc-200">
                     {activeEmployees.map((emp) => {
-                      const pension = emp.baseSalary * 0.07;
-                      const tax = calculateEthiopianTax(emp.baseSalary);
+                      const pension = Math.min(emp.baseSalary, 15000) * 0.07;
+                      const taxable = emp.baseSalary - pension;
+                      const tax = calculateEthiopianTax(taxable);
                       const net = emp.baseSalary - pension - tax;
 
                       return (

@@ -8,14 +8,14 @@ export interface PayrollEngineProps {
   onTriggerDisbursement: () => void;
 }
 
-export function calculateEthiopianTax(salary: number): number {
-  if (salary <= 600) return 0;
-  if (salary <= 1650) return salary * 0.10 - 60;
-  if (salary <= 3200) return salary * 0.15 - 142.50;
-  if (salary <= 5250) return salary * 0.20 - 302.50;
-  if (salary <= 7800) return salary * 0.25 - 565;
-  if (salary <= 10900) return salary * 0.30 - 955;
-  return salary * 0.35 - 1500;
+// Progressive Income Tax Brackets (Proclamation No. 1395/2025 - Schedule A)
+export function calculateEthiopianTax(taxableVal: number): number {
+  if (taxableVal <= 2000) return 0;
+  if (taxableVal <= 4000) return taxableVal * 0.15 - 300;
+  if (taxableVal <= 7000) return taxableVal * 0.20 - 500;
+  if (taxableVal <= 10000) return taxableVal * 0.25 - 850;
+  if (taxableVal <= 14000) return taxableVal * 0.30 - 1350;
+  return taxableVal * 0.35 - 2050;
 }
 
 export default function PayrollEngine({ employees, onTriggerDisbursement }: PayrollEngineProps) {
@@ -34,8 +34,12 @@ export default function PayrollEngine({ employees, onTriggerDisbursement }: Payr
   // Computations
   const activeEmployees = employees.filter(e => e.status === "ACTIVE");
   const totalGross = activeEmployees.reduce((acc, emp) => acc + emp.baseSalary, 0);
-  const totalPension = activeEmployees.reduce((acc, emp) => acc + (emp.baseSalary * 0.07), 0);
-  const totalTax = activeEmployees.reduce((acc, emp) => acc + calculateEthiopianTax(emp.baseSalary), 0);
+  const totalPension = activeEmployees.reduce((acc, emp) => acc + (Math.min(emp.baseSalary, 15000) * 0.07), 0);
+  const totalTax = activeEmployees.reduce((acc, emp) => {
+    const pension = Math.min(emp.baseSalary, 15000) * 0.07;
+    const taxable = emp.baseSalary - pension;
+    return acc + calculateEthiopianTax(taxable);
+  }, 0);
   const totalNet = totalGross - totalPension - totalTax;
 
   // Department totals
@@ -300,8 +304,9 @@ export default function PayrollEngine({ employees, onTriggerDisbursement }: Payr
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-xs">
                 {activeEmployees.map((emp) => {
-                  const pension = emp.baseSalary * 0.07;
-                  const tax = calculateEthiopianTax(emp.baseSalary);
+                  const pension = Math.min(emp.baseSalary, 15000) * 0.07;
+                  const taxable = emp.baseSalary - pension;
+                  const tax = calculateEthiopianTax(taxable);
                   const net = emp.baseSalary - pension - tax;
                   
                   return (

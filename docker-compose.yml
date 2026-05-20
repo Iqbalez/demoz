@@ -6,7 +6,7 @@ services:
     container_name: tenant_postgres_db
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: SuperSecretPassword123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-SuperSecretPassword123}
       POSTGRES_DB: multi_tenant_db
     ports:
       - "5433:5432"
@@ -16,6 +16,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: tenant_redis_cache
+    command: redis-server --requirepass "${REDIS_PASSWORD:-SecretRedisPass123}" --appendonly yes
     ports:
       - "6379:6379"
     volumes:

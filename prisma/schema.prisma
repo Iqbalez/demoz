@@ -36,6 +36,7 @@ model Tenant {
   id                    String       @id @default(uuid()) @db.Uuid
   name                  String       @db.VarChar(255)
   companyCode           String       @unique @db.VarChar(50) // Unique constraint automatically indexes for fast USSD lookups
+  tin                   String?      @db.VarChar(20)  // Taxpayer Identification Number — mandatory for ERCA/SIGTAS tax filings
   status                TenantStatus @default(ACTIVE)
   planTier              String       @default("FREE") @db.VarChar(50)
   maxEmployees          Int          @default(10) @db.Integer
@@ -45,16 +46,18 @@ model Tenant {
   updatedAt             DateTime     @updatedAt @db.Timestamptz(6)
 
   // Relations
-  users          User[]
-  branches       Branch[]
-  departments    Department[]
-  employees      Employee[]
-  attendances    Attendance[]
-  attendanceLogs AttendanceLog[]
+  users                User[]
+  branches             Branch[]
+  departments          Department[]
+  employees            Employee[]
+  attendances          Attendance[]
+  attendanceLogs       AttendanceLog[]
   payrollRuns          PayrollRun[]
   aiAuditReports       AiAuditReport[]
   auditLogs            AuditLog[]
   subscriptionInvoices SubscriptionInvoice[]
+  leaveTypes           LeaveType[]
+  leaveRequests        LeaveRequest[]
 
   @@index([status, subscriptionExpiresAt])
   @@map("tenants") // Maps Prisma model to plural lowercase PostgreSQL table name
@@ -74,9 +77,10 @@ model User {
   updatedAt    DateTime @updatedAt @db.Timestamptz(6)
 
   // Relations
-  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employee     Employee?
   auditLogs    AuditLog[]
+  approvedLeaves LeaveRequest[]
 
   // Indexes & Constraints
   @@unique([tenantId, email], name: "tenant_email_unique") // Strict tenant-level email uniqueness
@@ -132,7 +136,11 @@ model Employee {
   lastName           String          @db.VarChar(100)
   employeeIdNumber   String          @db.VarChar(50)
   phoneNumber        String          @unique @db.VarChar(20)
+  tin                String?         @db.VarChar(20)  // Taxpayer Identification Number — mandatory for ERCA/SIGTAS monthly tax filing
+  pensionId          String?         @db.VarChar(20)  // POESSA Pension ID — mandatory for monthly pension contribution reporting
   baseSalary         Decimal         @db.Decimal(12, 2) // Decimal ensures high accuracy for payroll financial calculations
+  transportAllowance Decimal         @default(0) @db.Decimal(12, 2) // Non-taxable up to 25% of basic or 2,200 ETB
+  positionAllowance  Decimal         @default(0) @db.Decimal(12, 2) // Taxable position/responsibility allowance
   paymentMethod      PaymentMethod   @default(BANK)
   bankName           String?         @db.VarChar(100)
   bankAccount        String?         @db.VarChar(100)
@@ -153,6 +161,7 @@ model Employee {
   attendances        Attendance[]
   attendanceLogs     AttendanceLog[]
   payrollLineItems   PayrollLineItem[]
+  leaveRequests      LeaveRequest[]
 
   // Composite indexes make searching incredibly fast within a company context
   @@unique([tenantId, employeeIdNumber])
@@ -267,17 +276,22 @@ model PayrollRun {
 }
 
 model PayrollLineItem {
-  id                String   @id @default(uuid()) @db.Uuid
-  payrollRunId      String   @db.Uuid
-  employeeId        String   @db.Uuid
-  baseSalary        Decimal  @db.Decimal(12, 2)
-  taxableAllowances Decimal  @default(0) @db.Decimal(12, 2)
-  incomeTax         Decimal      @default(0) @db.Decimal(12, 2)
-  pensionDeduction  Decimal      @default(0) @db.Decimal(12, 2)
-  netPay            Decimal      @default(0) @db.Decimal(12, 2)
-  chapaReference    String?      @unique @db.VarChar(255)
-  payoutStatus      PayoutStatus @default(PENDING)
-  createdAt         DateTime     @default(now()) @db.Timestamptz(6)
+  id                           String   @id @default(uuid()) @db.Uuid
+  payrollRunId                 String   @db.Uuid
+  employeeId                   String   @db.Uuid
+  baseSalary                   Decimal  @db.Decimal(12, 2)
+  transportAllowance           Decimal  @default(0) @db.Decimal(12, 2)  // Gross transport allowance for this period
+  transportAllowanceExempt     Decimal  @default(0) @db.Decimal(12, 2)  // Non-taxable portion (min of 25% base or 2200)
+  taxableAllowances            Decimal  @default(0) @db.Decimal(12, 2)
+  overtimePay                  Decimal  @default(0) @db.Decimal(12, 2)  // Calculated overtime earnings
+  grossSalary                  Decimal  @default(0) @db.Decimal(12, 2)  // Base + allowances + overtime
+  incomeTax                    Decimal  @default(0) @db.Decimal(12, 2)
+  pensionDeduction             Decimal  @default(0) @db.Decimal(12, 2)  // 7% employee share
+  employerPensionContribution  Decimal  @default(0) @db.Decimal(12, 2)  // 11% employer share (audit trail)
+  netPay                       Decimal  @default(0) @db.Decimal(12, 2)
+  chapaReference               String?      @unique @db.VarChar(255)
+  payoutStatus                 PayoutStatus @default(PENDING)
+  createdAt                    DateTime     @default(now()) @db.Timestamptz(6)
 
   // Relations
   payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
@@ -339,4 +353,66 @@ model SubscriptionInvoice {
 
   @@index([tenantId, isPaid])
   @@map("subscription_invoices")
+}
+
+/// Ethiopian Public Holidays calendar — used by overtime engine for 2.5x holiday multiplier
+/// Source: docs/ethiopia_2026_holidays.md
+model PublicHoliday {
+  id           String   @id @default(uuid()) @db.Uuid
+  date         DateTime @db.Date
+  nameEn       String   @db.VarChar(150) // English name
+  nameAm       String?  @db.VarChar(150) // Amharic name
+  ethiopicDate String?  @db.VarChar(50)  // Ethiopic calendar date string
+  multiplier   Decimal  @default(2.5) @db.Decimal(3, 1) // Overtime multiplier per Labor Proclamation 1156/2019
+  year         Int      @db.Integer
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([date, year])
+  @@index([year])
+  @@index([date])
+  @@map("public_holidays")
+}
+
+/// Ethiopian Labor Law Leave Types
+model LeaveType {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  name             String   @db.VarChar(100) // "Annual Leave", "Sick Leave"
+  code             String   @db.VarChar(20) // "AL", "SL"
+  maxDaysPerYear   Int
+  requiresApproval Boolean  @default(true)
+  isPaid           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  requests         LeaveRequest[]
+  tenant           Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@map("leave_types")
+}
+
+/// Employee Leave Requests
+model LeaveRequest {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  employeeId       String   @db.Uuid
+  leaveTypeId      String   @db.Uuid
+  startDate        DateTime @db.Date
+  endDate          DateTime @db.Date
+  totalDays        Int
+  reason           String?  @db.Text
+  status           String   @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  approvedById     String?  @db.Uuid
+  approvedAt       DateTime? @db.Timestamptz(6)
+  rejectionReason  String?  @db.Text
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType        LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  approvedBy       User?     @relation(fields: [approvedById], references: [id])
+
+  @@index([tenantId, status])
+  @@index([employeeId])
+  @@map("leave_requests")
 }

@@ -74,7 +74,7 @@ export class PayrollProcessor extends WorkerHost {
 
           // Process current batch of workers
           for (const employee of employees) {
-            // If employee is blocked/flagged by AI compliance check, skip calculations for safety
+            // If employee is blocked/flagged by compliance check, skip calculations for safety
             if (blockedIds.includes(employee.id)) {
               this.logger.warn(
                 `Compliance Audit Block: Skipped calculations for employee ${employee.id} due to security anomalies.`,
@@ -84,13 +84,34 @@ export class PayrollProcessor extends WorkerHost {
 
             const base = new Prisma.Decimal(employee.baseSalary);
             
-            // Private Pension POESSA rules: 7% Basic Salary contribution
-            const pensionDeduction = base.mul(0.07);
+            // --- Allowances & Gross Salary ---
+            const transportAllowanceGross = new Prisma.Decimal(employee.transportAllowance || 0);
+            const positionAllowance = new Prisma.Decimal(employee.positionAllowance || 0);
 
-            // Taxable Income (Schedule A): Basic Salary - Pension
-            const taxableIncome = base.sub(pensionDeduction);
+            // Non-taxable transport allowance exemption rule (ethiopian_compliance_report.md):
+            // Exempt up to 25% of basic salary OR 2,200 ETB, whichever is LOWER
+            const transportExemptCap = Math.min(base.toNumber() * 0.25, 2200);
+            const transportExempt = new Prisma.Decimal(
+              Math.min(transportAllowanceGross.toNumber(), transportExemptCap)
+            );
+            const transportTaxable = transportAllowanceGross.sub(transportExempt);
 
-            // Employment Income Tax (Schedule A brackets):
+            // Gross Salary = Base + All Allowances
+            const grossSalary = base.add(transportAllowanceGross).add(positionAllowance);
+
+            // --- Pension (POESSA - Proclamation 1268/2022) ---
+            // 7% employee and 11% employer of BASIC SALARY, capped at ETB 15,000
+            const pensionBase = base.toNumber() > 15000 ? new Prisma.Decimal(15000) : base;
+            const pensionDeduction = pensionBase.mul(0.07);       // Employee 7%
+            const employerPension = pensionBase.mul(0.11);         // Employer 11%
+
+            // --- Taxable Income (Schedule A formula from docs) ---
+            // Taxable = Gross - Employee Pension - Non-taxable Allowances (transport exempt)
+            const taxableIncome = grossSalary.sub(pensionDeduction).sub(transportExempt);
+
+            // --- Employment Income Tax (Proclamation 1395/2025 - Schedule A) ---
+            // Brackets verified against: report.md, ethiopia_compliance_research.md,
+            // ethiopian_compliance_report.md, compliance_guide_for_hr.md
             let taxRate = 0;
             let taxDeductible = 0;
 
@@ -115,26 +136,33 @@ export class PayrollProcessor extends WorkerHost {
               taxDeductible = 2050;
             }
 
-            const incomeTax = taxableIncome.mul(taxRate).sub(taxDeductible);
+            const incomeTax = new Prisma.Decimal(
+              Math.max(0, taxableIncome.toNumber() * taxRate - taxDeductible)
+            );
 
-            // Net Pay: Basic Salary - Pension - Income Tax
-            const netPay = base.sub(pensionDeduction).sub(incomeTax);
+            // Net Pay: Gross - Pension(7%) - Income Tax
+            const netPay = grossSalary.sub(pensionDeduction).sub(incomeTax);
 
-            // Persist the line item log
+            // Persist the line item log with full audit trail
             await this.prisma.payrollLineItem.create({
               data: {
                 payrollRunId,
                 employeeId: employee.id,
                 baseSalary: base,
-                taxableAllowances: 0,
+                transportAllowance: transportAllowanceGross,
+                transportAllowanceExempt: transportExempt,
+                taxableAllowances: transportTaxable.add(positionAllowance),
+                overtimePay: 0,
+                grossSalary,
                 incomeTax,
                 pensionDeduction,
+                employerPensionContribution: employerPension,
                 netPay,
               },
             });
 
             // Aggregate totals
-            totalGross = totalGross.add(base);
+            totalGross = totalGross.add(grossSalary);
             totalNet = totalNet.add(netPay);
             totalTax = totalTax.add(incomeTax);
           }
