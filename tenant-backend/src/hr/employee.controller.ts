@@ -111,7 +111,7 @@ export class EmployeeController {
     @Query('state') state?: string,
   ) {
     const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
-    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || '${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees';
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees`;
     return {
       url: this.oidcService.getAuthUrl(cid, ruri, state),
     };
@@ -134,7 +134,7 @@ export class EmployeeController {
     }
     const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
     const csec = clientSecret || process.env.FAYDA_CLIENT_SECRET || 'demoz_secret';
-    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || '${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees';
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees`;
 
     return this.oidcService.exchangeCodeAndGetClaims(code, cid, csec, ruri);
   }
@@ -152,7 +152,7 @@ export class EmployeeController {
     }
     const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
     const csec = clientSecret || process.env.FAYDA_CLIENT_SECRET || 'demoz_secret';
-    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || '${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees';
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees`;
 
     return this.oidcService.exchangeCodeAndGetClaims(code, cid, csec, ruri);
   }
