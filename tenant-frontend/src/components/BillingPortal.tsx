@@ -86,7 +86,7 @@ export default function BillingPortal() {
       const parsed = JSON.parse(pendingInvoice.chapaPaymentReference || "{}");
       renewalUrl = parsed.checkoutUrl || "#";
     } catch (e) {
-      renewalUrl = `http://localhost:3000/dashboard/billing?payment_success=true&ref=${pendingInvoice.chapaPaymentReference}`;
+      renewalUrl = `${window.location.origin}/dashboard/billing?payment_success=true&ref=${pendingInvoice.chapaPaymentReference}`;
     }
   }
 
@@ -200,7 +200,7 @@ export default function BillingPortal() {
                       const parsed = JSON.parse(inv.chapaPaymentReference || "{}");
                       checkoutUrl = parsed.checkoutUrl || "#";
                     } catch (e) {
-                      checkoutUrl = `http://localhost:3000/dashboard/billing?payment_success=true&ref=${inv.chapaPaymentReference}`;
+                      checkoutUrl = `${window.location.origin}/dashboard/billing?payment_success=true&ref=${inv.chapaPaymentReference}`;
                     }
 
                     return (

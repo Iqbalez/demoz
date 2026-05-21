@@ -104,7 +104,7 @@ function LeavePageContent() {
   const handleApprove = async (id: string) => {
     if (backendStatus === "CONNECTED") {
       try {
-        const res = await fetch(`http://localhost:3001/leave/requests/${id}/approve`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/leave/requests/${id}/approve`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${localStorage.getItem("token")}`,
@@ -134,7 +134,7 @@ function LeavePageContent() {
   const handleReject = async (id: string, reason: string) => {
     if (backendStatus === "CONNECTED") {
       try {
-        const res = await fetch(`http://localhost:3001/leave/requests/${id}/reject`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/leave/requests/${id}/reject`, {
           method: "PUT",
           headers: {
             "Authorization": `Bearer ${localStorage.getItem("token")}`,

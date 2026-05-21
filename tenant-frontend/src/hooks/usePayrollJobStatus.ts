@@ -36,7 +36,7 @@ export function usePayrollJobStatus(runId: string | null) {
 
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/v1/payroll/status/${runId}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/v1/payroll/status/${runId}`);
         if (!res.ok) {
           throw new Error("Unable to synchronize with payroll calculation registry.");
         }

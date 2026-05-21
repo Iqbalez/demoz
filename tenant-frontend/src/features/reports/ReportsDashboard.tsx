@@ -51,7 +51,7 @@ export function ReportsDashboard() {
   };
 
   const downloadReport = (type: string, runId: string) => {
-    const url = `http://localhost:3001/payroll/reports/${type}/${runId}`;
+    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/payroll/reports/${type}/${runId}`;
     
     // Programmatic link download to bypass browser popup blockers
     const link = document.createElement("a");
