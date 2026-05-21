@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useTransition } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -27,10 +27,12 @@ export interface Branch {
   geofenceRadiusMeters: number;
 }
 
+
+
 export interface AttendanceTrackerProps {
   logs: AttendanceLog[];
   branches: Branch[];
-  onAddBranch: (branch: Omit<Branch, "id">) => { success: boolean; message: string };
+  onAddBranch: (branch: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
 }
 
 export default function AttendanceTracker({
@@ -108,7 +110,7 @@ export default function AttendanceTracker({
     currentPage * itemsPerPage
   );
 
-  const handleBranchSubmit = (e: React.FormEvent) => {
+  const handleBranchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (!name || !location || !lat || !lng || !radius) {
@@ -116,7 +118,7 @@ export default function AttendanceTracker({
         return;
       }
 
-      const result = onAddBranch({
+      const result = await onAddBranch({
         name,
         location,
         latitude: parseFloat(lat),
@@ -188,10 +190,7 @@ export default function AttendanceTracker({
 
       {/* Dynamic Geofence node onboarding Form */}
       {showAddForm && (
-        <form
-          onSubmit={handleBranchSubmit}
-          className="p-5 rounded-3xl bg-white dark:bg-[#0c1424] border border-slate-100 dark:border-zinc-800/80 shadow-xl space-y-4 animate-slide-up"
-        >
+        <form onSubmit={handleBranchSubmit} className="p-5 rounded-3xl bg-white dark:bg-[#0c1424] border border-slate-100 dark:border-zinc-800/80 shadow-xl space-y-4 animate-slide-up">
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800/80 pb-3">
             <h3 className="text-xs font-bold text-slate-800 dark:text-zinc-50 font-outfit">Onboard New Geofence Node</h3>
             <span className="text-[9px] text-slate-400 font-mono">Biometric GPS Gateway</span>
@@ -281,7 +280,6 @@ export default function AttendanceTracker({
 
       {/* DUAL COLUMN WORKSPACE: Exception Visualizer Map Widget & Log Records Table */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        
         {/* Geographic Exception Visualizer (SVG-based mapping tool) */}
         <div className="lg:col-span-2 p-5 bg-white dark:bg-[#0c1424] border border-slate-100 dark:border-zinc-800/80 rounded-3xl shadow-xl flex flex-col justify-between">
           <div>
@@ -296,7 +294,6 @@ export default function AttendanceTracker({
 
           {/* Dynamic Map Visualizer */}
           <div className="my-5 aspect-square max-w-[280px] w-full mx-auto bg-slate-50 dark:bg-zinc-950 rounded-2xl border border-slate-200 dark:border-zinc-800/80 relative overflow-hidden flex items-center justify-center shadow-inner">
-            
             {/* Compass Grid Indicators */}
             <div className="absolute inset-0 border border-dashed border-slate-200/50 dark:border-zinc-800/30 rounded-full scale-75 select-none pointer-events-none" />
             <div className="absolute inset-0 border border-dashed border-slate-200/50 dark:border-zinc-800/30 rounded-full scale-50 select-none pointer-events-none" />
@@ -360,9 +357,7 @@ export default function AttendanceTracker({
           {selectedAnomalyLog ? (
             <div className="p-3.5 bg-slate-50 dark:bg-zinc-950/20 border border-slate-100 dark:border-zinc-800/80 rounded-2xl space-y-2 select-none">
               <div className="flex justify-between items-center text-[10px] font-bold">
-                <span className="text-slate-800 dark:text-zinc-200 font-outfit">
-                  {selectedAnomalyLog.employeeName}
-                </span>
+                <span className="text-slate-800 dark:text-zinc-200 font-outfit">{selectedAnomalyLog.employeeName}</span>
                 <span
                   className={`text-[8px] px-1.5 py-0.5 rounded ${
                     selectedAnomalyLog.isAnomaly
@@ -375,16 +370,10 @@ export default function AttendanceTracker({
               </div>
               <div className="text-[9px] text-slate-400 font-semibold space-y-0.5">
                 <div>
-                  GPS:{" "}
-                  <span className="font-mono text-slate-700 dark:text-zinc-300">
-                    {selectedAnomalyLog.latitude?.toFixed(6) ?? "N/A"},{" "}
-                    {selectedAnomalyLog.longitude?.toFixed(6) ?? "N/A"}
-                  </span>
+                  GPS: <span className="font-mono text-slate-700 dark:text-zinc-300">{selectedAnomalyLog.latitude?.toFixed(6) ?? "N/A"}, {selectedAnomalyLog.longitude?.toFixed(6) ?? "N/A"}</span>
                 </div>
                 {selectedAnomalyLog.isAnomaly && (
-                  <div className="text-red-500 dark:text-red-400">
-                    Infraction: {selectedAnomalyLog.anomalyReason || "Geofence Violation."}
-                  </div>
+                  <div className="text-red-500 dark:text-red-400">Infraction: {selectedAnomalyLog.anomalyReason || "Geofence Violation."}</div>
                 )}
                 <div>Timestamp: <span className="font-mono text-slate-700 dark:text-zinc-300">{selectedAnomalyLog.timestamp}</span></div>
               </div>
@@ -407,7 +396,7 @@ export default function AttendanceTracker({
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 focus:border-emerald-500"
               />
-              <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
+              <span className="absolute left-3 top-2.5 text-slate-400">ðŸ”</span>
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -425,7 +414,6 @@ export default function AttendanceTracker({
           </div>
 
           <div className="rounded-3xl bg-white dark:bg-[#0c1424] overflow-hidden border border-slate-100 dark:border-zinc-800/80 shadow-2xl relative">
-            
             {/* Dynamic Pending Loader Overlay */}
             {isPending && (
               <div className="absolute inset-0 bg-slate-100/20 dark:bg-black/10 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in" />
@@ -443,7 +431,6 @@ export default function AttendanceTracker({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-xs">
-                  
                   {isPending ? (
                     Array.from({ length: itemsPerPage }).map((_, idx) => (
                       <tr key={idx} className="border-b">
@@ -460,7 +447,7 @@ export default function AttendanceTracker({
                         <td className="py-4 px-5 text-right"><Skeleton className="h-7 w-12 rounded-lg ml-auto" /></td>
                       </tr>
                     ))
-                  ) : paginatedLogs.length === 0 ? (
+                  ) : totalPages > 0 && paginatedLogs.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-slate-400 font-semibold italic">
                         No active attendance log files found.
@@ -470,50 +457,30 @@ export default function AttendanceTracker({
                     paginatedLogs.map((log) => (
                       <tr
                         key={log.id}
-                        className={`hover:bg-slate-50/40 dark:hover:bg-zinc-900/5 transition-all text-slate-700 dark:text-zinc-200 cursor-pointer ${
-                          selectedAnomalyLog?.id === log.id ? "bg-emerald-500/5 dark:bg-emerald-500/5" : ""
-                        }`}
+                        className={`hover:bg-slate-50/40 dark:hover:bg-zinc-900/5 transition-all text-slate-700 dark:text-zinc-200 cursor-pointer ${selectedAnomalyLog?.id === log.id ? "bg-emerald-500/5 dark:bg-emerald-500/5" : ""}`}
                         onClick={() => setSelectedAnomalyLog(log)}
                       >
-                        <td className="py-4 px-5 font-mono text-[10px] text-slate-500 dark:text-zinc-400">
-                          {log.timestamp}
-                        </td>
+                        <td className="py-4 px-5 font-mono text-[10px] text-slate-500 dark:text-zinc-400">{log.timestamp}</td>
                         <td className="py-4 px-5">
                           <div className="font-semibold text-slate-900 dark:text-zinc-100">{log.employeeName}</div>
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">{log.phoneNumber}</div>
                         </td>
                         <td className="py-4 px-5 font-bold text-[10px]">
-                          <span
-                            className={`inline-flex items-center gap-1 ${
-                              log.source === "USSD" ? "text-purple-600 dark:text-purple-400" : "text-sky-600 dark:text-sky-400"
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                log.source === "USSD" ? "bg-purple-500 animate-pulse" : "bg-sky-500"
-                              }`}
-                            ></span>
+                          <span className={`inline-flex items-center gap-1 ${log.source === "USSD" ? "text-purple-600 dark:text-purple-400" : "text-sky-600 dark:text-sky-400"}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${log.source === "USSD" ? "bg-purple-500 animate-pulse" : "bg-sky-500"}`} />
                             {log.source === "USSD" ? "USSD Mobile" : "Web PWA"}
                           </span>
                         </td>
                         <td className="py-4 px-5">
                           {log.isAnomaly ? (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-500/10 text-red-600 border border-red-500/20">
-                              ⚠️ ANOMALY
-                            </span>
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-500/10 text-red-600 border border-red-500/20">âš ï¸ ANOMALY</span>
                           ) : (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                              ✓ COMPLIANT
-                            </span>
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">âœ“ COMPLIANT</span>
                           )}
                         </td>
                         <td className="py-4 px-5 text-right">
                           <button
-                            className={`px-2.5 py-1 text-[9px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer shadow-sm ${
-                              selectedAnomalyLog?.id === log.id
-                                ? "bg-emerald-600 text-white"
-                                : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200/40 dark:border-zinc-800/40"
-                            }`}
+                            className={`px-2.5 py-1 text-[9px] font-bold rounded-lg transition-all active:scale-95 cursor-pointer shadow-sm ${selectedAnomalyLog?.id === log.id ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-200/40 dark:border-zinc-800/40"}`}
                           >
                             Radar
                           </button>
