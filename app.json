@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "24cc5310-96d3-40f7-8c89-6984b79a3021"
+      }
+    },
+    "android": {
+      "package": "com.iqbalezedin.demozroot"
+    }
+  }
+}

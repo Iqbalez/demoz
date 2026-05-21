@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import apiClient from '../utils/api';
 
 interface AuthState {
   token: string | null;
@@ -8,6 +9,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   employeeDetails: {
+    id: string;
     name: string;
     department: string;
     idNumber: string;
@@ -34,34 +36,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error("Invalid credentials format. PIN must be 4 digits.");
       }
 
-      // Simulated API handshake with NestJS /api/v1/auth/employee-login
-      // Returns employee details matching standard tenant registry
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Real API handshake with NestJS /api/v1/auth/employee-login
+      const response = await apiClient.post('/api/v1/auth/employee-login', {
+        phoneNumber,
+        pin,
+      });
 
-      const mockToken = `jwt-token-emp-${Math.floor(100000 + Math.random() * 900000)}`;
-      const mockEmployee = {
-        name: phoneNumber === "0911000004" ? "Yosef Girma" : "Abebe Kebede",
-        department: phoneNumber === "0911000004" ? "Operations" : "Tech / Engineering",
-        idNumber: phoneNumber === "0911000004" ? "EMP-3942" : "EMP-4820"
-      };
+      const { accessToken, refreshToken, employee } = response.data;
 
       // Secure storage sync
-      await SecureStore.setItemAsync('user_token', mockToken);
+      await SecureStore.setItemAsync('user_token', accessToken);
+      await SecureStore.setItemAsync('refresh_token', refreshToken);
       await SecureStore.setItemAsync('user_phone', phoneNumber);
       await SecureStore.setItemAsync('bio_enabled', enableBio ? 'true' : 'false');
 
+      // Save complete details in SecureStore so they persist on cold restart
+      const employeeDetailsObj = {
+        id: employee.id,
+        name: employee.name,
+        department: employee.department || 'Operations',
+        idNumber: employee.employeeIdNumber || employee.id || 'N/A',
+      };
+      await SecureStore.setItemAsync('employee_details', JSON.stringify(employeeDetailsObj));
+
       set({
-        token: mockToken,
+        token: accessToken,
         phoneNumber,
         biometricsEnabled: enableBio,
-        employeeDetails: mockEmployee,
+        employeeDetails: employeeDetailsObj,
         isLoading: false
       });
 
       return { success: true, message: "Authentication approved!" };
     } catch (err: any) {
-      set({ isLoading: false, error: err.message });
-      return { success: false, message: err.message };
+      const errMsg = err.response?.data?.message || err.message || "Failed to authenticate.";
+      set({ isLoading: false, error: errMsg });
+      return { success: false, message: errMsg };
     }
   },
 
@@ -69,7 +79,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       await SecureStore.deleteItemAsync('user_token');
+      await SecureStore.deleteItemAsync('refresh_token');
       await SecureStore.deleteItemAsync('user_phone');
+      await SecureStore.deleteItemAsync('employee_details');
       set({
         token: null,
         phoneNumber: null,
@@ -87,19 +99,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const savedToken = await SecureStore.getItemAsync('user_token');
       const savedPhone = await SecureStore.getItemAsync('user_phone');
       const savedBio = await SecureStore.getItemAsync('bio_enabled');
+      const savedDetailsStr = await SecureStore.getItemAsync('employee_details');
 
-      if (savedToken && savedPhone) {
-        const mockEmployee = {
-          name: savedPhone === "0911000004" ? "Yosef Girma" : "Abebe Kebede",
-          department: savedPhone === "0911000004" ? "Operations" : "Tech / Engineering",
-          idNumber: savedPhone === "0911000004" ? "EMP-3942" : "EMP-4820"
-        };
-
+      if (savedToken && savedPhone && savedDetailsStr) {
+        const employeeDetails = JSON.parse(savedDetailsStr);
         set({
           token: savedToken,
           phoneNumber: savedPhone,
           biometricsEnabled: savedBio === 'true',
-          employeeDetails: mockEmployee,
+          employeeDetails,
           isLoading: false
         });
       } else {

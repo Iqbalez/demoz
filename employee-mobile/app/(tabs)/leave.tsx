@@ -12,6 +12,7 @@ import {
   FlatList,
 } from "react-native";
 import { useAuthStore } from "../../store/authStore";
+import apiClient from "../../utils/api";
 
 interface LeaveRequest {
   id: string;
@@ -29,6 +30,7 @@ interface LeaveRequest {
 }
 
 interface LeaveBalance {
+  id: string;
   code: string;
   name: string;
   allocated: number;
@@ -50,10 +52,10 @@ export default function LeaveScreen() {
 
   // Seed standard Ethiopian labor balances
   const [balances, setBalances] = useState<LeaveBalance[]>([
-    { code: "AL", name: "Annual Leave", allocated: 16, used: 4, color: "#10b981" },
-    { code: "SL", name: "Sick Leave", allocated: 180, used: 3, color: "#ef4444" },
-    { code: "ML", name: "Maternity", allocated: 120, used: 0, color: "#ec4899" },
-    { code: "PL", name: "Paternity", allocated: 3, used: 0, color: "#3b82f6" },
+    { id: "mock-al", code: "AL", name: "Annual Leave", allocated: 16, used: 4, color: "#10b981" },
+    { id: "mock-sl", code: "SL", name: "Sick Leave", allocated: 180, used: 3, color: "#ef4444" },
+    { id: "mock-ml", code: "ML", name: "Maternity", allocated: 120, used: 0, color: "#ec4899" },
+    { id: "mock-pl", code: "PL", name: "Paternity", allocated: 3, used: 0, color: "#3b82f6" },
   ]);
 
   // Seed initial mock requests for Simulation Mode
@@ -81,8 +83,33 @@ export default function LeaveScreen() {
   ]);
 
   useEffect(() => {
-    fetchRequests();
+    if (token) {
+      fetchLeaveTypes();
+      fetchRequests();
+    } else {
+      setRequests(mockRequests);
+    }
   }, [token]);
+
+  const fetchLeaveTypes = async () => {
+    try {
+      const res = await apiClient.get('/leave/types');
+      if (res.data && Array.isArray(res.data)) {
+        const colors = ["#10b981", "#ef4444", "#ec4899", "#3b82f6", "#f59e0b", "#8b5cf6"];
+        const mappedBalances = res.data.map((type: any, index: number) => ({
+          id: type.id,
+          code: type.code,
+          name: type.name,
+          allocated: type.maxDaysPerYear,
+          used: 0,
+          color: colors[index % colors.length]
+        }));
+        setBalances(mappedBalances);
+      }
+    } catch (err) {
+      console.log("Failed to load real leave types:", err);
+    }
+  };
 
   const fetchRequests = async () => {
     if (!token) {
@@ -91,18 +118,16 @@ export default function LeaveScreen() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/leave/requests`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Filter requests for currently logged-in employee if backend is connected
-        setRequests(data);
+      const res = await apiClient.get('/leave/requests');
+      if (res.data && Array.isArray(res.data)) {
+        // Filter requests for currently logged-in employee (matching employeeDetails.id)
+        const employeeId = employeeDetails?.id;
+        const myRequests = res.data.filter((req: any) => req.employeeId === employeeId);
+        setRequests(myRequests);
       } else {
         setRequests(mockRequests);
       }
     } catch (err) {
-      // Fallback silently to mock data in demo/sandbox offline mode
       setRequests(mockRequests);
     } finally {
       setLoading(false);
@@ -134,9 +159,15 @@ export default function LeaveScreen() {
       current.setDate(current.getDate() + 1);
     }
 
+    const selectedLeaveTypeObj = balances.find((b) => b.code === selectedType);
+    if (!selectedLeaveTypeObj || selectedLeaveTypeObj.id.startsWith("mock-")) {
+      Alert.alert("Real Integration Required", "Please seed or create real leave types via the HR dashboard first.");
+      return;
+    }
+
     const payload = {
-      employeeId: employeeDetails?.idNumber || "emp-mock",
-      leaveTypeCode: selectedType,
+      employeeId: employeeDetails?.id,
+      leaveTypeId: selectedLeaveTypeObj.id,
       startDate,
       endDate,
       reason,
@@ -146,28 +177,22 @@ export default function LeaveScreen() {
 
     if (token) {
       try {
-        const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/leave/requests`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
+        const res = await apiClient.post('/leave/requests', payload);
 
-        if (res.ok) {
+        if (res.data) {
           Alert.alert("Success", "Your leave request has been submitted for approval.");
           setModalVisible(false);
           fetchRequests();
           clearForm();
           return;
-        } else {
-          const errData = await res.json();
-          Alert.alert("Submission Rejected", errData.message || "Overlap detected.");
         }
-      } catch (err) {
-        // Fallback below
+      } catch (err: any) {
+        const errMsg = err.response?.data?.message || err.message || "Overlap or other error detected.";
+        Alert.alert("Submission Rejected", errMsg);
+      } finally {
+        setLoading(false);
       }
+      return;
     }
 
     // Local simulation fallback

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "employee-mobile",
+    "name": "Demoz Mobile",
     "slug": "employee-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,9 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.demoz.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.demoz.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -44,6 +50,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e1cdb2f1-78cf-40df-8a06-ba0a316242ff"
+      }
     }
   }
 }
