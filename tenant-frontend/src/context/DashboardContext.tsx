@@ -1,6 +1,6 @@
 "use client";
 
-
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { Employee } from "../features/employees/HRDirectory";
 import { AttendanceLog, Branch } from "../features/attendance/AttendanceTracker";
 import { toast } from "../components/ui/toast";
@@ -88,7 +88,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setEmployees(emp);
         setBranches(brn);
         setLogs(att);
-        const totalSalary = emp.reduce((sum, e) => sum + e.baseSalary, 0);
+        const totalSalary = emp.reduce((sum: number, e: Employee) => sum + e.baseSalary, 0);
         setStats(prev => ({
           ...prev,
           totalEmployees: emp.length,
@@ -110,7 +110,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, [isThemeDark]);
 
   // CRUD helpers – talk to API
-  const handleAddEmployee = async (newEmp) => {
+  const handleAddEmployee = async (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">): Promise<{ success: boolean; message: string }> => {
     if (employees.length >= stats.maxEmployees) return { success: false, message: "Seat capacity limit reached." };
     try {
       const created = await apiRequest<Employee>("/employees", { method: "POST", body: JSON.stringify(newEmp) });
@@ -125,12 +125,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       }, ...prev]);
       setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + created.baseSalary }));
       return { success: true, message: "Employee added." };
-    } catch (e) {
+    } catch (e: any) {
       return { success: false, message: e?.message ?? "Failed to add employee." };
     }
   };
 
-  const handleUpdateEmployee = async (id, updates) => {
+  const handleUpdateEmployee = async (id: string, updates: Partial<Employee>): Promise<{ success: boolean; message: string }> => {
     try {
       const updated = await apiRequest<Employee>(`/employees/${id}`, { method: "PATCH", body: JSON.stringify(updates) });
       setEmployees(prev => prev.map(e => (e.id === id ? updated : e)));
@@ -140,19 +140,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         timestamp: time,
         user: "HR Operator",
         action: `updated employee ${updated.firstName} ${updated.lastName}`,
-        type: "warning",
+        type: "warning" as const,
       }, ...prev]);
-      if (updates.baseSalary) {
-        const original = employees.find(e => e.id === id)?.baseSalary ?? 0;
-        setStats(prev => ({ ...prev, monthlyPayroll: prev.monthlyPayroll - original + updates.baseSalary }));
-      }
+        if (updates.baseSalary !== undefined) {
+          const original = employees.find(e => e.id === id)?.baseSalary ?? 0;
+          const newSalary = updates.baseSalary;
+          setStats(prev => ({ ...prev, monthlyPayroll: prev.monthlyPayroll - original + newSalary }));
+        }
       return { success: true, message: "Employee updated." };
-    } catch (e) {
+    } catch (e: any) {
       return { success: false, message: e?.message ?? "Failed to update employee." };
     }
   };
 
-  const handleAddBranch = async (newBranch) => {
+  const handleAddBranch = async (newBranch: Omit<Branch, "id">): Promise<{ success: boolean; message: string }> => {
     try {
       const created = await apiRequest<Branch>("/branches", { method: "POST", body: JSON.stringify(newBranch) });
       setBranches(prev => [...prev, created]);
@@ -162,18 +163,18 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         timestamp: time,
         user: "HR Operator",
         action: `setup geofenced branch: ${created.name} (Radius: ${created.geofenceRadiusMeters}m)`,
-        type: "success",
+        type: "success" as const,
       }, ...prev]);
       return { success: true, message: "Branch added." };
-    } catch (e) {
+    } catch (e: any) {
       return { success: false, message: e?.message ?? "Failed to add branch." };
     }
   };
 
-  const handleSimulateLog = async (newLog) => {
+  const handleSimulateLog = async (newLog: any): Promise<void> => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const logId = `log-${Date.now()}`;
-    const added = { id: logId, timestamp: time.slice(0, 8), ...newLog };
+    const added: AttendanceLog = { id: logId, timestamp: time.slice(0, 8), ...newLog };
     setLogs(prev => [added, ...prev]);
     try { await apiRequest("/attendance/logs", { method: "POST", body: JSON.stringify(added) }); } catch {}
     const actionDesc = newLog.source === "USSD"
@@ -181,27 +182,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       : newLog.source === "WEB_PWA"
       ? `${newLog.type.toLowerCase().replace("_", " ")} via Web PWA browser GPS`
       : `${newLog.type.toLowerCase().replace("_", " ")} via native app`;
-    const newAct = {
+    const newAct: AuditLog = {
       id: `act-${Date.now()}`,
       timestamp: time,
       user: newLog.employeeName,
       action: newLog.isAnomaly ? `${actionDesc} (GEOFENCE INFRACTION)` : actionDesc,
-      type: newLog.isAnomaly ? "warning" : "success",
+      type: newLog.isAnomaly ? "warning" as const : "success" as const,
     };
     setAuditLogs(prev => [newAct, ...prev]);
     if (newLog.type === "CLOCK_IN") setStats(prev => ({ ...prev, attendanceRate: Math.min(prev.attendanceRate + 2, 100) }));
   };
-
-  const handleUpgradePlan = (plan, maxEmp) => {
+  const handleUpgradePlan = (plan: string, maxEmp: number) => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setStats(prev => ({ ...prev, planTier: plan, maxEmployees: maxEmp }));
-    setAuditLogs(prev => [{
-      id: `act-${Date.now()}`,
-      timestamp: time,
-      user: "Owner",
-      action: `upgraded subscription to ${plan} (seat limit ${maxEmp})`,
-      type: "success",
-    }, ...prev]);
+    setAuditLogs(prev => [{ id: `act-${Date.now()}`, timestamp: time, user: "Owner", action: `upgraded subscription to ${plan} (seat limit ${maxEmp})`, type: "success" }, ...prev]);
   };
 
   const handleTriggerDisbursement = () => {
