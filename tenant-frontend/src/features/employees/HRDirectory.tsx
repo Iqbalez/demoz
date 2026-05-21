@@ -22,8 +22,8 @@ export interface Employee {
 export interface HRDirectoryProps {
   employees: Employee[];
   maxEmployees: number;
-  onAddEmployee: (employee: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => { success: boolean; message: string };
-  onUpdateEmployee: (id: string, updates: Partial<Employee>) => { success: boolean; message: string };
+  onAddEmployee: (employee: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => Promise<{ success: boolean; message: string }>;
+  onUpdateEmployee: (id: string, updates: Partial<Employee>) => Promise<{ success: boolean; message: string }>;
 }
 
 export default function HRDirectory({
@@ -130,7 +130,7 @@ export default function HRDirectory({
     setShowAddModal(true);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (!firstName || !lastName || !empId || !phone || !salary) {
@@ -138,7 +138,7 @@ export default function HRDirectory({
         return;
       }
 
-      const result = onAddEmployee({
+      const result = await onAddEmployee({
         firstName,
         lastName,
         employeeIdNumber: empId,
