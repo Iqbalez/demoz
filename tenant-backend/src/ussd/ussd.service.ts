@@ -26,6 +26,9 @@ export class UssdService {
       this.redisClient = new Redis({
         host,
         port,
+        password: process.env.REDIS_PASSWORD || undefined,
+        // Support secure SSL/TLS for Upstash Redis
+        tls: process.env.REDIS_TLS === 'true' || process.env.REDIS_HOST?.includes('upstash.io') ? {} : undefined,
         maxRetriesPerRequest: 3,
         connectTimeout: 2000,
       });

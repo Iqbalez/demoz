@@ -28,6 +28,9 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
       connection: {
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        password: process.env.REDIS_PASSWORD || undefined,
+        // Support SSL/TLS for secure managed Redis clusters (like Upstash) in cloud environments
+        tls: process.env.REDIS_TLS === 'true' || process.env.REDIS_HOST?.includes('upstash.io') ? {} : undefined,
       },
     }),
     PayrollModule,
