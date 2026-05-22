@@ -14,7 +14,9 @@ export class TenantMiddleware implements NestMiddleware {
       // In a real app, you would decode the JWT here. 
       // For this step, let's assume the token itself contains the tenantId directly.
       tenantId = token; 
-    } 
+    } else if (req.query && req.query.token) {
+      tenantId = req.query.token as string;
+    }
 
     // 2. Check if it's a USSD Mobile Request (Looks for a companyCode in the text body)
     else if (req.body && req.body.companyCode) {
@@ -29,7 +31,8 @@ export class TenantMiddleware implements NestMiddleware {
         return next();
       }
       if (req.originalUrl.includes('/payroll/reports') || req.path.includes('/payroll/reports')) {
-        tenantId = 'tenant_id_google'; // Default fallback tenant ID for public reports downloads
+        // We require a tenant token even for report downloads now
+        throw new UnauthorizedException('We do not know which company you belong to! Token missing in download request.');
       } else {
         throw new UnauthorizedException('We do not know which company you belong to!');
       }
