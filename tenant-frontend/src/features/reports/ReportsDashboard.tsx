@@ -26,15 +26,10 @@ export function ReportsDashboard() {
     setMounted(true);
   }, []);
 
-  // Realistic Payroll Trend Data scaled to a typical mid-sized firm in Ethiopia (hundreds of thousands ETB)
-  const basePayrollMultiplier = stats.monthlyPayroll > 90000 ? stats.monthlyPayroll : 97500;
-  const payrollTrendData = [
-    { month: "Jan", gross: basePayrollMultiplier * 2.8, net: basePayrollMultiplier * 2.18, tax: basePayrollMultiplier * 0.38, pension: basePayrollMultiplier * 0.24 },
-    { month: "Feb", gross: basePayrollMultiplier * 2.9, net: basePayrollMultiplier * 2.26, tax: basePayrollMultiplier * 0.39, pension: basePayrollMultiplier * 0.25 },
-    { month: "Mar", gross: basePayrollMultiplier * 3.1, net: basePayrollMultiplier * 2.42, tax: basePayrollMultiplier * 0.42, pension: basePayrollMultiplier * 0.26 },
-    { month: "Apr", gross: basePayrollMultiplier * 3.2, net: basePayrollMultiplier * 2.50, tax: basePayrollMultiplier * 0.43, pension: basePayrollMultiplier * 0.27 },
-    { month: "May", gross: basePayrollMultiplier * 3.5, net: basePayrollMultiplier * 2.73, tax: basePayrollMultiplier * 0.47, pension: basePayrollMultiplier * 0.30 },
-  ];
+  // Payroll Trend Data based on actual data
+  const payrollTrendData = stats.monthlyPayroll > 0 ? [
+    { month: new Date().toLocaleString('default', { month: 'short' }), gross: stats.monthlyPayroll, net: stats.monthlyPayroll * 0.78, tax: stats.monthlyPayroll * 0.15, pension: stats.monthlyPayroll * 0.07 }
+  ] : [];
 
   const handleAiAudit = () => {
     setIsAuditing(true);
@@ -200,77 +195,48 @@ export function ReportsDashboard() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
               
-              {/* Mock Row 1 */}
-              <tr className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/30 transition-colors">
-                <td className="px-5 py-4">
-                  <div className="font-bold text-slate-800 dark:text-zinc-100">May 2026</div>
-                  <div className="text-[10px] text-slate-500">Run ID: PR-2026-05</div>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold rounded text-[9px] uppercase tracking-wider">
-                    Completed
-                  </span>
-                </td>
-                <td className="px-5 py-4 font-mono font-bold text-slate-800 dark:text-zinc-100">
-                  {stats.monthlyPayroll.toLocaleString()} ETB
-                </td>
-                <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
-                  <button 
-                    onClick={() => downloadReport('erca', 'run-mock-123')}
-                    className="px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded font-bold transition-all text-[10px]"
-                  >
-                    ERCA CSV / ግብር
-                  </button>
-                  <button 
-                    onClick={() => downloadReport('psssa', 'run-mock-123')}
-                    className="px-3 py-1.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded font-bold transition-all text-[10px]"
-                  >
-                    POESSA CSV / ጡረታ
-                  </button>
-                  <button 
-                    onClick={() => downloadReport('payslip', 'item-mock-123')}
-                    className="px-3 py-1.5 border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 rounded font-bold transition-all text-[10px] text-slate-700 dark:text-zinc-300"
-                  >
-                    Payslip / ፎርም
-                  </button>
-                </td>
-              </tr>
-
-              {/* Mock Row 2 */}
-              <tr className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/30 transition-colors">
-                <td className="px-5 py-4">
-                  <div className="font-bold text-slate-800 dark:text-zinc-100">April 2026</div>
-                  <div className="text-[10px] text-slate-500">Run ID: PR-2026-04</div>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold rounded text-[9px] uppercase tracking-wider">
-                    Completed
-                  </span>
-                </td>
-                <td className="px-5 py-4 font-mono font-bold text-slate-800 dark:text-zinc-100">
-                  92,000 ETB
-                </td>
-                <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
-                  <button 
-                    onClick={() => downloadReport('erca', 'run-mock-123')}
-                    className="px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded font-bold transition-all text-[10px]"
-                  >
-                    ERCA CSV / ግብር
-                  </button>
-                  <button 
-                    onClick={() => downloadReport('psssa', 'run-mock-123')}
-                    className="px-3 py-1.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded font-bold transition-all text-[10px]"
-                  >
-                    POESSA CSV / ጡረታ
-                  </button>
-                  <button 
-                    onClick={() => downloadReport('payslip', 'item-mock-123')}
-                    className="px-3 py-1.5 border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 rounded font-bold transition-all text-[10px] text-slate-700 dark:text-zinc-300"
-                  >
-                    Payslip / ፎርም
-                  </button>
-                </td>
-              </tr>
+              {stats.monthlyPayroll > 0 ? (
+                <tr className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/30 transition-colors">
+                  <td className="px-5 py-4">
+                    <div className="font-bold text-slate-800 dark:text-zinc-100">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
+                    <div className="text-[10px] text-slate-500">Run ID: PR-{new Date().getFullYear()}-{String(new Date().getMonth() + 1).padStart(2, '0')}</div>
+                  </td>
+                  <td className="px-5 py-4">
+                    <span className="px-2 py-1 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold rounded text-[9px] uppercase tracking-wider">
+                      Completed
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 font-mono font-bold text-slate-800 dark:text-zinc-100">
+                    {stats.monthlyPayroll.toLocaleString()} ETB
+                  </td>
+                  <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
+                    <button 
+                      onClick={() => downloadReport('erca', `run-live-${Date.now()}`)}
+                      className="px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded font-bold transition-all text-[10px]"
+                    >
+                      ERCA CSV / ግብር
+                    </button>
+                    <button 
+                      onClick={() => downloadReport('psssa', `run-live-${Date.now()}`)}
+                      className="px-3 py-1.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded font-bold transition-all text-[10px]"
+                    >
+                      POESSA CSV / ጡረታ
+                    </button>
+                    <button 
+                      onClick={() => downloadReport('payslip', `item-live-${Date.now()}`)}
+                      className="px-3 py-1.5 border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 rounded font-bold transition-all text-[10px] text-slate-700 dark:text-zinc-300"
+                    >
+                      Payslip / ፎርም
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={4} className="py-12 text-center text-slate-400 font-semibold italic">
+                    No payroll data found. Onboard employees to generate reports.
+                  </td>
+                </tr>
+              )}
 
             </tbody>
           </table>

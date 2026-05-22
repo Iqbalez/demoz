@@ -239,16 +239,8 @@ export default function BillingPortal() {
                   })
                 ) : (
                   <tr className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/10">
-                    <td className="py-4 px-5 font-mono text-[10px] font-bold text-slate-900 dark:text-zinc-50">
-                      #INV-{companySlug}-8392
-                    </td>
-                    <td className="py-4 px-5 font-medium">May 01, 2026 - May 31, 2026</td>
-                    <td className="py-4 px-5 font-mono font-semibold">{activePlan.price.toLocaleString()} ETB</td>
-                    <td className="py-4 px-5 font-medium">Chapa Gateway (CBE Birr Wallet)</td>
-                    <td className="py-4 px-5 text-right">
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                        PAID
-                      </span>
+                    <td colSpan={5} className="py-12 text-center text-slate-400 font-semibold italic">
+                      No active invoices found.
                     </td>
                   </tr>
                 )}

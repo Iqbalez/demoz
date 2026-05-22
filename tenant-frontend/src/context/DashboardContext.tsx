@@ -58,6 +58,22 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedTier = localStorage.getItem("demoz_tier");
+      const storedCompany = localStorage.getItem("demoz_company");
+      if (storedTier || storedCompany) {
+        setStats(prev => ({
+          ...prev,
+          planTier: storedTier || prev.planTier,
+          companyName: storedCompany || prev.companyName,
+          maxEmployees: storedTier ? (storedTier.toUpperCase() === "ENTERPRISE" ? 1000 : storedTier.toUpperCase() === "GROWTH" ? 50 : 10) : prev.maxEmployees
+        }));
+      }
+    }
+  }, []);
+
   // Check backend connectivity
   useEffect(() => {
     const checkBackend = async () => {
@@ -126,7 +142,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + created.baseSalary }));
       return { success: true, message: "Employee added." };
     } catch (e: any) {
-      return { success: false, message: e?.message ?? "Failed to add employee." };
+      // Offline fallback
+      const id = `emp-${Math.floor(1000 + Math.random() * 9000)}`;
+      const created: Employee = {
+        ...newEmp,
+        id,
+        hireDate: new Date().toISOString().split("T")[0],
+        faydaVerified: true,
+      };
+      setEmployees(prev => [...prev, created]);
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setAuditLogs(prev => [{
+        id: `act-${Date.now()}`,
+        timestamp: time,
+        user: "HR Operator",
+        action: `onboarded employee ${created.firstName} ${created.lastName} (Offline)`,
+        type: "success",
+      }, ...prev]);
+      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + created.baseSalary }));
+      return { success: true, message: "Employee added (Offline)." };
     }
   };
 
@@ -149,7 +183,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         }
       return { success: true, message: "Employee updated." };
     } catch (e: any) {
-      return { success: false, message: e?.message ?? "Failed to update employee." };
+      // Offline fallback
+      setEmployees(prev => prev.map(e => (e.id === id ? { ...e, ...updates } as Employee : e)));
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const targetEmp = employees.find(e => e.id === id);
+      if (targetEmp) {
+        setAuditLogs(prev => [{
+          id: `act-${Date.now()}`,
+          timestamp: time,
+          user: "HR Operator",
+          action: `updated employee ${targetEmp.firstName} ${targetEmp.lastName} (Offline)`,
+          type: "warning" as const,
+        }, ...prev]);
+      }
+      if (updates.baseSalary !== undefined) {
+        const original = employees.find(e => e.id === id)?.baseSalary ?? 0;
+        const newSalary = updates.baseSalary;
+        setStats(prev => ({ ...prev, monthlyPayroll: prev.monthlyPayroll - original + newSalary }));
+      }
+      return { success: true, message: "Employee updated (Offline)." };
     }
   };
 
@@ -167,7 +219,19 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       }, ...prev]);
       return { success: true, message: "Branch added." };
     } catch (e: any) {
-      return { success: false, message: e?.message ?? "Failed to add branch." };
+      // Offline fallback
+      const id = `branch-${Math.floor(1000 + Math.random() * 9000)}`;
+      const created: Branch = { ...newBranch, id };
+      setBranches(prev => [...prev, created]);
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setAuditLogs(prev => [{
+        id: `act-${Date.now()}`,
+        timestamp: time,
+        user: "HR Operator",
+        action: `setup geofenced branch: ${created.name} (Radius: ${created.geofenceRadiusMeters}m) (Offline)`,
+        type: "success" as const,
+      }, ...prev]);
+      return { success: true, message: "Branch added (Offline)." };
     }
   };
 

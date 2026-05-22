@@ -11,49 +11,7 @@ function LeavePageContent() {
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
 
   // Local state mock data in Simulation Mode
-  const [mockRequests, setMockRequests] = useState<LeaveRequest[]>([
-    {
-      id: "req-1",
-      startDate: "2026-06-01",
-      endDate: "2026-06-05",
-      totalDays: 5,
-      reason: "Family wedding event in Bahir Dar",
-      status: "PENDING",
-      rejectionReason: null,
-      createdAt: "2026-05-19",
-      employee: {
-        firstName: "Ramzi",
-        lastName: "Amin",
-        employeeIdNumber: "EMP-4820",
-      },
-      leaveType: {
-        name: "Annual Leave",
-        code: "AL",
-      },
-    },
-    {
-      id: "req-2",
-      startDate: "2026-05-10",
-      endDate: "2026-05-12",
-      totalDays: 3,
-      reason: "Influenza infection, resting per doctor prescriptions",
-      status: "APPROVED",
-      rejectionReason: null,
-      createdAt: "2026-05-09",
-      employee: {
-        firstName: "Selam",
-        lastName: "Tesfaye",
-        employeeIdNumber: "EMP-9281",
-      },
-      leaveType: {
-        name: "Sick Leave",
-        code: "SL",
-      },
-      approvedBy: {
-        email: "hr@demoz.et",
-      },
-    },
-  ]);
+  const [mockRequests, setMockRequests] = useState<LeaveRequest[]>([]);
 
   const [mockLeaveTypes, setMockLeaveTypes] = useState<LeaveType[]>([
     { id: "type-1", name: "Annual Leave", code: "AL", maxDaysPerYear: 16, requiresApproval: true, isPaid: true },
