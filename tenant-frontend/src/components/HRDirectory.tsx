@@ -96,7 +96,7 @@ export default function HRDirectory({ employees, maxEmployees, onAddEmployee, on
     setEmpId(emp.employeeIdNumber);
     setPhone(emp.phoneNumber);
     setDepartment(emp.departmentName);
-    setSalary(emp.baseSalary.toString());
+    setSalary(emp.baseSalary?.toString() ?? "");
     setFayda(emp.faydaNumber || "");
     setStatus(emp.status);
     setFaydaVerified(emp.faydaVerified !== false);
