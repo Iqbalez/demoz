@@ -104,7 +104,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setEmployees(emp);
         setBranches(brn);
         setLogs(att);
-        const totalSalary = emp.reduce((sum: number, e: Employee) => sum + e.baseSalary, 0);
+        const totalSalary = emp.reduce((sum: number, e: Employee) => sum + (e.baseSalary ?? 0), 0);
         setStats(prev => ({
           ...prev,
           totalEmployees: emp.length,
@@ -139,7 +139,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         action: `onboarded employee ${created.firstName} ${created.lastName}`,
         type: "success",
       }, ...prev]);
-      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + created.baseSalary }));
+      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
       return { success: true, message: "Employee added." };
     } catch (e: any) {
       // Offline fallback
@@ -159,7 +159,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         action: `onboarded employee ${created.firstName} ${created.lastName} (Offline)`,
         type: "success",
       }, ...prev]);
-      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + created.baseSalary }));
+      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
       return { success: true, message: "Employee added (Offline)." };
     }
   };
@@ -554,7 +554,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setStats((prev) => ({
       ...prev,
       totalEmployees: prev.totalEmployees + 1,
-      monthlyPayroll: prev.monthlyPayroll + newEmp.baseSalary,
+      monthlyPayroll: prev.monthlyPayroll + (newEmp.baseSalary ?? 0),
     }));
 
     return { success: true, message: "Onboarding successful!" };
@@ -569,7 +569,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setEmployees((prev) =>
       prev.map((emp) => {
         if (emp.id === id) {
-          originalSalary = emp.baseSalary;
+          originalSalary = emp.baseSalary ?? 0;
           return { ...emp, ...updates } as Employee;
         }
         return emp;
