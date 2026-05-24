@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import * as Sentry from '@sentry/node';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -45,18 +46,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = 'The requested database record was not found.';
       } else {
         status = HttpStatus.BAD_REQUEST;
-        message = `Database constraint error (${exception.code}): ${exception.message}`;
+        message = process.env.NODE_ENV === 'production'
+          ? `Database constraint error (${exception.code}) occurred.`
+          : `Database constraint error (${exception.code}): ${exception.message}`;
       }
     }
     // 3. General native Javascript Runtime Errors
     else if (exception instanceof Error) {
-      message = exception.message;
+      message = process.env.NODE_ENV === 'production'
+        ? 'An unexpected system error occurred. Please contact support.'
+        : exception.message;
     }
 
     this.logger.error(
       `Exception intercepted on [${request.method}] ${request.url}:`,
       exception.stack || exception,
     );
+
+    if (status >= 500) {
+      Sentry.captureException(exception);
+    }
 
     // 4. USSD Gateway Response: return plain text "END System error: ..." with 200 OK
     if (isUssd) {

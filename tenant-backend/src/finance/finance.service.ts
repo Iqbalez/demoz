@@ -109,6 +109,7 @@ export class FinanceService {
                  Authorization: `Bearer ${CHAPA_SECRET_KEY}`,
                  'Content-Type': 'application/json',
                },
+               timeout: 10000,
              }),
            );
            batchId = response.data?.data?.batch_id || batchId;

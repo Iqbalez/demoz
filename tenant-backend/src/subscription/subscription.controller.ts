@@ -119,6 +119,7 @@ export class SubscriptionController {
           Authorization: `Bearer ${CHAPA_SECRET_KEY}`,
           'Content-Type': 'application/json',
         },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           amount: amount.toString(),
           currency: 'ETB',

@@ -1,8 +1,11 @@
 import { Controller, Post, Body, Req, UseGuards, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
+import { RateLimit } from '../common/guards/rate-limit.decorator';
+import { RateLimitGuard } from '../common/guards/rate-limit.guard';
 
 @Controller('api/v1/auth')
+@UseGuards(RateLimitGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -10,6 +13,7 @@ export class AuthController {
    * Endpoint for Owner registration
    */
   @Public()
+  @RateLimit(5, 60000)
   @Post('register')
   async register(
     @Body('companyName') companyName: string,
@@ -32,6 +36,7 @@ export class AuthController {
    * Endpoint for Owner / HR login
    */
   @Public()
+  @RateLimit(5, 60000)
   @Post('login')
   async login(
     @Body('email') email: string,
@@ -47,6 +52,7 @@ export class AuthController {
    * Endpoint for Employee mobile app login
    */
   @Public()
+  @RateLimit(5, 60000)
   @Post('employee-login')
   async employeeLogin(
     @Body('phoneNumber') phoneNumber: string,

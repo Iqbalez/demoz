@@ -71,7 +71,8 @@ model User {
   passwordHash String   @db.VarChar(255)
   phoneNumber  String   @unique @db.VarChar(20) // Globally unique for USSD credentials lookup
   role             UserRole
-  twoFactorSecret  String?  @db.VarChar(255)
+  /// @encrypted
+  twoFactorSecret  String?
   isActive         Boolean  @default(true) @db.Boolean
   createdAt        DateTime @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @db.Timestamptz(6)
@@ -136,20 +137,25 @@ model Employee {
   lastName           String          @db.VarChar(100)
   employeeIdNumber   String          @db.VarChar(50)
   phoneNumber        String          @unique @db.VarChar(20)
-  tin                String?         @db.VarChar(20)  // Taxpayer Identification Number — mandatory for ERCA/SIGTAS monthly tax filing
-  pensionId          String?         @db.VarChar(20)  // POESSA Pension ID — mandatory for monthly pension contribution reporting
+  /// @encrypted
+  tin                String?  // Taxpayer Identification Number — mandatory for ERCA/SIGTAS monthly tax filing
+  /// @encrypted
+  pensionId          String?  // POESSA Pension ID — mandatory for monthly pension contribution reporting
   baseSalary         Decimal         @db.Decimal(12, 2) // Decimal ensures high accuracy for payroll financial calculations
   transportAllowance Decimal         @default(0) @db.Decimal(12, 2) // Non-taxable up to 25% of basic or 2,200 ETB
   positionAllowance  Decimal         @default(0) @db.Decimal(12, 2) // Taxable position/responsibility allowance
   paymentMethod      PaymentMethod   @default(BANK)
   bankName           String?         @db.VarChar(100)
-  bankAccount        String?         @db.VarChar(100)
+  /// @encrypted
+  bankAccount        String?
   bankCode           String?         @db.VarChar(50)
-  accountName        String?         @db.VarChar(150)
+  /// @encrypted
+  accountName        String?
   status             EmployeeStatus  @default(ACTIVE)
   ussdPin            String?         @db.VarChar(4) @default("1234") // Default USSD PIN for simple frontend authorization
   ussdPinHash        String?         @db.VarChar(255)
-  faydaNumber        String?         @unique @db.VarChar(12)
+  /// @encrypted
+  faydaNumber        String?         @unique
   hireDate           DateTime        @db.Timestamptz(6)
   createdAt          DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt          DateTime        @updatedAt @db.Timestamptz(6)

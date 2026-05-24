@@ -31,6 +31,11 @@ export class PayrollProcessor extends WorkerHost {
     // Enforce strict multi-tenancy context boundary for background thread queries
     return tenantStorage.run(tenantId, async () => {
       try {
+        // Clean up any existing line items for this run (e.g. from a previous crashed run attempt)
+        await this.prisma.payrollLineItem.deleteMany({
+          where: { payrollRunId },
+        });
+
         // 1. Flip PayrollRun status to PROCESSING
         await this.prisma.payrollRun.update({
           where: { id: payrollRunId },
@@ -190,6 +195,15 @@ export class PayrollProcessor extends WorkerHost {
         this.logger.log(`Payroll generation completed successfully for run ${payrollRunId}`);
       } catch (error: any) {
         this.logger.error(`Critical error generating payroll ${payrollRunId}:`, error);
+
+        // Clean up any partially created line items for this run to keep database integrity
+        try {
+          await this.prisma.payrollLineItem.deleteMany({
+            where: { payrollRunId },
+          });
+        } catch (cleanupError) {
+          this.logger.error(`Failed to clean up payroll line items for run ${payrollRunId}:`, cleanupError);
+        }
 
         // Handle server-side errors gracefully by flagging parent run as FAILED with diagnostic message
         await this.prisma.payrollRun.update({

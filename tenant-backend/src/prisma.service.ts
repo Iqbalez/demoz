@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import { fieldEncryptionExtension } from 'prisma-field-encryption';
 import { tenantStorage } from './tenant-context'; // Reusing your existing store
 
 @Injectable()
@@ -19,102 +20,109 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     const rawClient = this;
     this.prismaClient = this;
 
-    // Initialize the multi-tenant Prisma Client Extension
-    this.extendedClient = this.$extends({
-      query: {
-        $allModels: {
-          async $allOperations({ model, operation, args, query }) {
-            // Models that require tenant isolation (add new models here as schema grows)
-            const tenantScopedModels = [
-              'User',
-              'Employee',
-              'Branch',
-              'Department',
-              'Attendance',
-              'AttendanceLog',
-              'PayrollRun',
-              'AiAuditReport',
-              'AuditLog',
-              'SubscriptionInvoice',
-            ];
+    // Initialize the multi-tenant + encrypted Prisma Client Extension chain.
+    // ORDER MATTERS: Encryption runs FIRST so tenant logic operates on already-decrypted data.
+    this.extendedClient = this
+      // ─── Layer 1: Field Encryption (AES-256-GCM) ────────────────────────────
+      // Reads PRISMA_FIELD_ENCRYPTION_KEY from the environment automatically.
+      // Encrypts on write, decrypts on read, for every field annotated /// @encrypted.
+      .$extends(fieldEncryptionExtension())
+      // ─── Layer 2: Multi-Tenant Row Isolation (AsyncLocalStorage) ────────────
+      .$extends({
+        query: {
+          $allModels: {
+            async $allOperations({ model, operation, args, query }) {
+              // Models that require tenant isolation (add new models here as schema grows)
+              const tenantScopedModels = [
+                'User',
+                'Employee',
+                'Branch',
+                'Department',
+                'Attendance',
+                'AttendanceLog',
+                'PayrollRun',
+                'AiAuditReport',
+                'AuditLog',
+                'SubscriptionInvoice',
+              ];
 
-            if (tenantScopedModels.includes(model)) {
-              const tenantId = tenantStorage.getStore();
+              if (tenantScopedModels.includes(model)) {
+                const tenantId = tenantStorage.getStore();
 
-              if (tenantId) {
-                const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
+                if (tenantId) {
+                  const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
 
-                // A. Automatic Stamp on Creations
-                if (operation === 'create') {
-                  args.data = args.data || {};
-                  (args.data as any).tenantId = tenantId;
-                } else if (operation === 'createMany' || operation === 'createManyAndReturn') {
-                  if (Array.isArray(args.data)) {
-                    args.data = args.data.map((item: any) => ({ ...item, tenantId }));
-                  } else {
-                    args.data = { ...(args.data as any), tenantId };
-                  }
-                }
-
-                // B. Automatic Filtering on standard reads & bulk writes
-                else if ([
-                  'findMany', 'findFirst', 'findFirstOrThrow', 'count', 
-                  'aggregate', 'groupBy', 'updateMany', 'deleteMany'
-                ].includes(operation)) {
-                  args.where = args.where || {};
-                  (args.where as any).tenantId = tenantId;
-                }
-
-                // C. Intercept unique reads and convert to findFirst to support tenantId queries
-                else if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
-                  const flattenedWhere: any = { tenantId };
-                  const originalWhere = args.where || {};
-                  for (const key of Object.keys(originalWhere)) {
-                    const val = originalWhere[key];
-                    if (
-                      val &&
-                      typeof val === 'object' &&
-                      !Array.isArray(val) &&
-                      !(val instanceof Date)
-                    ) {
-                      // Flatten compound unique key objects (e.g. employeeId_date)
-                      Object.assign(flattenedWhere, val);
+                  // A. Automatic Stamp on Creations
+                  if (operation === 'create') {
+                    args.data = args.data || {};
+                    (args.data as any).tenantId = tenantId;
+                  } else if (operation === 'createMany' || operation === 'createManyAndReturn') {
+                    if (Array.isArray(args.data)) {
+                      args.data = args.data.map((item: any) => ({ ...item, tenantId }));
                     } else {
-                      flattenedWhere[key] = val;
+                      args.data = { ...(args.data as any), tenantId };
                     }
                   }
 
-                  const result = await (rawClient as any)[modelKey].findFirst({
-                    ...args,
-                    where: flattenedWhere,
-                  });
-                  if (!result && operation === 'findUniqueOrThrow') {
-                    throw new Error(`Record not found in tenant context.`);
+                  // B. Automatic Filtering on standard reads & bulk writes
+                  else if ([
+                    'findMany', 'findFirst', 'findFirstOrThrow', 'count',
+                    'aggregate', 'groupBy', 'updateMany', 'deleteMany'
+                  ].includes(operation)) {
+                    args.where = args.where || {};
+                    (args.where as any).tenantId = tenantId;
                   }
-                  return result;
-                }
 
-                // D. Pre-flight verification on single updates and deletions (prevent cross-tenant writes)
-                else if (operation === 'update' || operation === 'delete') {
-                  const record = await (rawClient as any)[modelKey].findFirst({
-                    where: { ...(args.where as any), tenantId },
-                    select: { id: true },
-                  });
+                  // C. Intercept unique reads and convert to findFirst to support tenantId queries
+                  else if (operation === 'findUnique' || operation === 'findUniqueOrThrow') {
+                    const flattenedWhere: any = { tenantId };
+                    const originalWhere = args.where || {};
+                    for (const key of Object.keys(originalWhere)) {
+                      const val = originalWhere[key];
+                      if (
+                        val &&
+                        typeof val === 'object' &&
+                        !Array.isArray(val) &&
+                        !(val instanceof Date)
+                      ) {
+                        // Flatten compound unique key objects (e.g. employeeId_date)
+                        Object.assign(flattenedWhere, val);
+                      } else {
+                        flattenedWhere[key] = val;
+                      }
+                    }
 
-                  if (!record) {
-                    throw new Error(`Access Denied: Record not found or does not belong to active tenant.`);
+                    const result = await (rawClient as any)[modelKey].findFirst({
+                      ...args,
+                      where: flattenedWhere,
+                    });
+                    if (!result && operation === 'findUniqueOrThrow') {
+                      throw new Error(`Record not found in tenant context.`);
+                    }
+                    return result;
                   }
-                  // Proceed safely with the original query since validation passed
+
+                  // D. Pre-flight verification on single updates and deletions (prevent cross-tenant writes)
+                  else if (operation === 'update' || operation === 'delete') {
+                    const record = await (rawClient as any)[modelKey].findFirst({
+                      where: { ...(args.where as any), tenantId },
+                      select: { id: true },
+                    });
+
+                    if (!record) {
+                      throw new Error(`Access Denied: Record not found or does not belong to active tenant.`);
+                    }
+                    // Proceed safely with the original query since validation passed
+                  }
                 }
               }
-            }
 
-            // Execute the query
-            return (query as any)(args);
+              // Execute the query
+              return (query as any)(args);
+            },
           },
         },
-      },
-    });
+      });
 
     // Wrap the service in a Proxy to redirect operations to the tenant-isolated extendedClient
     return new Proxy(this, {
