@@ -16,7 +16,7 @@ export default function ClockScreen() {
     geofenceStatus,
   } = useAttendanceStore();
 
-  const { getCurrentLocation } = useLocationTracker();
+  const { getCurrentLocation, permissionStatus } = useLocationTracker();
   const [locationLoading, setLocationLoading] = useState(false);
   const [timerText, setTimerText] = useState("00:00:00");
   const timerRef = useRef<any>(null);
@@ -122,6 +122,16 @@ export default function ClockScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Fallback Warning UI if GPS Permission is Denied */}
+      {permissionStatus === "denied" && (
+        <View style={styles.permissionWarningCard}>
+          <Text style={styles.permissionWarningTitle}>⚠️ GPS Permission Denied</Text>
+          <Text style={styles.permissionWarningText}>
+            Demoz requires precise GPS to verify your factory attendance. Please enable location access in system settings.
+          </Text>
+        </View>
+      )}
 
       {/* Geofence Status Information */}
       <View style={styles.locationCard}>
@@ -313,5 +323,25 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 10,
     fontWeight: "800",
+  },
+  permissionWarningCard: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.25)",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+  },
+  permissionWarningTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#f87171",
+    marginBottom: 4,
+  },
+  permissionWarningText: {
+    fontSize: 11,
+    color: "#fca5a5",
+    fontWeight: "600",
+    lineHeight: 16,
   },
 });

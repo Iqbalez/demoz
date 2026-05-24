@@ -9,8 +9,8 @@ export interface Employee {
   employeeIdNumber: string;
   phoneNumber: string;
   departmentName: string;
-  baseSalary: number;
-  faydaNumber: string;
+  baseSalary?: number;
+  faydaNumber?: string;
   status: "ACTIVE" | "SUSPENDED";
   hireDate: string;
   faydaVerified?: boolean; // Added biometric verification check status
@@ -188,11 +188,23 @@ export default function HRDirectory({ employees, maxEmployees, onAddEmployee, on
                   {/* Department */}
                   <td className="py-4 px-5 font-medium">{emp.departmentName}</td>
                   {/* Salary */}
-                  <td className="py-4 px-5 font-mono font-semibold">{emp.baseSalary.toLocaleString()} ETB</td>
+                  <td className="py-4 px-5 font-mono font-semibold text-slate-900 dark:text-zinc-100">
+                    {emp.baseSalary !== undefined && emp.baseSalary !== null ? (
+                      `${emp.baseSalary.toLocaleString()} ETB`
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100/60 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 font-sans font-normal border border-amber-200/30">Hidden for privacy</span>
+                    )}
+                  </td>
                   {/* Fayda ID and Badge */}
                   <td className="py-4 px-5">
                     <div className="flex flex-col gap-1">
-                      <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">{emp.faydaNumber}</span>
+                      <span className="font-mono text-[10px] text-slate-500 dark:text-zinc-400">
+                        {emp.faydaNumber ? (
+                          emp.faydaNumber
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100/60 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 font-sans font-normal border border-amber-200/30">Hidden for privacy</span>
+                        )}
+                      </span>
                       {emp.faydaVerified !== false ? (
                         <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-500 uppercase">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-slow"></span>

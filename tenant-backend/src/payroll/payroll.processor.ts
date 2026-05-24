@@ -25,8 +25,8 @@ export class PayrollProcessor extends WorkerHost {
     const { tenantId, periodStart, periodEnd, payrollRunId } = job.data;
     this.logger.log(`Starting background processing for job ${job.id} (Run: ${payrollRunId})`);
 
-    const start = new Date(periodStart);
-    const end = new Date(periodEnd);
+    const start = new Date(periodStart.includes('T') ? periodStart : `${periodStart}T00:00:00.000Z`);
+    const end = new Date(periodEnd.includes('T') ? periodEnd : `${periodEnd}T23:59:59.999Z`);
 
     // Enforce strict multi-tenancy context boundary for background thread queries
     return tenantStorage.run(tenantId, async () => {
@@ -90,10 +90,12 @@ export class PayrollProcessor extends WorkerHost {
 
             // Non-taxable transport allowance exemption rule (ethiopian_compliance_report.md):
             // Exempt up to 25% of basic salary OR 2,200 ETB, whichever is LOWER
-            const transportExemptCap = Math.min(base.toNumber() * 0.25, 2200);
-            const transportExempt = new Prisma.Decimal(
-              Math.min(transportAllowanceGross.toNumber(), transportExemptCap)
-            );
+            const transportExemptCap = base.mul(0.25).lt(new Prisma.Decimal(2200))
+              ? base.mul(0.25)
+              : new Prisma.Decimal(2200);
+            const transportExempt = transportAllowanceGross.lt(transportExemptCap)
+              ? transportAllowanceGross
+              : transportExemptCap;
             const transportTaxable = transportAllowanceGross.sub(transportExempt);
 
             // Gross Salary = Base + All Allowances
@@ -101,7 +103,10 @@ export class PayrollProcessor extends WorkerHost {
 
             // --- Pension (POESSA - Proclamation 1268/2022) ---
             // 7% employee and 11% employer of BASIC SALARY, capped at ETB 15,000
-            const pensionBase = base.toNumber() > 15000 ? new Prisma.Decimal(15000) : base;
+            // Decimal‑only pension base cap
+            const pensionBase = base.gt(new Prisma.Decimal(15000))
+              ? new Prisma.Decimal(15000)
+              : base;
             const pensionDeduction = pensionBase.mul(0.07);       // Employee 7%
             const employerPension = pensionBase.mul(0.11);         // Employer 11%
 
@@ -112,33 +117,36 @@ export class PayrollProcessor extends WorkerHost {
             // --- Employment Income Tax (Proclamation 1395/2025 - Schedule A) ---
             // Brackets verified against: report.md, ethiopia_compliance_research.md,
             // ethiopian_compliance_report.md, compliance_guide_for_hr.md
-            let taxRate = 0;
-            let taxDeductible = 0;
+            // Decimal‑only tax‑bracket evaluation
+            let taxRate = new Prisma.Decimal(0);
+            let taxDeductible = new Prisma.Decimal(0);
 
-            const taxableVal = taxableIncome.toNumber();
-            if (taxableVal <= 2000) {
-              taxRate = 0;
-              taxDeductible = 0;
-            } else if (taxableVal <= 4000) {
-              taxRate = 0.15;
-              taxDeductible = 300;
-            } else if (taxableVal <= 7000) {
-              taxRate = 0.20;
-              taxDeductible = 500;
-            } else if (taxableVal <= 10000) {
-              taxRate = 0.25;
-              taxDeductible = 850;
-            } else if (taxableVal <= 14000) {
-              taxRate = 0.30;
-              taxDeductible = 1350;
+            if (taxableIncome.lte(new Prisma.Decimal(2000))) {
+              taxRate = new Prisma.Decimal(0);
+              taxDeductible = new Prisma.Decimal(0);
+            } else if (taxableIncome.lte(new Prisma.Decimal(4000))) {
+              taxRate = new Prisma.Decimal(0.15);
+              taxDeductible = new Prisma.Decimal(300);
+            } else if (taxableIncome.lte(new Prisma.Decimal(7000))) {
+              taxRate = new Prisma.Decimal(0.20);
+              taxDeductible = new Prisma.Decimal(500);
+            } else if (taxableIncome.lte(new Prisma.Decimal(10000))) {
+              taxRate = new Prisma.Decimal(0.25);
+              taxDeductible = new Prisma.Decimal(850);
+            } else if (taxableIncome.lte(new Prisma.Decimal(14000))) {
+              taxRate = new Prisma.Decimal(0.30);
+              taxDeductible = new Prisma.Decimal(1350);
             } else {
-              taxRate = 0.35;
-              taxDeductible = 2050;
+              taxRate = new Prisma.Decimal(0.35);
+              taxDeductible = new Prisma.Decimal(2050);
             }
 
-            const incomeTax = new Prisma.Decimal(
-              Math.max(0, taxableIncome.toNumber() * taxRate - taxDeductible)
-            );
+            const incomeTax = taxableIncome
+              .mul(taxRate)
+              .sub(taxDeductible)
+              .gt(new Prisma.Decimal(0))
+              ? taxableIncome.mul(taxRate).sub(taxDeductible)
+              : new Prisma.Decimal(0);
 
             // Net Pay: Gross - Pension(7%) - Income Tax
             const netPay = grossSalary.sub(pensionDeduction).sub(incomeTax);

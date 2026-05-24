@@ -270,6 +270,7 @@ model PayrollRun {
   payrollLineItems PayrollLineItem[]
   aiAuditReport    AiAuditReport?
 
+  @@unique([tenantId, periodStart, periodEnd])
   @@index([tenantId])
   @@index([tenantId, status])
   @@map("payroll_runs")

@@ -23,6 +23,7 @@ export class LeaveController {
   }
 
   @Post('requests')
+  @Roles(UserRole.EMPLOYEE, UserRole.HR, UserRole.OWNER)
   async requestLeave(@Req() req: any, @Body() body: CreateLeaveRequestDto) {
     const tenantId = req['tenantId'];
     return this.leaveService.requestLeave(tenantId, body);

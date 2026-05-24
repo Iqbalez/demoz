@@ -41,7 +41,11 @@ export default function LoginScreen() {
     if (result.success) {
       router.replace('/(tabs)');
     } else {
-      Alert.alert("Authentication Failed", result.message);
+      if (result.message.includes("Too many attempts") || result.message.includes("429")) {
+        Alert.alert("Too Many Requests", "Too many attempts. Please wait 60 seconds before trying again.");
+      } else {
+        Alert.alert("Authentication Failed", result.message);
+      }
     }
   };
 

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, BadRequestException, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, BadRequestException, HttpCode, HttpStatus, ConflictException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma.service';
@@ -31,8 +31,8 @@ export class PayrollController {
       throw new BadRequestException('Missing periodStart or periodEnd parameters.');
     }
 
-    const start = new Date(periodStart);
-    const end = new Date(periodEnd);
+    const start = new Date(periodStart.includes('T') ? periodStart : `${periodStart}T00:00:00.000Z`);
+    const end = new Date(periodEnd.includes('T') ? periodEnd : `${periodEnd}T23:59:59.999Z`);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       throw new BadRequestException('Invalid date format for periodStart or periodEnd.');
@@ -43,14 +43,22 @@ export class PayrollController {
     }
 
     // Initialize the transient parent PayrollRun context in the DB
-    const payrollRun = await this.prisma.payrollRun.create({
-      data: {
-        tenantId,
-        status: PayrollStatus.PENDING,
-        periodStart: start,
-        periodEnd: end,
-      },
-    });
+    let payrollRun;
+    try {
+      payrollRun = await this.prisma.payrollRun.create({
+        data: {
+          tenantId,
+          status: PayrollStatus.PENDING,
+          periodStart: start,
+          periodEnd: end,
+        },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        throw new ConflictException('A payroll run for this period already exists.');
+      }
+      throw err;
+    }
 
     // Enqueue job on background BullMQ processor
     await this.payrollQueue.add(

@@ -69,7 +69,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true, message: "Authentication approved!" };
     } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || "Failed to authenticate.";
+      let errMsg = err.response?.data?.message || err.message || "Failed to authenticate.";
+      if (err.response?.status === 429) {
+        errMsg = "Too many attempts. Please wait 60 seconds before trying again.";
+      }
       set({ isLoading: false, error: errMsg });
       return { success: false, message: errMsg };
     }

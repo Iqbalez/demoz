@@ -18,11 +18,23 @@ function BiometricLoginContent() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const tier = urlParams.get("tier");
-      const company = urlParams.get("companyName");
-      if (tier && company) {
-        localStorage.setItem("demoz_tier", tier);
-        localStorage.setItem("demoz_company", company);
+      const checkoutToken = urlParams.get("checkout_token");
+      if (checkoutToken) {
+        // Retrieve subscription workspace parameters securely using short-lived opaque token
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/subscription/checkout/state/${checkoutToken}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              localStorage.setItem("demoz_tier", data.tier);
+              localStorage.setItem("demoz_company", data.companyName);
+              localStorage.setItem("demoz_phone", data.phone);
+              setPhoneNumber(data.phone);
+              toast.success("Workspace Provisioned", `Registered ${data.companyName} on the ${data.tier} tier.`);
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to load secure checkout token:", err);
+          });
       }
     }
 

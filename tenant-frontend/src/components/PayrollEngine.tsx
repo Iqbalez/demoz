@@ -33,11 +33,11 @@ export default function PayrollEngine({ employees, onTriggerDisbursement }: Payr
 
   // Computations
   const activeEmployees = employees.filter(e => e.status === "ACTIVE");
-  const totalGross = activeEmployees.reduce((acc, emp) => acc + emp.baseSalary, 0);
-  const totalPension = activeEmployees.reduce((acc, emp) => acc + (Math.min(emp.baseSalary, 15000) * 0.07), 0);
+  const totalGross = activeEmployees.reduce((acc, emp) => acc + (emp.baseSalary || 0), 0);
+  const totalPension = activeEmployees.reduce((acc, emp) => acc + (Math.min(emp.baseSalary || 0, 15000) * 0.07), 0);
   const totalTax = activeEmployees.reduce((acc, emp) => {
-    const pension = Math.min(emp.baseSalary, 15000) * 0.07;
-    const taxable = emp.baseSalary - pension;
+    const pension = Math.min(emp.baseSalary || 0, 15000) * 0.07;
+    const taxable = (emp.baseSalary || 0) - pension;
     return acc + calculateEthiopianTax(taxable);
   }, 0);
   const totalNet = totalGross - totalPension - totalTax;
@@ -46,7 +46,7 @@ export default function PayrollEngine({ employees, onTriggerDisbursement }: Payr
   const getDeptTotal = (dept: string) => {
     return activeEmployees
       .filter(e => e.departmentName.toLowerCase().startsWith(dept.toLowerCase().slice(0, 4)))
-      .reduce((acc, emp) => acc + emp.baseSalary, 0);
+      .reduce((acc, emp) => acc + (emp.baseSalary || 0), 0);
   };
 
   const handleRunAiAudit = () => {
@@ -304,15 +304,15 @@ export default function PayrollEngine({ employees, onTriggerDisbursement }: Payr
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-xs">
                 {activeEmployees.map((emp) => {
-                  const pension = Math.min(emp.baseSalary, 15000) * 0.07;
-                  const taxable = emp.baseSalary - pension;
+                  const pension = Math.min(emp.baseSalary || 0, 15000) * 0.07;
+                  const taxable = (emp.baseSalary || 0) - pension;
                   const tax = calculateEthiopianTax(taxable);
-                  const net = emp.baseSalary - pension - tax;
+                  const net = (emp.baseSalary || 0) - pension - tax;
                   
                   return (
                     <tr key={emp.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/10 text-slate-700 dark:text-zinc-200">
                       <td className="py-4 px-5 font-semibold text-slate-900 dark:text-zinc-100">{emp.firstName} {emp.lastName}</td>
-                      <td className="py-4 px-5 font-mono font-medium">{emp.baseSalary.toLocaleString()} ETB</td>
+                      <td className="py-4 px-5 font-mono font-medium">{(emp.baseSalary || 0).toLocaleString()} ETB</td>
                       <td className="py-4 px-5 font-mono text-amber-500 font-medium">-{pension.toLocaleString()} ETB</td>
                       <td className="py-4 px-5 font-mono text-red-500 font-medium">-{tax.toLocaleString()} ETB</td>
                       <td className="py-4 px-5 font-mono font-bold text-emerald-600 dark:text-emerald-400">{net.toLocaleString()} ETB</td>

@@ -1,10 +1,20 @@
-import { Controller, Post, Body, Res, HttpStatus, Logger, Get } from '@nestjs/common';
+import { Controller, Post, Body, Res, HttpStatus, Logger, Get, Param } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
 import { PrismaService } from '../prisma.service';
 import { TenantStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { tenantStorage } from '../tenant-context';
 import { Public } from '../auth/public.decorator';
+import * as crypto from 'crypto';
+
+interface CheckoutState {
+  tenantId: string;
+  phone: string;
+  tier: string;
+  companyName: string;
+}
+
+const checkoutTokenStore = new Map<string, { state: CheckoutState; expiresAt: number }>();
 
 @Controller('subscription')
 export class SubscriptionController {
@@ -75,17 +85,29 @@ export class SubscriptionController {
       },
     });
 
+    const checkoutToken = crypto.randomBytes(32).toString('hex');
+    checkoutTokenStore.set(checkoutToken, {
+      state: {
+        tenantId: tenant.id,
+        phone,
+        tier,
+        companyName,
+      },
+      expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins validity
+    });
+
     // Handle Chapa API dispatch simulation
     const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST_KEY';
 
     if (CHAPA_SECRET_KEY === 'CHASECK_TEST_KEY') {
       // In offline demonstration / mock sandbox mode:
       // Return a simulated checkout URL that automatically bypasses and clears payment.
-      const simulatedReturnUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?signup_success=true&tenant_id=${tenant.id}&phone=${encodeURIComponent(phone)}&tier=${tier}&companyName=${encodeURIComponent(companyName)}`;
+      const simulatedReturnUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?signup_success=true&checkout_token=${checkoutToken}`;
       return res.status(HttpStatus.OK).json({
         success: true,
         txRef,
         checkoutUrl: simulatedReturnUrl,
+        checkoutToken,
         message: 'Simulation: Click to bypass payment and immediately provision the B2B portal.',
       });
     }
@@ -106,7 +128,7 @@ export class SubscriptionController {
           phone: phone,
           tx_ref: txRef,
           callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/subscription/webhook`,
-          return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?signup_success=true&tenant_id=${tenant.id}&phone=${encodeURIComponent(phone)}&tier=${tier}&companyName=${encodeURIComponent(companyName)}`,
+          return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?signup_success=true&checkout_token=${checkoutToken}`,
         }),
       });
 
@@ -116,6 +138,7 @@ export class SubscriptionController {
           success: true,
           txRef,
           checkoutUrl: data.data.checkout_url,
+          checkoutToken,
         });
       } else {
         throw new Error(data?.message || 'Chapa initialization failed.');
@@ -127,6 +150,25 @@ export class SubscriptionController {
         message: err.message || 'Fintech payment initialization failure.',
       });
     }
+  }
+
+  /**
+   * Resolves the checkout state from a short-lived opaque token securely.
+   */
+  @Public()
+  @Get('checkout/state/:token')
+  async getCheckoutState(@Param('token') token: string, @Res() res: any) {
+    const record = checkoutTokenStore.get(token);
+    if (!record || record.expiresAt < Date.now()) {
+      return res.status(HttpStatus.BAD_REQUEST).json({
+        success: false,
+        message: 'Checkout token is expired or invalid.',
+      });
+    }
+    return res.status(HttpStatus.OK).json({
+      success: true,
+      ...record.state,
+    });
   }
 
   /**

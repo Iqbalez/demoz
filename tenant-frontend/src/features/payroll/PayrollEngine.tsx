@@ -55,21 +55,21 @@ export default function PayrollEngine({
 
   const totalGross = payrollRun 
     ? Number(payrollRun.totalGross || 0)
-    : activeEmployees.reduce((acc, emp) => acc + emp.baseSalary, 0);
+    : activeEmployees.reduce((acc, emp) => acc + (emp.baseSalary || 0), 0);
 
   const totalPensionEmployee = payrollRun
     ? Number(payrollRun.totalGross || 0) * 0.07 // Visual fallback for processed sets
-    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary, 15000) * 0.07, 0);
+    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary || 0, 15000) * 0.07, 0);
 
   const totalPensionEmployer = payrollRun
     ? Number(payrollRun.totalGross || 0) * 0.11
-    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary, 15000) * 0.11, 0);
+    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary || 0, 15000) * 0.11, 0);
 
   const totalTax = payrollRun
     ? Number(payrollRun.totalTax || 0)
     : activeEmployees.reduce((acc, emp) => {
-        const pension = Math.min(emp.baseSalary, 15000) * 0.07;
-        const taxable = emp.baseSalary - pension;
+        const pension = Math.min(emp.baseSalary || 0, 15000) * 0.07;
+        const taxable = (emp.baseSalary || 0) - pension;
         return acc + calculateEthiopianTax(taxable);
       }, 0);
 
@@ -145,13 +145,13 @@ export default function PayrollEngine({
   };
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="space-y-6 animate-slide-up select-none">
       
-      {/* Top Panel Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#0c1424] p-6 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl">
+      {/* 2. REFINED MODULAR DATA CARDS: Top Panel Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#0c1424] p-6 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/60 shadow-sm transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700/80">
         <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-50 font-outfit">Compliant Payroll Engine</h2>
-          <p className="text-xs text-slate-400">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-zinc-50 font-outfit tracking-tight">Compliant Payroll Engine</h2>
+          <p className="text-xs text-slate-400 dark:text-zinc-500 font-medium">
             Process wages, execute federal tax deductions, and authorize bulk disbursements.
           </p>
         </div>
@@ -185,30 +185,7 @@ export default function PayrollEngine({
       </div>
 
       {/* Calculations Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] text-center border border-slate-100 dark:border-zinc-800/80 shadow-md">
-          <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider block">Gross Salary Total</span>
-          <span className="text-xl font-bold text-slate-800 dark:text-zinc-100 block mt-1">
-            {totalGross.toLocaleString()} ETB
-          </span>
-        </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] text-center border border-slate-100 dark:border-zinc-800/80 shadow-md">
-          <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider block">Federal Income Tax</span>
-          <span className="text-xl font-bold text-red-500 block mt-1">-{totalTax.toLocaleString()} ETB</span>
-        </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] text-center border border-slate-100 dark:border-zinc-800/80 shadow-md">
-          <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider block">Split Pension (7%)</span>
-          <span className="text-xl font-bold text-amber-500 block mt-1">-{totalPensionEmployee.toLocaleString()} ETB</span>
-        </div>
-        <div className="p-5 rounded-3xl bg-emerald-500/5 dark:bg-emerald-950/10 text-center border border-emerald-500/20 shadow-lg">
-          <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase tracking-wider block">
-            Net Chapa Settlement
-          </span>
-          <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 block mt-1">
-            {totalNet.toLocaleString()} ETB
-          </span>
-        </div>
-      </div>
+
 
       {/* Maker-Checker Status Board Dashboard Alert */}
       <div className="p-5 rounded-3xl bg-white dark:bg-[#0c1424] border border-slate-100 dark:border-zinc-800/80 shadow-xl space-y-4">
@@ -340,7 +317,7 @@ export default function PayrollEngine({
                 <div className="text-right">
                   <span className="text-[9px] text-slate-400 font-extrabold uppercase block">Basic Salary</span>
                   <span className="text-xs font-bold text-emerald-500 font-mono">
-                    {selectedBreakdownEmp.baseSalary.toLocaleString()} ETB
+                    {(selectedBreakdownEmp.baseSalary || 0).toLocaleString()} ETB
                   </span>
                 </div>
               </div>
@@ -355,7 +332,7 @@ export default function PayrollEngine({
                     <span className="text-[8px] text-slate-400">POESSA private organization regulations (capped at 15,000 ETB salary).</span>
                   </div>
                   <span className="font-mono font-bold text-amber-600">
-                    -{(Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07).toLocaleString()} ETB
+                    -{(Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -366,7 +343,7 @@ export default function PayrollEngine({
                     <span className="text-[8px] text-slate-400">Paid directly by the company (capped at 15,000 ETB salary).</span>
                   </div>
                   <span className="font-mono font-bold text-amber-600">
-                    +{(Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.11).toLocaleString()} ETB
+                    +{(Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.11).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -379,7 +356,7 @@ export default function PayrollEngine({
                     </span>
                   </div>
                   <span className="font-mono font-bold text-red-500">
-                    -{calculateEthiopianTax(selectedBreakdownEmp.baseSalary - Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07).toLocaleString()} ETB
+                    -{calculateEthiopianTax((selectedBreakdownEmp.baseSalary || 0) - Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -398,9 +375,9 @@ export default function PayrollEngine({
                 <span className="text-[10px] text-slate-800 dark:text-zinc-200 font-bold font-outfit">Settled Net Earnings</span>
                 <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                   {(
-                    selectedBreakdownEmp.baseSalary -
-                    Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07 -
-                    calculateEthiopianTax(selectedBreakdownEmp.baseSalary - Math.min(selectedBreakdownEmp.baseSalary, 15000) * 0.07)
+                    (selectedBreakdownEmp.baseSalary || 0) -
+                    Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07 -
+                    calculateEthiopianTax((selectedBreakdownEmp.baseSalary || 0) - Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07)
                   ).toLocaleString()}{" "}
                   ETB
                 </span>
@@ -430,10 +407,10 @@ export default function PayrollEngine({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-slate-700 dark:text-zinc-200">
                     {activeEmployees.map((emp) => {
-                      const pension = Math.min(emp.baseSalary, 15000) * 0.07;
-                      const taxable = emp.baseSalary - pension;
+                      const pension = Math.min(emp.baseSalary || 0, 15000) * 0.07;
+                      const taxable = (emp.baseSalary || 0) - pension;
                       const tax = calculateEthiopianTax(taxable);
-                      const net = emp.baseSalary - pension - tax;
+                      const net = (emp.baseSalary || 0) - pension - tax;
 
                       return (
                         <tr
@@ -446,7 +423,7 @@ export default function PayrollEngine({
                           <td className="py-4 px-4 font-semibold text-slate-900 dark:text-zinc-100">
                             {emp.firstName} {emp.lastName}
                           </td>
-                          <td className="py-4 px-4 font-mono">{emp.baseSalary.toLocaleString()}</td>
+                          <td className="py-4 px-4 font-mono">{(emp.baseSalary || 0).toLocaleString()}</td>
                           <td className="py-4 px-4 font-mono text-amber-500 font-medium">-{pension.toLocaleString()}</td>
                           <td className="py-4 px-4 font-mono text-red-500 font-medium">-{tax.toLocaleString()}</td>
                           <td className="py-4 px-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">

@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 5000,
+  timeout: 60000, // Increased to 60s to handle Render free-tier cold starts
   headers: {
     "Content-Type": "application/json",
   },
@@ -52,7 +52,25 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     // Reject immediately if the error isn't a 401 or has already been retried
-    if (!error.response || error.response.status !== 401 || originalRequest._retry) {
+    // Also reject immediately if the 401 comes from a login route (we don't want to refresh a token we are trying to get)
+    if (
+      !error.response || 
+      error.response.status !== 401 || 
+      originalRequest._retry ||
+      (originalRequest.url && (originalRequest.url.includes('/login') || originalRequest.url.includes('/employee-login')))
+    ) {
+      if (error.response && error.response.status === 401) {
+        // Strict JWT Expiration & Session Purging:
+        // Force complete wipe of session from Zustand store to avoid half-logged-in states
+        try {
+          const { useAuthStore } = require("../store/authStore");
+          if (useAuthStore && useAuthStore.getState) {
+            useAuthStore.getState().logout();
+          }
+        } catch (err) {
+          // Silently bypass storage clearance errors
+        }
+      }
       return Promise.reject(error);
     }
 
@@ -112,9 +130,10 @@ apiClient.interceptors.response.use(
       isRefreshing = false;
 
       try {
-        await SecureStore.deleteItemAsync("user_token");
-        await SecureStore.deleteItemAsync("refresh_token");
-        await SecureStore.deleteItemAsync("user_phone");
+        const { useAuthStore } = require("../store/authStore");
+        if (useAuthStore && useAuthStore.getState) {
+          await useAuthStore.getState().logout();
+        }
       } catch (err) {
         // Silently bypass storage clearance errors
       }

@@ -25,6 +25,26 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { FaydaOidcService } from './fayda-oidc.service';
 
+function sanitizeEmployee(emp: any) {
+  if (!emp) return emp;
+  const copy = { ...emp };
+  delete copy.ussdPin;
+  delete copy.ussdPinHash;
+  delete copy.pinHash;
+  delete copy.nationalId;
+  delete copy.faydaNumber;
+  delete copy.baseSalary;
+  delete copy.salary;
+  delete copy.locationCoordinates;
+  delete copy.latitude;
+  delete copy.longitude;
+  delete copy.checkInLatitude;
+  delete copy.checkInLongitude;
+  delete copy.checkOutLatitude;
+  delete copy.checkOutLongitude;
+  return copy;
+}
+
 @Controller('employees')
 export class EmployeeController {
   constructor(
@@ -37,14 +57,19 @@ export class EmployeeController {
   @Roles(UserRole.EMPLOYEE, UserRole.HR, UserRole.OWNER) // Accessible by all logged in tenant members
   @UsePipes(new ValidationPipe({ transform: true }))
   async getAllEmployees(@Query() query: GetEmployeesQueryDto) {
-    return this.employeeService.findAll(query);
+    const result = await this.employeeService.findAll(query);
+    if (result && Array.isArray(result.data)) {
+      result.data = result.data.map(sanitizeEmployee);
+    }
+    return result;
   }
 
   @Post()
   @Roles(UserRole.HR, UserRole.OWNER) // Only HR managers or corporate owners can onboard employees
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async createEmployee(@Body() dto: CreateEmployeeDto) {
-    return this.employeeService.create(dto);
+    const emp = await this.employeeService.create(dto);
+    return sanitizeEmployee(emp);
   }
 
   /**
@@ -87,7 +112,8 @@ export class EmployeeController {
   @Roles(UserRole.HR, UserRole.OWNER) // Only HR managers or corporate owners can modify profiles
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async updateEmployee(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
-    return this.employeeService.update(id, dto);
+    const emp = await this.employeeService.update(id, dto);
+    return sanitizeEmployee(emp);
   }
 
   @Post('bulk-upload')
