@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
-  title: "Demoz — B2B Payroll & HR Platform",
-  description: "Demoz is Ethiopia's modern B2B payroll, attendance, and HR management platform for growing businesses.",
-  icons: {
-    icon: "/favicon.png",
+  title: "Demoz — Intelligent HR & Payroll for Ethiopian Enterprises",
+  description:
+    "Demoz is Ethiopia's modern B2B payroll, attendance, and HR management platform. Automated tax compliance, geofenced attendance, and Chapa bulk payouts.",
+  keywords: ["HR software Ethiopia", "payroll platform", "ERCA compliance", "POESSA pension", "workforce management"],
+  openGraph: {
+    title: "Demoz — HR & Payroll Platform",
+    description: "Automated, compliant payroll for Ethiopian enterprises.",
+    type: "website",
   },
 };
 
@@ -26,11 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${inter.variable} h-full`}>
+      <body className="min-h-full flex flex-col antialiased">{children}</body>
     </html>
   );
 }

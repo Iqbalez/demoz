@@ -4,21 +4,12 @@ import React, { useMemo } from "react";
 import { useDashboard } from "../../context/DashboardContext";
 
 export default function DashboardOverviewPage() {
-  /* ==========================================
-     STATE HOOKS & COMPUTE - COMPLETELY UNTOUCHED
-     ========================================== */
   const { stats, auditLogs, logs, employees } = useDashboard();
   const seatPercentage = Math.min((stats.totalEmployees / stats.maxEmployees) * 100, 100);
-  /* ==========================================
-     END OF UNTOUCHED STATE HOOKS & COMPUTE
-     ========================================== */
 
-  // ── Real-time attendance chart data ──
-  // Aggregate actual logs by day-of-week and source channel
   const weeklyChartData = useMemo(() => {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const buckets: Record<string, { ussd: number; web: number; mobile: number }> = {};
-    // Initialize all 7 days
     dayNames.forEach((d) => {
       buckets[d] = { ussd: 0, web: 0, mobile: 0 };
     });
@@ -31,12 +22,9 @@ export default function DashboardOverviewPage() {
         if (log.source === "USSD") buckets[dayName].ussd += 1;
         else if (log.source === "WEB_PWA") buckets[dayName].web += 1;
         else if (log.source === "MOBILE_APP") buckets[dayName].mobile += 1;
-      } catch {
-        // skip malformed timestamps
-      }
+      } catch {}
     });
 
-    // Return Mon-Fri working days (or all 7 if you prefer)
     const workDays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
     return workDays.map((day) => ({
       day,
@@ -47,22 +35,16 @@ export default function DashboardOverviewPage() {
     }));
   }, [logs]);
 
-  // Find the max value in chart for percentage-height scaling
   const chartMax = useMemo(() => {
-    const max = Math.max(...weeklyChartData.map((d) => Math.max(d.ussd, d.web + d.mobile, 1)));
-    return max;
+    return Math.max(...weeklyChartData.map((d) => Math.max(d.ussd, d.web + d.mobile, 1)));
   }, [weeklyChartData]);
 
   const hasChartData = logs.length > 0;
 
-  // ── Real-time KPI delta computations ──
-  // Attendance: compute today's rate vs yesterday's
   const attendanceDelta = useMemo(() => {
     if (logs.length === 0 || employees.length === 0) return null;
-
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
-
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
@@ -78,7 +60,6 @@ export default function DashboardOverviewPage() {
     return { diff: Math.round(diff * 10) / 10, direction: diff >= 0 ? "up" : "down" };
   }, [logs, employees]);
 
-  // Payroll: compute active vs total employees to derive a compliance ratio
   const payrollInsight = useMemo(() => {
     if (employees.length === 0) return null;
     const activeCount = employees.filter((e) => e.status === "ACTIVE").length;
@@ -87,258 +68,201 @@ export default function DashboardOverviewPage() {
   }, [employees]);
 
   return (
-    <div className="space-y-6 animate-slide-up select-none">
+    <div className="space-y-6 animate-slide-up">
       
-      {/* Top Banner / Welcome Card */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/20 via-slate-900/10 to-transparent flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-zinc-200/50 dark:border-zinc-800/60 bg-white dark:bg-[#0c1424] transition-all duration-200 hover:border-emerald-500/20 shadow-sm">
+      {/* Top Banner */}
+      <div className="bento-tile flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-zinc-50 font-outfit tracking-tight">
-            Welcome, {stats.companyName} Manager
+          <h2 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
+            Overview
           </h2>
-          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 font-medium">
-            Compliant, real-time telemetry overview for your organization.
+          <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">
+            At-a-glance metrics for {stats.companyName}
           </p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/5 border border-emerald-500/20 shadow-sm">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest font-outfit">
-            USSD Webhook Active
-          </span>
+        <div className="pill pill-success">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] mr-2"></span>
+          System Online
         </div>
       </div>
 
-      {/* 1. HIGH-DENSITY GRID & LAYOUT HIERARCHY (Bento style) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
-        {/* KPI 1: Seats Occupied (Critical High-Priority - Top-Left) */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] border border-zinc-200/50 dark:border-zinc-800/60 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 transition-all duration-200 hover:border-emerald-500/30 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]">
+        {/* KPI 1: Seats Occupied */}
+        <div className="bento-tile flex flex-col justify-between h-36 p-5">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Seats Occupied</span>
-            <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
-              👥
-            </span>
+            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employees</span>
           </div>
           <div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-zinc-50 font-outfit tracking-tight">
-              {stats.totalEmployees} <span className="text-xs text-slate-400 dark:text-zinc-500 font-medium">/ {stats.maxEmployees} seats</span>
+            <div className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              {stats.totalEmployees} <span className="text-sm text-[var(--text-muted)] font-medium">/ {stats.maxEmployees}</span>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-zinc-800/80 h-1.5 rounded-full mt-2 overflow-hidden border border-zinc-200/20 dark:border-zinc-800/40">
+            <div className="w-full bg-[var(--bg-elevated)] h-1.5 rounded-full mt-3 overflow-hidden border border-[var(--border)]">
               <div 
-                className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                className="bg-[var(--accent)] h-full rounded-full transition-all duration-500" 
                 style={{ width: `${seatPercentage}%` }}
               ></div>
             </div>
           </div>
-          <div className="absolute right-3 bottom-2">
-            {stats.totalEmployees > 0 ? (
-              <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
-                {Math.round(seatPercentage)}% utilized
-              </span>
-            ) : (
-              <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wide">
-                No employees yet
-              </span>
-            )}
+          <div className="absolute right-5 bottom-4">
+            <span className="text-[11px] font-medium text-[var(--accent)]">
+              {Math.round(seatPercentage)}% allocated
+            </span>
           </div>
         </div>
 
-        {/* KPI 2: Daily Attendance Rate */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] border border-zinc-200/50 dark:border-zinc-800/60 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 transition-all duration-200 hover:border-emerald-500/30 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]">
+        {/* KPI 2: Attendance Rate */}
+        <div className="bento-tile flex flex-col justify-between h-36 p-5">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Attendance Rate</span>
-            <span className="p-1.5 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs">
-              📍
-            </span>
+            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Attendance Rate</span>
           </div>
           <div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-zinc-50 font-outfit tracking-tight">
+            <div className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
               {stats.attendanceRate}%
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-2 font-medium">
-              {logs.length > 0 ? `${logs.length} total check-ins recorded` : "No check-ins recorded yet"}
+            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
+              {logs.length > 0 ? `${logs.length} total check-ins` : "No data today"}
             </p>
           </div>
-          <div className="absolute right-3 bottom-2">
+          <div className="absolute right-5 bottom-4">
             {attendanceDelta !== null ? (
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                attendanceDelta.direction === "up"
-                  ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/5"
-                  : "text-red-600 dark:text-red-400 bg-red-500/10 dark:bg-red-500/5"
-              }`}>
-                {attendanceDelta.direction === "up" ? "↑" : "↓"} {Math.abs(attendanceDelta.diff)}% vs yesterday
+              <span className={`pill ${attendanceDelta.direction === "up" ? "pill-success" : "pill-danger"}`}>
+                {attendanceDelta.direction === "up" ? "↑" : "↓"} {Math.abs(attendanceDelta.diff)}%
               </span>
             ) : (
-              <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500">
-                — awaiting data
-              </span>
+              <span className="text-[11px] font-medium text-[var(--text-muted)]">—</span>
             )}
           </div>
         </div>
 
         {/* KPI 3: Estimated Monthly Payroll */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] border border-zinc-200/50 dark:border-zinc-800/60 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 transition-all duration-200 hover:border-emerald-500/30 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]">
+        <div className="bento-tile flex flex-col justify-between h-36 p-5">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Monthly Payroll</span>
-            <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold font-mono text-[9px]">
-              ETB
-            </span>
+            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Monthly Payroll</span>
           </div>
           <div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-zinc-50 font-outfit tracking-tight">
-              {stats.monthlyPayroll.toLocaleString()} <span className="text-xs text-amber-500 font-bold">ETB</span>
+            <div className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+              {stats.monthlyPayroll.toLocaleString()} <span className="text-sm text-[var(--text-muted)] font-medium">ETB</span>
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-2 font-medium">
-              Tax & Pension Compliant Wages
+            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
+              Tax & Pension Compliant
             </p>
           </div>
-          <div className="absolute right-3 bottom-2">
+          <div className="absolute right-5 bottom-4">
             {payrollInsight !== null ? (
-              <span className="text-[9px] font-bold text-amber-600 dark:text-amber-500 bg-amber-500/10 dark:bg-amber-500/5 px-1.5 py-0.5 rounded">
-                {payrollInsight.ratio}% workforce active
+              <span className="pill pill-accent">
+                {payrollInsight.ratio}% active
               </span>
             ) : (
-              <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500">
-                — no employees
-              </span>
+              <span className="text-[11px] font-medium text-[var(--text-muted)]">—</span>
             )}
           </div>
         </div>
 
         {/* KPI 4: Active Subscription Plan */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1424] border border-zinc-200/50 dark:border-zinc-800/60 shadow-sm relative overflow-hidden flex flex-col justify-between h-32 transition-all duration-200 hover:border-emerald-500/30 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]">
+        <div className="bento-tile flex flex-col justify-between h-36 p-5">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Active Plan</span>
-            <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs">
-              💳
-            </span>
+            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Current Plan</span>
           </div>
           <div>
-            <div className="text-xl font-extrabold text-slate-900 dark:text-zinc-50 uppercase font-outfit tracking-tight">
+            <div className="text-2xl font-bold tracking-tight text-[var(--accent)] uppercase">
               {stats.planTier}
             </div>
-            <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-2 font-medium">
-              Organization Subscription Tier
+            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
+              Active Subscription
             </p>
-          </div>
-          <div className="absolute right-3 bottom-2">
-            <span className="text-[9px] font-semibold text-slate-400 dark:text-zinc-500">
-              {stats.maxEmployees} seat limit
-            </span>
           </div>
         </div>
       </div>
 
-      {/* 2. REFINED MODULAR DATA CARDS (Bento Grid System) */}
+      {/* Main Data Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Bento Box: Attendance Visual Vector Chart */}
-        <div className="lg:col-span-2 p-6 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/60 bg-white dark:bg-[#0c1424] shadow-sm flex flex-col justify-between min-h-[320px] transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700/80">
+        {/* Weekly Chart */}
+        <div className="lg:col-span-2 bento-tile flex flex-col justify-between min-h-[340px]">
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 font-outfit tracking-tight">
-              Weekly Attendance Telemetry
-            </h3>
-            <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1 font-medium">
+            <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Weekly Attendance Overview</h3>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">
               {hasChartData
-                ? `Real-time breakdown from ${logs.length} recorded check-ins this period.`
-                : "No attendance data recorded yet. Check-ins will appear here automatically."}
+                ? `Activity breakdown across ${logs.length} check-ins this week.`
+                : "No attendance data available yet."}
             </p>
           </div>
           
           {hasChartData ? (
             <>
-              <div className="my-6 flex items-end justify-between h-36 px-4 border-b border-zinc-100 dark:border-zinc-800/60 pb-2">
+              <div className="my-8 flex items-end justify-between h-40 px-6 border-b border-[var(--border)] pb-2 relative">
+                {/* Horizontal grid lines */}
+                <div className="absolute w-full h-px bg-[var(--border)] top-10 left-0"></div>
+                <div className="absolute w-full h-px bg-[var(--border)] top-20 left-0"></div>
+                
                 {weeklyChartData.map((bar, idx) => (
-                  <div key={idx} className="flex flex-col items-center gap-2 w-1/5">
-                    <div className="flex items-end justify-center gap-1.5 w-full h-28">
-                      {/* USSD Bar - Compliance Emerald */}
+                  <div key={idx} className="flex flex-col items-center gap-3 w-1/5 relative z-10">
+                    <div className="flex items-end justify-center gap-2 w-full h-28">
                       <div 
-                        className="w-4.5 bg-emerald-500 rounded-t-md hover:bg-emerald-400 transition-all duration-300 cursor-pointer shadow-sm shadow-emerald-500/10" 
+                        className="w-4 bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-all duration-300 rounded-t cursor-pointer" 
                         style={{ height: `${bar.ussd > 0 ? Math.max((bar.ussd / chartMax) * 100, 4) : 0}%` }}
-                        title={`USSD: ${bar.ussd} check-ins`}
+                        title={`USSD: ${bar.ussd}`}
                       ></div>
-                      {/* Web/Mobile Bar - Telemetry Sky */}
                       <div 
-                        className="w-4.5 bg-sky-500 rounded-t-md hover:bg-sky-400 transition-all duration-300 cursor-pointer shadow-sm shadow-sky-500/10" 
+                        className="w-4 bg-[var(--text-muted)] hover:bg-[var(--text-secondary)] transition-all duration-300 rounded-t cursor-pointer" 
                         style={{ height: `${(bar.web + bar.mobile) > 0 ? Math.max(((bar.web + bar.mobile) / chartMax) * 100, 4) : 0}%` }}
-                        title={`Web: ${bar.web} / Mobile: ${bar.mobile} check-ins`}
+                        title={`Web/Mobile: ${bar.web + bar.mobile}`}
                       ></div>
                     </div>
                     <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 font-mono tracking-wider">{bar.day}</span>
-                      <span className="text-[8px] text-slate-300 dark:text-zinc-600 font-mono">{bar.total}</span>
+                      <span className="text-[11px] font-medium text-[var(--text-muted)]">{bar.day}</span>
                     </div>
                   </div>
                 ))}
               </div>
-
-              <div className="flex gap-6 text-[10px] justify-center font-bold">
+              <div className="flex gap-6 text-[11px] justify-center font-medium">
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-md bg-emerald-500 shadow-sm shadow-emerald-500/20"></span>
-                  <span className="text-slate-400 dark:text-zinc-500 uppercase tracking-wider">USSD Cellular</span>
+                  <span className="w-2 h-2 rounded bg-[var(--accent)]"></span>
+                  <span className="text-[var(--text-secondary)]">USSD Check-ins</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-md bg-sky-500 shadow-sm shadow-sky-500/20"></span>
-                  <span className="text-slate-400 dark:text-zinc-500 uppercase tracking-wider">Web / Mobile</span>
+                  <span className="w-2 h-2 rounded bg-[var(--text-muted)]"></span>
+                  <span className="text-[var(--text-secondary)]">Web/App Check-ins</span>
                 </div>
               </div>
             </>
           ) : (
-            // Empty state when no attendance data exists
             <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-zinc-800/60 flex items-center justify-center text-2xl">
-                📊
-              </div>
-              <p className="text-xs text-slate-400 dark:text-zinc-500 font-medium text-center max-w-[250px]">
-                Attendance telemetry will populate automatically as employees clock in via USSD, web, or mobile.
-              </p>
+              <p className="text-sm text-[var(--text-muted)] text-center">No data available to display chart.</p>
             </div>
           )}
         </div>
 
-        {/* Bento Box: Live System Logs */}
-        <div className="p-6 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/60 bg-white dark:bg-[#0c1424] shadow-sm flex flex-col h-[320px] transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700/80">
+        {/* Live Event Stream */}
+        <div className="bento-tile flex flex-col h-[340px]">
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 font-outfit tracking-tight">
-              Live System Logs
-            </h3>
-            <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium">
-              Real-time multi-tenant system mutations & telemetry audit.
-            </p>
+            <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Activity Log</h3>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">Recent platform events</p>
           </div>
           
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto pr-2 space-y-3">
             {auditLogs.length > 0 ? (
               auditLogs.map((log) => {
-                const bgMap = {
-                  info: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
-                  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-                  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-                  error: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
-                };
-                
+                const isWarning = log.type === 'warning';
                 return (
-                  <div 
-                    key={log.id} 
-                    className="flex gap-2.5 items-start text-xs border border-zinc-100 dark:border-zinc-800/40 p-3 rounded-xl bg-slate-50/50 dark:bg-zinc-900/15 transition-all duration-200 hover:border-emerald-500/10 hover:bg-slate-50 dark:hover:bg-zinc-900/30"
-                  >
-                    <div className={`p-1 px-1.5 rounded-md border font-mono text-[8px] font-bold shrink-0 uppercase tracking-widest ${bgMap[log.type]}`}>
-                      {log.type}
+                  <div key={log.id} className={`p-3 rounded-lg border ${isWarning ? 'border-[var(--danger-dim)] bg-[var(--danger-dim)]' : 'border-[var(--border)] bg-[var(--bg-elevated)]'} text-xs`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${isWarning ? 'text-[var(--danger)]' : 'text-[var(--accent)]'}`}>
+                        {log.type}
+                      </span>
+                      <span className="text-[10px] text-[var(--text-muted)]">{log.timestamp}</span>
                     </div>
-                    <div className="flex-1 space-y-0.5">
-                      <p className="text-slate-700 dark:text-zinc-300 font-medium leading-relaxed">
-                        <span className="font-bold text-slate-900 dark:text-zinc-100">{log.user}</span> {log.action}
-                      </p>
-                      <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono block">{log.timestamp}</span>
-                    </div>
+                    <p className="text-[var(--text-secondary)]">
+                      <span className="text-[var(--text-primary)] font-medium">{log.user}</span> {log.action}
+                    </p>
                   </div>
                 );
               })
             ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-2">
-                <span className="text-2xl">📋</span>
-                <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-medium text-center">
-                  No system events yet. Actions like onboarding and profile edits will appear here.
-                </p>
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-[var(--text-muted)]">
+                <p className="text-sm">No recent activity.</p>
               </div>
             )}
           </div>
