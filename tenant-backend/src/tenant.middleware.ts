@@ -27,7 +27,7 @@ export class TenantMiddleware implements NestMiddleware {
 
     // 3. If we can't find who they belong to, block them (except public USSD, reports, subscription, and auth requests)
     if (!tenantId) {
-      if (req.originalUrl.includes('/ussd') || req.path.includes('/ussd') || req.originalUrl.includes('/subscription') || req.path.includes('/subscription') || req.originalUrl.includes('/auth') || req.path.includes('/auth')) {
+      if (req.originalUrl.includes('/ussd') || req.path.includes('/ussd') || req.originalUrl.includes('/subscription') || req.path.includes('/subscription') || req.originalUrl.includes('/auth') || req.path.includes('/auth') || req.originalUrl.includes('/health') || req.path.includes('/health')) {
         return next();
       }
       if (req.originalUrl.includes('/payroll/reports') || req.path.includes('/payroll/reports')) {
