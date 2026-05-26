@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: demoz-backend
+    runtime: node
+    region: frankfurt # Change to your preferred region
+    rootDir: tenant-backend
+    buildCommand: npm install && npm run build
+    startCommand: node dist/main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
