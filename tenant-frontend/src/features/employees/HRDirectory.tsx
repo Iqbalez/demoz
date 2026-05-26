@@ -264,7 +264,7 @@ export default function HRDirectory({
             onChange={(e) => setSearchInput(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-zinc-200/50 dark:border-zinc-800/80 rounded-lg text-xs focus:outline-none text-slate-800 dark:text-zinc-100 focus:border-emerald-500 dark:focus:border-emerald-500 transition-all duration-200 font-medium"
           />
-          <span className="absolute left-3 top-3 text-slate-400 dark:text-zinc-500 text-xs">🔍</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 text-xs">🔍</span>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">

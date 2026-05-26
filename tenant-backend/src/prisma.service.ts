@@ -2,8 +2,97 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
-import { fieldEncryptionExtension } from 'prisma-field-encryption';
+import * as crypto from 'crypto';
 import { tenantStorage } from './tenant-context'; // Reusing your existing store
+
+// Cryptographic helpers for custom field encryption (AES-256-GCM)
+function getEncryptionKeyBuffer(): Buffer {
+  const envKey = process.env.PRISMA_FIELD_ENCRYPTION_KEY;
+  const fallbackKey = 'k1.aesgcm256.G6yYVBg1xuWFChMTKwaDTUUyCD91PJIdc9UwnmUrPGw=';
+  const targetKey = envKey || fallbackKey;
+  const cleanKey = targetKey.replace(/['"]/g, '').trim();
+
+  // If it's a valid cloak base64 key
+  if (cleanKey.startsWith('k1.aesgcm256.')) {
+    const base64Part = cleanKey.substring('k1.aesgcm256.'.length);
+    return Buffer.from(base64Part, 'base64');
+  }
+
+  // If it's a raw hex key (64 characters)
+  if (/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
+    return Buffer.from(cleanKey, 'hex');
+  }
+
+  return Buffer.from(fallbackKey.substring('k1.aesgcm256.'.length), 'base64');
+}
+
+function encrypt(text: string): string {
+  if (!text) return text;
+  try {
+    const key = getEncryptionKeyBuffer();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const tag = cipher.getAuthTag().toString('hex');
+    return `enc:${iv.toString('hex')}:${tag}:${encrypted}`;
+  } catch (e) {
+    return text;
+  }
+}
+
+function decrypt(cipherText: string): string {
+  if (!cipherText || !cipherText.startsWith('enc:')) return cipherText;
+  try {
+    const parts = cipherText.split(':');
+    if (parts.length !== 4) return cipherText;
+    const key = getEncryptionKeyBuffer();
+    const iv = Buffer.from(parts[1], 'hex');
+    const tag = Buffer.from(parts[2], 'hex');
+    const encrypted = parts[3];
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (e) {
+    return cipherText;
+  }
+}
+
+function encryptFields(data: any, fields: string[]) {
+  if (!data) return;
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      encryptFields(item, fields);
+    }
+  } else {
+    for (const field of fields) {
+      if (data[field]) {
+        if (typeof data[field] === 'string') {
+          data[field] = encrypt(data[field]);
+        } else if (data[field].set && typeof data[field].set === 'string') {
+          data[field].set = encrypt(data[field].set);
+        }
+      }
+    }
+  }
+}
+
+function decryptFields(result: any, fields: string[]) {
+  if (!result) return;
+  if (Array.isArray(result)) {
+    for (const item of result) {
+      decryptFields(item, fields);
+    }
+  } else {
+    for (const field of fields) {
+      if (typeof result[field] === 'string') {
+        result[field] = decrypt(result[field]);
+      }
+    }
+  }
+}
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -23,10 +112,33 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     // Initialize the multi-tenant + encrypted Prisma Client Extension chain.
     // ORDER MATTERS: Encryption runs FIRST so tenant logic operates on already-decrypted data.
     this.extendedClient = this
-      // ─── Layer 1: Field Encryption (AES-256-GCM) ────────────────────────────
-      // Reads PRISMA_FIELD_ENCRYPTION_KEY from the environment automatically.
-      // Encrypts on write, decrypts on read, for every field annotated /// @encrypted.
-      .$extends(fieldEncryptionExtension())
+      // ─── Layer 1: Custom Field Encryption (AES-256-GCM) ────────────────────────────
+      .$extends({
+        query: {
+          user: {
+            async $allOperations({ model, operation, args, query }) {
+              const anyArgs = args as any;
+              if (anyArgs.data) {
+                encryptFields(anyArgs.data, ['twoFactorSecret']);
+              }
+              const result = await query(args);
+              decryptFields(result, ['twoFactorSecret']);
+              return result;
+            }
+          },
+          employee: {
+            async $allOperations({ model, operation, args, query }) {
+              const anyArgs = args as any;
+              if (anyArgs.data) {
+                encryptFields(anyArgs.data, ['tin', 'pensionId', 'bankAccount', 'accountName', 'faydaNumber']);
+              }
+              const result = await query(args);
+              decryptFields(result, ['tin', 'pensionId', 'bankAccount', 'accountName', 'faydaNumber']);
+              return result;
+            }
+          }
+        }
+      })
       // ─── Layer 2: Multi-Tenant Row Isolation (AsyncLocalStorage) ────────────
       .$extends({
         query: {

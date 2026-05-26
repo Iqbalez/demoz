@@ -159,7 +159,7 @@ export default function PayrollEngine({
         {/* Demo Switcher for Maker-Checker Visual Validation */}
         <div className="flex items-center gap-2 select-none">
           <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Role Preview:</span>
-          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-zinc-950 p-1 border dark:border-zinc-800">
+          <div className="inline-flex rounded-xl bg-slate-100 dark:bg-zinc-950 p-1 border dark:border-zinc-800 gap-1">
             <button
               onClick={() => setCurrentRoleOperator("HR")}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
@@ -390,9 +390,9 @@ export default function PayrollEngine({
 
         {/* Compliant Salary Ledger listings */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="bg-white dark:bg-[#0c1424] p-5 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl space-y-3">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-zinc-55 font-outfit">SaaS Bulk Disbursement Ledger</h3>
-            <div className="rounded-2xl border dark:border-zinc-800 overflow-hidden shadow-inner bg-slate-50 dark:bg-zinc-950/20">
+          <div className="bg-white dark:bg-[#0c1424] p-5 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl space-y-4">
+            <h3 className="text-xs font-bold text-slate-800 dark:text-zinc-50 font-outfit">SaaS Bulk Disbursement Ledger</h3>
+            <div className="mt-3 rounded-2xl border dark:border-zinc-800 overflow-hidden shadow-inner bg-slate-50 dark:bg-zinc-950/20">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>

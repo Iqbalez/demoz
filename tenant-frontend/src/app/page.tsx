@@ -152,7 +152,7 @@ function LandingPageContent() {
           </div>
 
           <div className="bg-[var(--bg-surface)] border-2 border-[var(--accent)] rounded-2xl p-8 flex flex-col justify-between gap-8 relative shadow-xl transform lg:-translate-y-4">
-            <div className="absolute top-0 right-6 transform -translate-y-1/2">
+            <div className="absolute top-0 right-1/2 transform translate-x-1/2 -translate-y-1/2">
               <span className="bg-[var(--accent)] text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Popular</span>
             </div>
             <div className="space-y-6">

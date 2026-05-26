@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useTransition } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
@@ -396,7 +396,7 @@ export default function AttendanceTracker({
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 focus:border-emerald-500"
               />
-              <span className="absolute left-3 top-2.5 text-slate-400">ðŸ”</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -413,7 +413,7 @@ export default function AttendanceTracker({
             </div>
           </div>
 
-          <div className="rounded-3xl bg-white dark:bg-[#0c1424] overflow-hidden border border-slate-100 dark:border-zinc-800/80 shadow-2xl relative">
+          <div className="mt-2 rounded-3xl bg-white dark:bg-[#0c1424] overflow-hidden border border-slate-100 dark:border-zinc-800/80 shadow-2xl relative">
             {/* Dynamic Pending Loader Overlay */}
             {isPending && (
               <div className="absolute inset-0 bg-slate-100/20 dark:bg-black/10 backdrop-blur-[1px] z-10 flex items-center justify-center animate-fade-in" />

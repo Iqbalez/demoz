@@ -195,32 +195,29 @@ export default function LeaveDashboard({
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-[#0c1424] p-5 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl flex items-center gap-4 relative overflow-hidden">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xl">⏳</div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Pending Review</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white dark:bg-[#0c1424] p-5 pr-6 rounded-3xl border border-slate-100 dark:border-zinc-800/80 border-r-[4px] border-r-amber-500 shadow-xl flex items-center gap-4 relative">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-xl shrink-0">⏳</div>
+          <div className="truncate">
+            <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 truncate">Pending Review</div>
             <div className="text-2xl font-black text-slate-800 dark:text-zinc-50 font-outfit mt-0.5">{pendingCount}</div>
           </div>
-          <div className="absolute right-0 top-0 h-full w-1 bg-amber-500" />
         </div>
 
-        <div className="bg-white dark:bg-[#0c1424] p-5 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl flex items-center gap-4 relative overflow-hidden">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl">✅</div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Approved Leaves</div>
+        <div className="bg-white dark:bg-[#0c1424] p-5 pr-6 rounded-3xl border border-slate-100 dark:border-zinc-800/80 border-r-[4px] border-r-emerald-500 shadow-xl flex items-center gap-4 relative">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl shrink-0">✅</div>
+          <div className="truncate">
+            <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 truncate">Approved Leaves</div>
             <div className="text-2xl font-black text-slate-800 dark:text-zinc-50 font-outfit mt-0.5">{approvedCount}</div>
           </div>
-          <div className="absolute right-0 top-0 h-full w-1 bg-emerald-500" />
         </div>
 
-        <div className="bg-white dark:bg-[#0c1424] p-5 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl flex items-center gap-4 relative overflow-hidden">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-xl">❌</div>
-          <div>
-            <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400">Rejected Leaves</div>
+        <div className="bg-white dark:bg-[#0c1424] p-5 pr-6 rounded-3xl border border-slate-100 dark:border-zinc-800/80 border-r-[4px] border-r-rose-500 shadow-xl flex items-center gap-4 relative">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-xl shrink-0">❌</div>
+          <div className="truncate">
+            <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 truncate">Rejected Leaves</div>
             <div className="text-2xl font-black text-slate-800 dark:text-zinc-50 font-outfit mt-0.5">{rejectedCount}</div>
           </div>
-          <div className="absolute right-0 top-0 h-full w-1 bg-rose-500" />
         </div>
       </div>
 
@@ -324,7 +321,7 @@ export default function LeaveDashboard({
       )}
 
       {/* Main Request Registry Table */}
-      <div className="bg-white dark:bg-[#0c1424] rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl overflow-hidden">
+      <div className="mt-6 bg-white dark:bg-[#0c1424] rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl overflow-hidden">
         <div className="p-5 border-b border-slate-100 dark:border-zinc-800/80 flex flex-col sm:flex-row justify-between items-center gap-3 select-none">
           <div>
             <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-50 font-outfit">Leave Request Registry</h3>

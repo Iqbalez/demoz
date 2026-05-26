@@ -264,7 +264,7 @@ export default function AIComplianceTerminal({ auditLogs, activeEmployeesCount, 
   };
 
   return (
-    <div className="w-full flex flex-col h-[590px] rounded-3xl glass-panel border-emerald-500/10 shadow-2xl overflow-hidden animate-fade-in relative">
+    <div className="w-full flex flex-col h-[75vh] max-h-[800px] min-h-[500px] rounded-3xl glass-panel border-emerald-500/10 shadow-2xl overflow-hidden animate-fade-in relative">
       
       {/* Visual glowing highlight */}
       <div className="absolute -top-12 -left-12 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>

@@ -20,7 +20,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const handleLogout = () => router.push("/");
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] transition-colors">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] transition-colors">
       
       {/* Topbar */}
       <header className="topbar justify-between">
@@ -43,10 +43,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col md:flex-row">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-w-0">
         
         {/* Sidebar */}
-        <aside className="w-full md:w-64 p-6 space-y-8 flex flex-col h-full border-r border-[var(--border)] bg-[var(--bg-surface)]">
+        <aside className="w-full md:w-64 p-6 space-y-8 flex flex-col shrink-0 border-r border-[var(--border)] bg-[var(--bg-surface)] overflow-y-auto h-auto md:h-full">
           <div className="space-y-3 flex-1">
             <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-widest block px-3">Menu</span>
             
@@ -70,14 +70,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
 
-          <div className="pt-6 border-t border-[var(--border)] text-xs text-[var(--text-muted)] space-y-2 px-3">
-            <div>Organization: <span className="font-medium text-[var(--text-secondary)]">{stats.companyName}</span></div>
-            <div>Verification: <span className="text-[var(--success)] font-medium">Fayda Verified</span></div>
+          <div className="pt-6 border-t border-[var(--border)] text-xs text-[var(--text-muted)] space-y-2 px-1 pb-4 shrink-0">
+            <div className="truncate">Organization: <span className="font-medium text-[var(--text-secondary)]" title={stats.companyName}>{stats.companyName}</span></div>
+            <div className="flex items-center gap-1.5 truncate">Verification: <span className="text-[var(--success)] font-medium">Fayda Verified</span></div>
           </div>
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto overflow-x-hidden h-full">
           {children}
         </main>
       </div>

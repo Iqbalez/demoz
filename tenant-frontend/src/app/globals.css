@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
 
 /* ============================================================
    DEMOZ 2026 — CLEAN SAAS DESIGN SYSTEM
@@ -53,119 +55,204 @@
   }
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ============================================================
+   BASE LAYER — Reset & Body (overridable by Tailwind utilities)
+   ============================================================ */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #27272A; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3F3F46; }
 }
 
-body {
-  background-color: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.01em;
-}
+/* ============================================================
+   COMPONENTS LAYER — Custom classes (overridable by utilities)
+   ============================================================ */
+@layer components {
+  /* Bento Tile / Card */
+  .bento-tile {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+  }
+  .bento-tile:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #27272A; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #3F3F46; }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .nav-item:hover {
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.03);
+  }
+  .nav-item.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
 
-/* Bento Tile / Card */
-.bento-tile {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  position: relative;
-}
-.bento-tile:hover {
-  border-color: var(--border-hover);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-}
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    border: none;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
 
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-.nav-item:hover {
-  color: var(--text-primary);
-  background: rgba(255,255,255,0.03);
-}
-.nav-item.active {
-  color: var(--accent);
-  background: var(--accent-dim);
-}
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-ghost:hover {
+    border-color: var(--border-hover);
+    background: rgba(255,255,255,0.03);
+  }
 
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  border: none;
-}
-.btn-primary:hover { background: var(--accent-hover); }
+  .input-field {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  .input-field:focus { border-color: var(--accent); }
 
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.btn-ghost:hover {
-  border-color: var(--border-hover);
-  background: rgba(255,255,255,0.03);
-}
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-success { background: var(--success-dim); color: var(--success); }
+  .pill-danger  { background: var(--danger-dim);  color: var(--danger);  }
+  .pill-accent  { background: var(--accent-dim);  color: var(--accent);  }
 
-.input-field {
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 14px;
-  transition: border-color 0.2s;
-  outline: none;
-}
-.input-field:focus { border-color: var(--accent); }
+  /* ============================================================
+     2026 PREMIUM GLASSMORPHISM & FUTURISTIC THEME CLASSES
+     ============================================================ */
+  .glass-card {
+    background: rgba(18, 18, 18, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
+  .dark .glass-card {
+    background: rgba(12, 20, 36, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 1px 1px rgba(99, 102, 241, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .glass-panel {
+    background: rgba(18, 18, 18, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    height: 64px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+
+  .accent-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(99, 102, 241, 0.12);
+    color: #818CF8;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .accent-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+  }
+
+  .text-gradient-accent {
+    background: linear-gradient(135deg, #6366F1 0%, #38BDF8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 900;
+  }
 }
-.pill-success { background: var(--success-dim); color: var(--success); }
-.pill-danger  { background: var(--danger-dim);  color: var(--danger);  }
-.pill-accent  { background: var(--accent-dim);  color: var(--accent);  }

@@ -97,7 +97,7 @@ function BiometricLoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070b13] flex flex-col justify-between p-6 relative overflow-hidden select-none transition-colors">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#070b13] flex flex-col justify-between p-6 relative select-none transition-colors">
       
       {/* Background visual graphics */}
       <div className="absolute top-[-20%] left-[-20%] w-[60%] aspect-square rounded-full bg-emerald-500/10 blur-[150px] pointer-events-none" />
