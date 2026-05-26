@@ -5,7 +5,7 @@ services:
     region: frankfurt # Change to your preferred region
     rootDir: tenant-backend
     buildCommand: npm install && npm run build
-    startCommand: node dist/main
+    startCommand: node dist/src/main
     envVars:
       - key: NODE_ENV
         value: production
