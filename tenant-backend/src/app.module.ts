@@ -2,6 +2,7 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { HealthController } from './health.controller';
 import { TenantMiddleware } from './tenant.middleware';
 import { PrismaService } from './prisma.service';
 import { AuthModule } from './auth/auth.module';
@@ -38,7 +39,7 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
     SubscriptionModule,
     LeaveModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     PrismaService,
