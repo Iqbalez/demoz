@@ -135,6 +135,19 @@ export class SubscriptionController {
 
       const data = await response.json();
       if (response.ok && data?.status === 'success') {
+        
+        await this.prisma.paymentTransaction.upsert({
+          where: { txRef: txRef },
+          create: {
+            txRef: txRef,
+            tenantId: tenant.id,
+            amount: amount,
+            currency: 'ETB',
+            status: 'INITIATED',
+          },
+          update: {},
+        });
+
         return res.status(HttpStatus.OK).json({
           success: true,
           txRef,

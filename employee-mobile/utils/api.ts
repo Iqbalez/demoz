@@ -1,10 +1,24 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://demoz-tfts.onrender.com";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+if (!API_URL || API_URL.trim() === '') {
+  const message =
+    '❌ EXPO_PUBLIC_API_URL is not set.\n\n' +
+    'For local development: set it in .env to http://10.0.2.2:3001 (Android emulator) or http://localhost:3001 (iOS simulator)\n' +
+    'For APK builds: set it in eas.json under the correct build profile\n' +
+    'Never rely on a hardcoded fallback URL.';
+
+  if (__DEV__) {
+    throw new Error(message);
+  } else {
+    console.error(message);
+  }
+}
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_URL ?? '',
   timeout: 60000, // Increased to 60s to handle Render free-tier cold starts
   headers: {
     "Content-Type": "application/json",
@@ -102,7 +116,7 @@ apiClient.interceptors.response.use(
       }
 
       // Hit token rotation route on backend NestJS
-      const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, {
         refreshToken,
         phoneNumber: phone,
       });

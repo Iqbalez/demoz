@@ -6,6 +6,8 @@ import { PayrollStatus, Prisma } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 import { tenantStorage } from '../tenant-context';
 
+import { DashboardService } from '../dashboard/dashboard.service';
+
 @Processor('payroll-queue')
 export class PayrollProcessor extends WorkerHost {
   private readonly logger = new Logger(PayrollProcessor.name);
@@ -13,6 +15,7 @@ export class PayrollProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiAudit: AiAuditService,
+    private readonly dashboardService: DashboardService,
   ) {
     super();
   }
@@ -192,6 +195,7 @@ export class PayrollProcessor extends WorkerHost {
           },
         });
 
+        await this.dashboardService.invalidateTenantKPICache(tenantId);
         this.logger.log(`Payroll generation completed successfully for run ${payrollRunId}`);
       } catch (error: any) {
         this.logger.error(`Critical error generating payroll ${payrollRunId}:`, error);
@@ -213,6 +217,7 @@ export class PayrollProcessor extends WorkerHost {
             errorMessage: error.message || 'Unknown internal processing error.',
           },
         });
+        await this.dashboardService.invalidateTenantKPICache(tenantId);
       }
     });
   }

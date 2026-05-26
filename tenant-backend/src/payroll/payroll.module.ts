@@ -6,6 +6,8 @@ import { AiAuditService } from './ai-audit.service';
 import { OvertimeService } from './overtime.service';
 import { PrismaService } from '../prisma.service';
 import { ReportsController } from './reports.controller';
+import { PayrollCalculationService } from './services/payroll-calculation.service';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 @Module({
   imports: [
@@ -14,7 +16,15 @@ import { ReportsController } from './reports.controller';
     }),
   ],
   controllers: [PayrollController, ReportsController],
-  providers: [PayrollProcessor, AiAuditService, OvertimeService, PrismaService],
-  exports: [AiAuditService, OvertimeService],
+  providers: [
+    PayrollProcessor,
+    AiAuditService,
+    OvertimeService,
+    PrismaService,
+    DashboardService,
+    PayrollCalculationService,
+  ],
+  exports: [AiAuditService, OvertimeService, PayrollCalculationService],
 })
 export class PayrollModule {}
+

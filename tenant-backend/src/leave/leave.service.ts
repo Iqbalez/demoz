@@ -17,9 +17,14 @@ export class CreateLeaveRequestDto {
   reason?: string;
 }
 
+import { DashboardService } from '../dashboard/dashboard.service';
+
 @Injectable()
 export class LeaveService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dashboardService: DashboardService,
+  ) {}
 
   /**
    * Seed default Ethiopian labor law leave types for a tenant.
@@ -91,7 +96,7 @@ export class LeaveService {
       throw new BadRequestException('Leave request overlaps with an existing pending or approved request.');
     }
 
-    return this.prisma.leaveRequest.create({
+    const request = await this.prisma.leaveRequest.create({
       data: {
         tenantId,
         employeeId: dto.employeeId,
@@ -102,6 +107,10 @@ export class LeaveService {
         reason: dto.reason,
       },
     });
+
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+    
+    return request;
   }
 
   async getLeaveRequests(tenantId: string, status?: string) {
@@ -129,7 +138,7 @@ export class LeaveService {
       throw new BadRequestException('Only pending requests can be approved.');
     }
 
-    return this.prisma.leaveRequest.update({
+    const updatedRequest = await this.prisma.leaveRequest.update({
       where: { id: requestId },
       data: {
         status: 'APPROVED',
@@ -137,6 +146,10 @@ export class LeaveService {
         approvedAt: new Date(),
       },
     });
+    
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+    
+    return updatedRequest;
   }
 
   async rejectLeave(tenantId: string, requestId: string, reason: string) {
@@ -148,12 +161,16 @@ export class LeaveService {
       throw new BadRequestException('Only pending requests can be rejected.');
     }
 
-    return this.prisma.leaveRequest.update({
+    const updatedRequest = await this.prisma.leaveRequest.update({
       where: { id: requestId },
       data: {
         status: 'REJECTED',
         rejectionReason: reason,
       },
     });
+    
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+    
+    return updatedRequest;
   }
 }

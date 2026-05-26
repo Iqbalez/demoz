@@ -63,6 +63,18 @@ export class AttendanceController {
   }
 
   /**
+   * Offline-First Background Sync Endpoint
+   */
+  @Post('sync')
+  @Roles(UserRole.EMPLOYEE, UserRole.HR, UserRole.OWNER)
+  @HttpCode(HttpStatus.OK)
+  async syncOfflineEvent(@Req() req: any, @Body() body: any) {
+    const userId = req.user.userId;
+    const tenantId = req.user.tenantId;
+    return this.attendanceService.syncOfflineEvent(tenantId, userId, body);
+  }
+
+  /**
    * Transactional Batch Synchronization of Offline Local logs
    */
   @Post('batch')

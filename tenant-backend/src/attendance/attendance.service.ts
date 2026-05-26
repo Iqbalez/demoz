@@ -4,11 +4,16 @@ import { tenantStorage } from '../tenant-context';
 import { CheckInDto, CheckOutDto } from './dto/check-in.dto';
 import { AttendanceType, AttendanceSource, Prisma } from '@prisma/client';
 
+import { DashboardService } from '../dashboard/dashboard.service';
+
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dashboardService: DashboardService,
+  ) {}
 
   /**
    * Helper: Calculates current calendar date in Ethiopian Local Time (UTC+3)
@@ -139,6 +144,8 @@ export class AttendanceService {
       },
     });
 
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+
     return log;
   }
 
@@ -200,7 +207,7 @@ export class AttendanceService {
 
     // 3. Perform check-in within serialized transaction (row-level locking) with constraint safety
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         // Lock Employee row to prevent race conditions from concurrent rapid check-ins
         await tx.$executeRaw`SELECT id FROM employees WHERE id = ${employee.id}::uuid FOR UPDATE`;
 
@@ -231,6 +238,9 @@ export class AttendanceService {
           },
         });
       });
+      
+      await this.dashboardService.invalidateTenantKPICache(tenantId);
+      return result;
     } catch (error: any) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new BadRequestException('You have already checked in today.');
@@ -259,7 +269,7 @@ export class AttendanceService {
     const todayDate = this.getEthiopianDate();
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         // Lock employee row
         await tx.$executeRaw`SELECT id FROM employees WHERE id = ${employee.id}::uuid FOR UPDATE`;
 
@@ -291,6 +301,9 @@ export class AttendanceService {
           },
         });
       });
+      
+      await this.dashboardService.invalidateTenantKPICache(tenantId);
+      return result;
     } catch (error: any) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new BadRequestException('You have already checked out today.');
@@ -401,6 +414,7 @@ export class AttendanceService {
                 },
               });
 
+              await this.dashboardService.invalidateTenantKPICache(employee.tenantId);
               return `END Check-in successful at ${localTimeStr}.`;
             } else {
               // Option 2: Check-out
@@ -429,6 +443,7 @@ export class AttendanceService {
                 },
               });
 
+              await this.dashboardService.invalidateTenantKPICache(employee.tenantId);
               return `END Check-out successful at ${localTimeStr}.`;
             }
           });
@@ -524,9 +539,79 @@ export class AttendanceService {
       return createdLogs;
     });
 
+    await this.dashboardService.invalidateTenantKPICache(tenantId || employee.tenantId);
+
     return {
       success: true,
       syncedCount: results.length,
     };
+  }
+  /**
+   * Offline-First Background Sync (Single Event)
+   */
+  async syncOfflineEvent(tenantId: string, userId: string, body: any) {
+    const { type, lat, lng, accuracy, branchId, deviceId, clientTime, method } = body;
+    
+    // Validate that clientTime is not older than 24 hours
+    const clientDate = new Date(clientTime);
+    const now = new Date();
+    const diffMs = now.getTime() - clientDate.getTime();
+    if (diffMs > 24 * 60 * 60 * 1000) {
+      return { status: 'REJECTED', reason: 'Event too old' };
+    }
+
+    // Look up employee
+    const employee = await this.prisma.employee.findUnique({
+      where: { userId },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee profile not found for user');
+    }
+
+    // Check for duplicate AttendanceLog (same employee, same day, same type)
+    const startOfDay = new Date(clientDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(clientDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const existingLog = await this.prisma.attendanceLog.findFirst({
+      where: {
+        employeeId: employee.id,
+        type: type as any,
+        timestamp: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    if (existingLog) {
+      return { status: 'DUPLICATE', conflictId: existingLog.id };
+    }
+
+    // Create new AttendanceLog
+    const created = await this.prisma.attendanceLog.create({
+      data: {
+        tenantId,
+        employeeId: employee.id,
+        branchId,
+        type: type as any,
+        latitude: lat,
+        longitude: lng,
+        accuracy,
+        method: method as any || 'GPS',
+        deviceId,
+        clientTime: clientDate,
+        timestamp: now,
+        syncedAt: now,
+        source: 'WEB_PWA',
+      },
+    });
+
+    // Invalidate dashboard cache
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+
+    return { status: 'SUCCESS', attendanceId: created.id };
   }
 }

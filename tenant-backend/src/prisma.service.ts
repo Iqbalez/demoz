@@ -4,6 +4,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as crypto from 'crypto';
 import { tenantStorage } from './tenant-context'; // Reusing your existing store
+import { createAuditLoggingExtension } from './prisma/audit-logging.extension';
 
 // Cryptographic helpers for custom field encryption (AES-256-GCM)
 function getEncryptionKeyBuffer(): Buffer {
@@ -139,7 +140,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           }
         }
       })
-      // ─── Layer 2: Multi-Tenant Row Isolation (AsyncLocalStorage) ────────────
+      // ─── Layer 2: Mutation Audit Logging ──────────────────────────────────────────
+      .$extends(createAuditLoggingExtension())
+      // ─── Layer 3: Multi-Tenant Row Isolation (AsyncLocalStorage) ────────────
       .$extends({
         query: {
           $allModels: {
@@ -156,6 +159,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
                 'AiAuditReport',
                 'AuditLog',
                 'SubscriptionInvoice',
+                'LeaveType',
+                'LeaveRequest',
+                'PaymentTransaction',
               ];
 
               if (tenantScopedModels.includes(model)) {

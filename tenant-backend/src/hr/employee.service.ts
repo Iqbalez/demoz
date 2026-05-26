@@ -6,12 +6,14 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { tenantStorage } from '../tenant-context';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 @Injectable()
 export class EmployeeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionService: SubscriptionService,
+    private readonly dashboardService: DashboardService,
   ) {}
 
   /**
@@ -104,7 +106,7 @@ export class EmployeeService {
     }
 
     // TenantId is automatically injected at query execution time by our Prisma Extension
-    return this.prisma.employee.create({
+    const emp = await this.prisma.employee.create({
       data: {
         firstName: dto.firstName,
         lastName: dto.lastName,
@@ -121,6 +123,12 @@ export class EmployeeService {
         userId: dto.userId || null,
       } as any,
     });
+    
+    if (tenantId) {
+      await this.dashboardService.invalidateTenantKPICache(tenantId);
+    }
+    
+    return emp;
   }
 
   /**
@@ -154,13 +162,20 @@ export class EmployeeService {
       }
     }
 
-    return this.prisma.employee.update({
+    const updatedEmp = await this.prisma.employee.update({
       where: { id },
       data: {
         ...dto,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
       } as any,
     });
+    
+    const tenantId = tenantStorage.getStore();
+    if (tenantId) {
+      await this.dashboardService.invalidateTenantKPICache(tenantId);
+    }
+    
+    return updatedEmp;
   }
 
   /**
@@ -357,6 +372,10 @@ export class EmployeeService {
     const results = await this.prisma.$transaction(
       employeesToCreate.map(emp => this.prisma.employee.create({ data: emp as any }))
     );
+
+    if (tenantId) {
+      await this.dashboardService.invalidateTenantKPICache(tenantId);
+    }
 
     return {
       message: `Successfully onboarded all ${results.length} employees.`,

@@ -58,6 +58,7 @@ model Tenant {
   subscriptionInvoices SubscriptionInvoice[]
   leaveTypes           LeaveType[]
   leaveRequests        LeaveRequest[]
+  paymentTransactions  PaymentTransaction[]
 
   @@index([status, subscriptionExpiresAt])
   @@map("tenants") // Maps Prisma model to plural lowercase PostgreSQL table name
@@ -104,6 +105,7 @@ model Branch {
   // Relations
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   departments Department[]
+  attendanceLogs AttendanceLog[]
 
   @@index([tenantId])
   @@index([tenantId, id])
@@ -216,6 +218,15 @@ enum AttendanceSource {
 enum AttendanceType {
   CLOCK_IN
   CLOCK_OUT
+  BREAK_START
+  BREAK_END
+}
+
+enum AttendanceMethod {
+  GPS
+  USSD
+  QR
+  MANUAL_OVERRIDE
 }
 
 model AttendanceLog {
@@ -227,6 +238,12 @@ model AttendanceLog {
   source        AttendanceSource
   latitude      Decimal?         @db.Decimal(10, 8)
   longitude     Decimal?         @db.Decimal(11, 8)
+  accuracy      Float?           @db.DoublePrecision
+  method        AttendanceMethod @default(GPS)
+  syncedAt      DateTime?        @db.Timestamptz(6)
+  deviceId      String?          @db.VarChar(255)
+  clientTime    DateTime?        @db.Timestamptz(6)
+  branchId      String?          @db.Uuid
   isAnomaly     Boolean          @default(false)
   anomalyReason String?          @db.VarChar(255)
   telemetry     Json             @default("{}")
@@ -234,6 +251,7 @@ model AttendanceLog {
   // Relations
   tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  branch        Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, employeeId, timestamp])
   @@map("attendance_logs")
@@ -291,11 +309,16 @@ model PayrollLineItem {
   transportAllowanceExempt     Decimal  @default(0) @db.Decimal(12, 2)  // Non-taxable portion (min of 25% base or 2200)
   taxableAllowances            Decimal  @default(0) @db.Decimal(12, 2)
   overtimePay                  Decimal  @default(0) @db.Decimal(12, 2)  // Calculated overtime earnings
+  /// @encrypted
   grossSalary                  Decimal  @default(0) @db.Decimal(12, 2)  // Base + allowances + overtime
   incomeTax                    Decimal  @default(0) @db.Decimal(12, 2)
   pensionDeduction             Decimal  @default(0) @db.Decimal(12, 2)  // 7% employee share
   employerPensionContribution  Decimal  @default(0) @db.Decimal(12, 2)  // 11% employer share (audit trail)
   netPay                       Decimal  @default(0) @db.Decimal(12, 2)
+  /// @encrypted
+  bankAccount                  String?  @db.VarChar(255)
+  bankCode                     String?  @db.VarChar(50)
+  disbursed                    Boolean  @default(false) @db.Boolean
   chapaReference               String?      @unique @db.VarChar(255)
   payoutStatus                 PayoutStatus @default(PENDING)
   createdAt                    DateTime     @default(now()) @db.Timestamptz(6)
@@ -422,4 +445,36 @@ model LeaveRequest {
   @@index([tenantId, status])
   @@index([employeeId])
   @@map("leave_requests")
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  WEBHOOK_RECV
+  VERIFIED
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model PaymentTransaction {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  txRef          String        @unique @db.VarChar(255)
+  chapaRef       String?       @unique @db.VarChar(255)
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("ETB") @db.VarChar(3)
+  status         PaymentStatus @default(INITIATED)
+  webhookPayload Json?         @db.JsonB
+  retryCount     Int           @default(0) @db.Integer
+  lastRetryAt    DateTime?     @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  resolvedAt     DateTime?     @db.Timestamptz(6)
+  
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([txRef])
+  @@index([tenantId, status])
+  @@index([createdAt])
+  @@map("payment_transactions")
 }

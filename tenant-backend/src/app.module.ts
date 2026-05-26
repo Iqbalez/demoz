@@ -16,28 +16,35 @@ import { PayrollModule } from './payroll/payroll.module';
 import { FinanceModule } from './finance/finance.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { LeaveModule } from './leave/leave.module';
+import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { TenantLifecycleGuard } from './auth/tenant-lifecycle.guard';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 
+import { RedisModule } from './redis/redis.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+
 @Module({
   imports: [
+    RedisModule,
+    DashboardModule,
     AuthModule,
     HrModule,
     AttendanceModule,
     UssdModule,
     BullModule.forRoot({
       connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        password: process.env.REDIS_PASSWORD || undefined,
-        // Support SSL/TLS for secure managed Redis clusters (like Upstash) in cloud environments
-        tls: process.env.REDIS_TLS === 'true' || process.env.REDIS_HOST?.includes('upstash.io') ? {} : undefined,
+        url: process.env.UPSTASH_REDIS_URL,
       },
     }),
+    PaymentsModule,
     PayrollModule,
     FinanceModule,
     SubscriptionModule,
     LeaveModule,
+    NotificationsModule,
+    OnboardingModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

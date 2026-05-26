@@ -4,12 +4,17 @@ import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma.service';
 import { tenantStorage } from '../tenant-context';
 import { PayrollStatus } from '@prisma/client';
+import { DashboardService } from '../dashboard/dashboard.service';
+import { PayrollCalculationService } from './services/payroll-calculation.service';
+import { GeneratePayrollDto } from './dto/generate-payroll.dto';
 
 @Controller('api/v1/payroll')
 export class PayrollController {
   constructor(
     @InjectQueue('payroll-queue') private readonly payrollQueue: Queue,
     private readonly prisma: PrismaService,
+    private readonly dashboardService: DashboardService,
+    private readonly payrollCalcService: PayrollCalculationService,
   ) {}
 
   /**
@@ -74,6 +79,8 @@ export class PayrollController {
       },
     );
 
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+
     return {
       payrollRunId: payrollRun.id,
       status: 'PROCESSING',
@@ -110,5 +117,57 @@ export class PayrollController {
     }
 
     return run;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ENDPOINT 1 — POST /api/v1/payroll/runs/generate
+  // Synchronous DRAFT payroll generation using Ethiopian tax brackets
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Generates a complete DRAFT payroll run for all ACTIVE employees.
+   * Uses Proclamation No. 979/2016 income tax brackets and
+   * Proclamation No. 714/2011 pension rates (7% employee / 11% employer).
+   *
+   * Returns the created PayrollRun with all PayrollLineItems.
+   * Status: 201 Created
+   * On conflict: 409 Payroll already exists for this period
+   */
+  @Post('runs/generate')
+  @HttpCode(HttpStatus.CREATED)
+  async generatePayrollRun(@Body() body: GeneratePayrollDto) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      throw new BadRequestException('Active tenant context is missing.');
+    }
+
+    const { period } = body;
+    if (!period) {
+      throw new BadRequestException('Missing required field: period (YYYY-MM)');
+    }
+
+    return this.payrollCalcService.generateCompletePayrollRun(tenantId, period);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ENDPOINT 2 — POST /api/v1/payroll/runs/:runId/lock
+  // Transitions a DRAFT payroll run to OWNER_APPROVED (locked)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Locks a DRAFT payroll run, marking it read-only and ready for disbursement.
+   *
+   * Returns the updated PayrollRun.
+   * Status: 200 OK
+   * On invalid state: 400 Can only lock DRAFT payroll runs
+   */
+  @Post('runs/:runId/lock')
+  @HttpCode(HttpStatus.OK)
+  async lockPayrollRun(@Param('runId') runId: string) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      throw new BadRequestException('Active tenant context is missing.');
+    }
+    return this.payrollCalcService.lockPayrollRun(runId);
   }
 }

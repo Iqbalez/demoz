@@ -4,6 +4,7 @@ import { ThemeProvider, DarkTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { registerAttendanceSyncTask } from '../tasks/attendanceSyncTask';
 
 export default function RootLayout() {
   const router = useRouter();
@@ -30,6 +31,9 @@ export default function RootLayout() {
       } else if (token && (inAuthGroup || !segments[0])) {
         // Authenticated: Route directly into employee portal
         router.replace('/(tabs)');
+        
+        // Background sync requires the user to be logged in so tokens are available when the task wakes up.
+        registerAttendanceSyncTask();
       }
     }, 1);
 
