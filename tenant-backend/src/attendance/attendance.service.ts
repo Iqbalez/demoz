@@ -490,37 +490,61 @@ export class AttendanceService {
     const branchLon = branch && branch.longitude !== null ? Number(branch.longitude) : null;
     const limit = branch ? branch.geofenceRadiusMeters : 100;
 
-    const results = await this.prisma.$transaction(async (tx) => {
-      const createdLogs: any[] = [];
-      for (const log of logs) {
-        let isAnomaly = false;
-        let anomalyReason: string | null = null;
+    // Process logs individually (not in a single transaction) to be idempotent
+    // and skip duplicates gracefully instead of crashing the entire batch
+    const createdLogs: any[] = [];
+    let skipped = 0;
 
-        if (branchLat !== null && branchLon !== null) {
-          const distance = this.calculateHaversineDistance(
-            log.latitude,
-            log.longitude,
-            branchLat,
-            branchLon,
-          );
+    for (const log of logs) {
+      // Check for duplicate: same employee, same type, same day
+      const logDate = new Date(log.timestamp);
+      const startOfDay = new Date(logDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(logDate);
+      endOfDay.setHours(23, 59, 59, 999);
 
-          if (distance > limit) {
-            isAnomaly = true;
-            anomalyReason = `Batch Geofence Breach: Worker was ${Math.round(distance)} meters away`;
-          }
-        }
+      const existing = await this.prisma.attendanceLog.findFirst({
+        where: {
+          employeeId,
+          type: log.type as any,
+          timestamp: { gte: startOfDay, lte: endOfDay },
+        },
+      });
 
-        const telemetryPayload = {
-          clientLat: log.latitude,
-          clientLon: log.longitude,
+      if (existing) {
+        skipped++;
+        continue; // Skip duplicate — already synced
+      }
+
+      let isAnomaly = false;
+      let anomalyReason: string | null = null;
+
+      if (branchLat !== null && branchLon !== null) {
+        const distance = this.calculateHaversineDistance(
+          log.latitude,
+          log.longitude,
           branchLat,
           branchLon,
-          isOfflineBatch: true,
-          originalTimestamp: log.timestamp,
-          timestamp: new Date().toISOString(),
-        };
+        );
 
-        const createdLog = await tx.attendanceLog.create({
+        if (distance > limit) {
+          isAnomaly = true;
+          anomalyReason = `Batch Geofence Breach: Worker was ${Math.round(distance)} meters away`;
+        }
+      }
+
+      const telemetryPayload = {
+        clientLat: log.latitude,
+        clientLon: log.longitude,
+        branchLat,
+        branchLon,
+        isOfflineBatch: true,
+        originalTimestamp: log.timestamp,
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        const createdLog = await this.prisma.attendanceLog.create({
           data: {
             tenantId: tenantId || employee.tenantId,
             employeeId,
@@ -535,9 +559,17 @@ export class AttendanceService {
           },
         });
         createdLogs.push(createdLog);
+      } catch (err: any) {
+        // Gracefully skip P2002 duplicate constraint errors
+        if (err?.code === 'P2002') {
+          skipped++;
+          continue;
+        }
+        throw err;
       }
-      return createdLogs;
-    });
+    }
+
+    const results = createdLogs;
 
     await this.dashboardService.invalidateTenantKPICache(tenantId || employee.tenantId);
 
