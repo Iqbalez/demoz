@@ -79,6 +79,9 @@ export class EmployeeService {
       }
     }
 
+    // Sanitize phone number to prevent spacing mismatch issues
+    dto.phoneNumber = dto.phoneNumber.replace(/\s+/g, '');
+
     // 1. Phone number global uniqueness check
     const existingPhone = await this.prisma.employee.findFirst({
       where: { phoneNumber: dto.phoneNumber },
@@ -136,6 +139,7 @@ export class EmployeeService {
    */
   async update(id: string, dto: UpdateEmployeeDto) {
     if (dto.phoneNumber) {
+      dto.phoneNumber = dto.phoneNumber.replace(/\s+/g, '');
       const existingPhone = await this.prisma.employee.findFirst({
         where: { phoneNumber: dto.phoneNumber, NOT: { id } },
       });

@@ -122,8 +122,9 @@ export class AuthService {
    * Authenticates frontline workers on the Mobile app
    */
   async employeeLogin(credentials: { phoneNumber: string; pin: string }) {
+    const cleanPhone = credentials.phoneNumber.replace(/\s+/g, '');
     const employee = await this.prisma.employee.findUnique({
-      where: { phoneNumber: credentials.phoneNumber },
+      where: { phoneNumber: cleanPhone },
       include: { tenant: true },
     });
 
@@ -185,8 +186,9 @@ export class AuthService {
     } catch (err) {
       // Fallback fallback checks using phone numbers
       if (body.phoneNumber) {
+        const cleanPhone = body.phoneNumber.replace(/\s+/g, '');
         const employee = await this.prisma.employee.findUnique({
-          where: { phoneNumber: body.phoneNumber },
+          where: { phoneNumber: cleanPhone },
         });
         if (employee && employee.status === 'ACTIVE') {
           const tokens = await this.generateToken(employee.id, employee.tenantId, UserRole.EMPLOYEE);
