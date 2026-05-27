@@ -59,31 +59,50 @@ export class SubscriptionController {
     const salt = await bcrypt.genSalt(10);
     const pinHash = await bcrypt.hash(pin || '1234', salt);
 
-    // Create a new tenant record in database in PAST_DUE status
-    const tenant = await this.prisma.tenant.create({
-      data: {
-        name: companyName,
-        companyCode: `COMP_${Date.now().toString().slice(-6)}`,
-        status: TenantStatus.PAST_DUE,
-        planTier: tier,
-        maxEmployees: maxEmployees,
-        subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Provisional 30 days
-      },
-    });
+    // Run Tenant and User creation in a transaction to prevent orphaned records and handle duplicates
+    let tenant, owner;
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const t = await tx.tenant.create({
+          data: {
+            name: companyName,
+            companyCode: `COMP_${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+            status: TenantStatus.PAST_DUE,
+            planTier: tier,
+            maxEmployees: maxEmployees,
+            subscriptionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Provisional 30 days
+          },
+        });
+
+        const u = await tx.user.create({
+          data: {
+            email: email,
+            phoneNumber: phone,
+            passwordHash: pinHash,
+            role: 'OWNER',
+            tenantId: t.id,
+          },
+        });
+
+        return { t, u };
+      });
+
+      tenant = result.t;
+      owner = result.u;
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        const target = error.meta?.target as string[] | string;
+        const targetField = Array.isArray(target) ? target.join(', ') : target;
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          success: false,
+          message: `Registration failed. A user with this ${targetField || 'phone number or email'} already exists. Please use a different phone number/email.`,
+        });
+      }
+      throw error;
+    }
 
     // Generate unique transactional reference with embedded tenant.id
     const txRef = `sub_tx_${tenant.id}_${Date.now()}`;
-
-    // Create a provisional User / Owner for this tenant
-    const owner = await this.prisma.user.create({
-      data: {
-        email: email,
-        phoneNumber: phone,
-        passwordHash: pinHash, // Store the real hashed PIN
-        role: 'OWNER',
-        tenantId: tenant.id,
-      },
-    });
 
     const checkoutToken = crypto.randomBytes(32).toString('hex');
     checkoutTokenStore.set(checkoutToken, {
