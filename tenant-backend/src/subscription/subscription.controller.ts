@@ -99,8 +99,8 @@ export class SubscriptionController {
       throw error;
     }
 
-    // Generate unique transactional reference with embedded tenant.id
-    const txRef = `sub_tx_${tenant.id}_${Date.now()}`;
+    // Generate unique transactional reference (Chapa max length is 50 chars)
+    const txRef = `sub_${tenant.id.split('-')[0]}_${Date.now()}`;
 
     const checkoutToken = crypto.randomBytes(32).toString('hex');
     checkoutTokenStore.set(checkoutToken, {
