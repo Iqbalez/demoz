@@ -8,9 +8,12 @@ import { FaydaProcessor } from './fayda.processor';
 import { FaydaOidcService } from './fayda-oidc.service';
 import { JwtModule } from '@nestjs/jwt';
 
+import { NotificationsModule } from '../notifications/notifications.module';
+
 @Module({
   imports: [
     SubscriptionModule,
+    NotificationsModule,
     JwtModule.register({}),
     BullModule.registerQueue({
       name: 'fayda-queue',

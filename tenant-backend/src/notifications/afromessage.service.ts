@@ -70,6 +70,21 @@ export class AfromessageService {
     }
   }
 
+  async sendEmployeeMobileCredentials(phoneNumber: string, name: string, pin: string): Promise<void> {
+    const message = `Welcome to Demoz ${name}!\nYour mobile app login PIN is: ${pin}\nPlease do not share this code.`;
+    
+    // Always log the PIN to the terminal so testing is seamless even if SMS fails/API key is missing
+    console.log(`\n================================`);
+    console.log(`📱 SMS TO: ${phoneNumber}`);
+    console.log(`MESSAGE: ${message}`);
+    console.log(`================================\n`);
+
+    const result = await this.sendSMS(phoneNumber, message);
+    if (!result.success) {
+      console.warn(`[Onboarding] Failed to send mobile credentials SMS to ${phoneNumber} - ${result.error}. (Check API Key).`);
+    }
+  }
+
   async sendBulkSMS(
     recipients: Array<{ phone: string; message: string }>,
   ): Promise<{ sent: number; failed: number }> {

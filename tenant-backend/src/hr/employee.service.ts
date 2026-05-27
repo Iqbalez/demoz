@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
 import { GetEmployeesQueryDto } from './dto/employee-query.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
@@ -7,6 +8,7 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { tenantStorage } from '../tenant-context';
 import { DashboardService } from '../dashboard/dashboard.service';
+import { AfromessageService } from '../notifications/afromessage.service';
 
 @Injectable()
 export class EmployeeService {
@@ -14,6 +16,7 @@ export class EmployeeService {
     private readonly prisma: PrismaService,
     private readonly subscriptionService: SubscriptionService,
     private readonly dashboardService: DashboardService,
+    private readonly afromessageService: AfromessageService,
   ) {}
 
   /**
@@ -108,6 +111,10 @@ export class EmployeeService {
       }
     }
 
+    // Generate secure 4-digit PIN for Mobile App
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    const pinHash = await bcrypt.hash(pin, 10);
+
     // TenantId is automatically injected at query execution time by our Prisma Extension
     const emp = await this.prisma.employee.create({
       data: {
@@ -124,6 +131,8 @@ export class EmployeeService {
         hireDate: new Date(dto.hireDate),
         departmentId: dto.departmentId,
         userId: dto.userId || null,
+        ussdPin: pin,
+        ussdPinHash: pinHash,
       } as any,
     });
     
@@ -131,6 +140,9 @@ export class EmployeeService {
       await this.dashboardService.invalidateTenantKPICache(tenantId);
     }
     
+    // Dispatch SMS asynchronously
+    this.afromessageService.sendEmployeeMobileCredentials(emp.phoneNumber, emp.firstName, pin).catch(e => console.error(e));
+
     return emp;
   }
 
@@ -372,6 +384,13 @@ export class EmployeeService {
       throw new BadRequestException('No valid employee records found to onboard.');
     }
 
+    // Generate PINs and hashes for all bulk uploaded employees
+    for (const emp of employeesToCreate) {
+      const pin = Math.floor(1000 + Math.random() * 9000).toString();
+      emp.ussdPin = pin;
+      emp.ussdPinHash = await bcrypt.hash(pin, 10);
+    }
+
     // Execute in a transaction. Rollback is triggered automatically if insert fails.
     const results = await this.prisma.$transaction(
       employeesToCreate.map(emp => this.prisma.employee.create({ data: emp as any }))
@@ -379,6 +398,11 @@ export class EmployeeService {
 
     if (tenantId) {
       await this.dashboardService.invalidateTenantKPICache(tenantId);
+    }
+
+    // Dispatch SMS asynchronously for all bulk employees
+    for (const emp of employeesToCreate) {
+      this.afromessageService.sendEmployeeMobileCredentials(emp.phoneNumber, emp.firstName, emp.ussdPin).catch(e => console.error(e));
     }
 
     return {
