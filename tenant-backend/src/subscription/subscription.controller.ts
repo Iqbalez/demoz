@@ -91,11 +91,9 @@ export class SubscriptionController {
       owner = result.u;
     } catch (error: any) {
       if (error.code === 'P2002') {
-        const target = error.meta?.target as string[] | string;
-        const targetField = Array.isArray(target) ? target.join(', ') : target;
         return res.status(HttpStatus.BAD_REQUEST).json({
           success: false,
-          message: `Registration failed. A user with this ${targetField || 'phone number or email'} already exists. Please use a different phone number/email.`,
+          message: 'Registration failed. This phone number or email is already registered. Please use a different one.',
         });
       }
       throw error;
@@ -174,13 +172,14 @@ export class SubscriptionController {
           checkoutToken,
         });
       } else {
-        throw new Error(data?.message || 'Chapa initialization failed.');
+        const errorMsg = typeof data?.message === 'string' ? data.message : JSON.stringify(data?.message || 'Chapa initialization failed.');
+        throw new Error(errorMsg);
       }
     } catch (err: any) {
       this.logger.error(`Failed to initialize Chapa transaction: ${err.message}`);
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: err.message || 'Fintech payment initialization failure.',
+        message: typeof err.message === 'string' ? err.message : 'Fintech payment initialization failure.',
       });
     }
   }
