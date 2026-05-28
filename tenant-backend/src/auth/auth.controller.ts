@@ -1,8 +1,26 @@
-import { Controller, Post, Body, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Req, Res, UseGuards, BadRequestException } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { RateLimit } from '../common/guards/rate-limit.decorator';
 import { RateLimitGuard } from '../common/guards/rate-limit.guard';
+
+/** Shared cookie options for JWT tokens */
+const ACCESS_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  path: '/',
+  maxAge: 15 * 60 * 1000, // 15 minutes
+};
+
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  path: '/',
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+};
 
 @Controller('api/v1/auth')
 @UseGuards(RateLimitGuard)
@@ -20,16 +38,23 @@ export class AuthController {
     @Body('ownerEmail') ownerEmail: string,
     @Body('ownerPhone') ownerPhone: string,
     @Body('password') passwordHash: string,
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (!companyName || !ownerEmail || !ownerPhone || !passwordHash) {
       throw new BadRequestException('All registration fields are required.');
     }
-    return this.authService.register({
+    const result = await this.authService.register({
       companyName,
       ownerEmail,
       ownerPhone,
       password: passwordHash,
     });
+
+    // Set HttpOnly cookie for web dashboard
+    res.cookie('access_token', result.accessToken, ACCESS_COOKIE_OPTIONS);
+    res.cookie('refresh_token', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+
+    return result;
   }
 
   /**
@@ -41,15 +66,24 @@ export class AuthController {
   async login(
     @Body('email') email: string,
     @Body('password') passwordHash: string,
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (!email || !passwordHash) {
       throw new BadRequestException('Email and password are required.');
     }
-    return this.authService.login({ email, passwordHash });
+    const result = await this.authService.login({ email, passwordHash });
+
+    // Set HttpOnly cookie for web dashboard
+    res.cookie('access_token', result.accessToken, ACCESS_COOKIE_OPTIONS);
+    res.cookie('refresh_token', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+
+    return result;
   }
 
   /**
    * Endpoint for Employee mobile app login
+   * Note: Mobile app stores the token in-memory / SecureStore, not cookies.
+   * The token is still returned in the JSON body for the mobile client.
    */
   @Public()
   @RateLimit(5, 60000)
@@ -72,11 +106,37 @@ export class AuthController {
   async refresh(
     @Body('refreshToken') refreshToken: string,
     @Body('phoneNumber') phoneNumber?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    if (!refreshToken) {
-      throw new BadRequestException('Refresh token is required.');
+    const cookieRefresh = (res as any)?.req?.cookies?.refresh_token as string | undefined;
+    const tokenToUse = refreshToken || cookieRefresh;
+    if (!tokenToUse) throw new BadRequestException('Refresh token is required.');
+
+    const result = await this.authService.refreshSession({ refreshToken: tokenToUse, phoneNumber });
+
+    // Update HttpOnly cookie with new access token for web dashboard
+    if (res && result.accessToken) {
+      res.cookie('access_token', result.accessToken, ACCESS_COOKIE_OPTIONS);
     }
-    return this.authService.refreshSession({ refreshToken, phoneNumber });
+    if (res && result.newRefreshToken) {
+      res.cookie('refresh_token', result.newRefreshToken, REFRESH_COOKIE_OPTIONS);
+    }
+
+    return result;
+  }
+
+  /**
+   * Logout — clears the HttpOnly cookie
+   */
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie('access_token', { path: '/' });
+    const refresh = (res as any)?.req?.cookies?.refresh_token as string | undefined;
+    if (refresh) {
+      await this.authService.revokeRefreshToken(refresh);
+    }
+    res.clearCookie('refresh_token', { path: '/' });
+    return { success: true, message: 'Session terminated.' };
   }
 
   /**

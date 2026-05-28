@@ -1,7 +1,9 @@
 export function validateEnv() {
   const requiredVars = [
     'DATABASE_URL',
-    'JWT_SECRET',
+    // Prefer RS256 in production (required by blueprint)
+    'JWT_PRIVATE_KEY',
+    'JWT_PUBLIC_KEY',
     'UPSTASH_REDIS_URL',
     'CHAPA_SECRET_KEY',
     'CHAPA_WEBHOOK_SECRET',
@@ -11,6 +13,9 @@ export function validateEnv() {
     'NODE_ENV',
     'AFROMESSAGE_API_KEY',
     'AFROMESSAGE_SENDER_NAME',
+    'SENTRY_DSN',
+    // Backwards-compat/dev fallback (HS256). Not used when RSA keys exist.
+    'JWT_SECRET',
   ];
 
   const missingVars: string[] = [];
@@ -23,7 +28,8 @@ export function validateEnv() {
 
   for (const v of optionalVars) {
     if (!process.env[v] || process.env[v]?.trim() === '') {
-      console.warn(`⚠️ Warning: Optional environment variable ${v} is missing or empty.`);
+      // eslint-disable-next-line no-console
+      console.warn(`Warning: Optional environment variable ${v} is missing or empty.`);
     }
   }
 
@@ -35,5 +41,6 @@ export function validateEnv() {
     );
   }
 
-  console.log('✅ Environment variables validated successfully');
+  // eslint-disable-next-line no-console
+  console.log('Environment variables validated successfully');
 }

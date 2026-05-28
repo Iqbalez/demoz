@@ -1,10 +1,12 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { PrismaService } from '../prisma.service';
 import { startOfDay } from 'date-fns';
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
+
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly prisma: PrismaService,
@@ -19,7 +21,7 @@ export class DashboardService {
         return JSON.parse(cached);
       }
     } catch (err) {
-      console.warn('[Redis] cache miss — falling back to DB', err);
+      this.logger.warn('[Redis] cache miss — falling back to DB');
     }
 
     const todayStart = startOfDay(new Date());
@@ -47,7 +49,7 @@ export class DashboardService {
     try {
       await this.redis.setex(cacheKey, 300, JSON.stringify(result));
     } catch (err) {
-      console.warn('[Redis] failed to set cache', err);
+      this.logger.warn('[Redis] failed to set cache');
     }
 
     return result;
@@ -58,7 +60,7 @@ export class DashboardService {
     try {
       await this.redis.del(cacheKey);
     } catch (err) {
-      console.warn(`[Redis] failed to invalidate cache for ${cacheKey}`, err);
+      this.logger.warn(`[Redis] failed to invalidate cache for ${cacheKey}`);
     }
   }
 
@@ -67,7 +69,7 @@ export class DashboardService {
     try {
       await this.redis.del(cacheKey);
     } catch (err) {
-      console.warn(`[Redis] failed to invalidate payroll cache for ${cacheKey}`, err);
+      this.logger.warn(`[Redis] failed to invalidate payroll cache for ${cacheKey}`);
     }
   }
 }

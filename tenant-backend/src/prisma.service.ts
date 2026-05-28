@@ -156,6 +156,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
                 'Attendance',
                 'AttendanceLog',
                 'PayrollRun',
+                'PayrollLineItem',
                 'AiAuditReport',
                 'AuditLog',
                 'SubscriptionInvoice',

@@ -20,18 +20,23 @@ export class UssdService {
     try {
       // Dynamic import to prevent startup failures if ioredis isn't installed
       const Redis = require('ioredis');
-      const host = process.env.REDIS_HOST || 'localhost';
-      const port = parseInt(process.env.REDIS_PORT || '6379', 10);
+      const upstashUrl = process.env.UPSTASH_REDIS_URL;
 
-      this.redisClient = new Redis({
-        host,
-        port,
-        password: process.env.REDIS_PASSWORD || undefined,
-        // Support secure SSL/TLS for Upstash Redis
-        tls: process.env.REDIS_TLS === 'true' || process.env.REDIS_HOST?.includes('upstash.io') ? {} : undefined,
-        maxRetriesPerRequest: 3,
-        connectTimeout: 2000,
-      });
+      this.redisClient = upstashUrl
+        ? new Redis(upstashUrl)
+        : new Redis({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT || '6379', 10),
+            password: process.env.REDIS_PASSWORD || undefined,
+            // Support secure SSL/TLS for Upstash Redis
+            tls:
+              process.env.REDIS_TLS === 'true' ||
+              process.env.REDIS_HOST?.includes('upstash.io')
+                ? {}
+                : undefined,
+            maxRetriesPerRequest: 3,
+            connectTimeout: 2000,
+          });
 
       this.redisClient.on('connect', () => {
         this.logger.log('USSD pre-authentication Redis cache connected.');

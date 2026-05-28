@@ -3,6 +3,7 @@ import { AttendanceService } from './attendance.service';
 import { PrismaService } from '../prisma.service';
 import { AttendanceType, AttendanceSource } from '@prisma/client';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 describe('AttendanceService - verifyWebClockIn', () => {
   let service: AttendanceService;
@@ -17,6 +18,10 @@ describe('AttendanceService - verifyWebClockIn', () => {
     },
   };
 
+  const mockDashboardService = {
+    invalidateTenantKPICache: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -25,6 +30,10 @@ describe('AttendanceService - verifyWebClockIn', () => {
         {
           provide: PrismaService,
           useValue: mockPrisma,
+        },
+        {
+          provide: DashboardService,
+          useValue: mockDashboardService,
         },
       ],
     }).compile();

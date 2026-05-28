@@ -9,9 +9,25 @@ import { PrismaService } from '../prisma.service';
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'SuperSecretKeyChangeInProduction123!',
-      signOptions: { expiresIn: '1d' },
+    JwtModule.registerAsync({
+      useFactory: () => {
+        const privateKey = process.env.JWT_PRIVATE_KEY;
+        const publicKey = process.env.JWT_PUBLIC_KEY;
+
+        if (privateKey && publicKey) {
+          return {
+            privateKey,
+            publicKey,
+            signOptions: { algorithm: 'RS256' as const },
+          };
+        }
+
+        // Dev/backwards-compat fallback (HS256). Blueprint requires RS256 for production.
+        return {
+          secret: process.env.JWT_SECRET || 'SuperSecretKeyChangeInProduction123!',
+          signOptions: { algorithm: 'HS256' as const },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

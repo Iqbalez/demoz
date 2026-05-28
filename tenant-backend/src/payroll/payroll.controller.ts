@@ -7,6 +7,7 @@ import { PayrollStatus } from '@prisma/client';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { PayrollCalculationService } from './services/payroll-calculation.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
+import { PayrollDisburseService } from './payroll-disburse.service';
 
 @Controller('api/v1/payroll')
 export class PayrollController {
@@ -15,6 +16,7 @@ export class PayrollController {
     private readonly prisma: PrismaService,
     private readonly dashboardService: DashboardService,
     private readonly payrollCalcService: PayrollCalculationService,
+    private readonly payrollDisburseService: PayrollDisburseService,
   ) {}
 
   /**
@@ -169,5 +171,14 @@ export class PayrollController {
       throw new BadRequestException('Active tenant context is missing.');
     }
     return this.payrollCalcService.lockPayrollRun(runId);
+  }
+
+  /**
+   * Enqueues bulk disbursement via Chapa + BullMQ. Requires OWNER_APPROVED.
+   */
+  @Post('runs/:runId/disburse')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async disbursePayrollRun(@Param('runId') runId: string) {
+    return this.payrollDisburseService.enqueueDisbursement(runId);
   }
 }

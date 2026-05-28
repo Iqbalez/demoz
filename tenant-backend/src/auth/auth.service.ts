@@ -1,16 +1,33 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma.service';
 import { UserRole, TenantStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
+import type { Redis } from 'ioredis';
+import * as crypto from 'crypto';
+
+type TokenType = 'access' | 'refresh';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
+
+  private getAccessTtlSeconds() {
+    return 15 * 60; // 15 minutes
+  }
+
+  private getRefreshTtlSeconds() {
+    return 30 * 24 * 60 * 60; // 30 days
+  }
+
+  private getRefreshBlocklistKey(jti: string) {
+    return `auth:refresh:blocklist:${jti}`;
+  }
 
   /**
    * Generates cryptographically secure access & refresh tokens
@@ -18,9 +35,16 @@ export class AuthService {
   async generateToken(userId: string, tenantId: string, role: UserRole): Promise<{ accessToken: string; refreshToken: string }> {
     const payload = { sub: userId, tenantId, role };
     
-    // Access token valid for 1 hour, refresh token for 7 days
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '1h' });
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
+    const accessToken = this.jwtService.sign(
+      { ...payload, typ: 'access' as TokenType },
+      { expiresIn: this.getAccessTtlSeconds() },
+    );
+
+    const refreshJti = crypto.randomUUID();
+    const refreshToken = this.jwtService.sign(
+      { ...payload, typ: 'refresh' as TokenType },
+      { expiresIn: this.getRefreshTtlSeconds(), jwtid: refreshJti },
+    );
     
     return { accessToken, refreshToken };
   }
@@ -177,7 +201,19 @@ export class AuthService {
    */
   async refreshSession(body: { refreshToken: string; phoneNumber?: string }) {
     try {
-      const decoded = this.jwtService.verify(body.refreshToken);
+      const decoded = this.jwtService.verify(body.refreshToken) as any;
+      if (decoded?.typ !== 'refresh') {
+        throw new UnauthorizedException('Invalid refresh token.');
+      }
+
+      const jti: string | undefined = decoded?.jti;
+      if (jti) {
+        const isBlocked = await this.redis.get(this.getRefreshBlocklistKey(jti));
+        if (isBlocked) {
+          throw new UnauthorizedException('Refresh token revoked.');
+        }
+      }
+
       const tokens = await this.generateToken(decoded.sub, decoded.tenantId, decoded.role);
       return {
         accessToken: tokens.accessToken,
@@ -199,6 +235,24 @@ export class AuthService {
         }
       }
       throw new UnauthorizedException('Session token has expired or is invalid.');
+    }
+  }
+
+  async revokeRefreshToken(refreshToken: string) {
+    try {
+      const decoded = this.jwtService.verify(refreshToken) as any;
+      if (decoded?.typ !== 'refresh') return;
+
+      const jti: string | undefined = decoded?.jti;
+      const exp: number | undefined = decoded?.exp;
+      if (!jti || !exp) return;
+
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const ttlSeconds = Math.max(1, exp - nowSeconds);
+
+      await this.redis.set(this.getRefreshBlocklistKey(jti), '1', 'EX', ttlSeconds);
+    } catch {
+      // ignore invalid tokens on logout
     }
   }
 

@@ -50,7 +50,9 @@ export class AfromessageService {
       }
       return { success: false, error: data?.response?.message || 'Unknown Afromessage error' };
     } catch (error: any) {
-      console.error('[Afromessage] SMS send failed for', normalised, error?.message || error);
+      this.logger.error(
+        `[Afromessage] SMS send failed for ${normalised}: ${error?.message || String(error)}`,
+      );
       return { success: false, error: error?.message || 'Request failed' };
     }
   }
@@ -65,7 +67,9 @@ export class AfromessageService {
 
     const result = await this.sendSMS(phoneNumber, message);
     if (!result.success) {
-      console.warn('[Onboarding] Failed to send credential SMS to', phoneNumber, '-', result.error);
+      this.logger.warn(
+        `[Onboarding] Failed to send credential SMS to ${phoneNumber} - ${result.error}`,
+      );
       // Do not throw — employee is already created
     }
   }
@@ -73,15 +77,16 @@ export class AfromessageService {
   async sendEmployeeMobileCredentials(phoneNumber: string, name: string, pin: string): Promise<void> {
     const message = `Welcome to Demoz ${name}!\nYour mobile app login PIN is: ${pin}\nPlease do not share this code.`;
     
-    // Always log the PIN to the terminal so testing is seamless even if SMS fails/API key is missing
-    console.log(`\n================================`);
-    console.log(`📱 SMS TO: ${phoneNumber}`);
-    console.log(`MESSAGE: ${message}`);
-    console.log(`================================\n`);
+    // Never log sensitive PINs in production logs.
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.debug(`[DEV ONLY] Mobile PIN issued for ${phoneNumber}`);
+    }
 
     const result = await this.sendSMS(phoneNumber, message);
     if (!result.success) {
-      console.warn(`[Onboarding] Failed to send mobile credentials SMS to ${phoneNumber} - ${result.error}. (Check API Key).`);
+      this.logger.warn(
+        `[Onboarding] Failed to send mobile credentials SMS to ${phoneNumber} - ${result.error}. (Check API Key).`,
+      );
     }
   }
 
@@ -102,7 +107,7 @@ export class AfromessageService {
       }
     }
 
-    console.log(`[Afromessage] Bulk send: ${sent} sent, ${failed} failed`);
+    this.logger.log(`[Afromessage] Bulk send: ${sent} sent, ${failed} failed`);
     return { sent, failed };
   }
 }

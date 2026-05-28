@@ -140,7 +140,7 @@ export class OnboardingService {
     const imported = details.filter((d) => d.status === 'success').length;
     const failed   = details.filter((d) => d.status === 'failed').length;
 
-    console.log(`[Onboarding] Imported ${imported}/${total} employees for tenant ${tenantId}`);
+    this.logger.log(`[Onboarding] Imported ${imported}/${total} employees for tenant ${tenantId}`);
 
     return { imported, failed, details };
   }

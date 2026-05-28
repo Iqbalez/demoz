@@ -1,13 +1,6 @@
-/**
- * Ethiopian Income Tax & Pension Calculator
- *
- * Tax brackets: Proclamation No. 979/2016 (Employment Income Tax – Schedule A)
- * Pension rates: Proclamation No. 714/2011
- *
- * All monetary values are in Ethiopian Birr (ETB).
- */
-
 import { BadRequestException } from '@nestjs/common';
+import { calculateErcaEmploymentTax } from '../../lib/tax-engine/erca';
+import type { ErcaTaxInput } from '../../lib/tax-engine/types';
 
 // ---------------------------------------------------------------------------
 // FUNCTION 1 — calculateEthiopianIncomeTax
@@ -36,7 +29,7 @@ export function calculateEthiopianIncomeTax(monthlyGross: number): number {
   }
   // Bracket 2: 600.01 – 1,650 ETB → 10%
   else if (monthlyGross <= 1650) {
-    tax = (monthlyGross - 600) * 0.10;
+    tax = (monthlyGross - 600) * 0.1;
   }
   // Bracket 3: 1,650.01 – 3,200 ETB → 15%
   else if (monthlyGross <= 3200) {
@@ -44,15 +37,15 @@ export function calculateEthiopianIncomeTax(monthlyGross: number): number {
   }
   // Bracket 4: 3,200.01 – 5,250 ETB → 20%
   else if (monthlyGross <= 5250) {
-    tax = 337.50 + (monthlyGross - 3200) * 0.20;
+    tax = 337.5 + (monthlyGross - 3200) * 0.2;
   }
   // Bracket 5: 5,250.01 – 7,800 ETB → 25%
   else if (monthlyGross <= 7800) {
-    tax = 747.50 + (monthlyGross - 5250) * 0.25;
+    tax = 747.5 + (monthlyGross - 5250) * 0.25;
   }
   // Bracket 6: 7,800.01 – 10,900 ETB → 30%
   else if (monthlyGross <= 10900) {
-    tax = 1385 + (monthlyGross - 7800) * 0.30;
+    tax = 1385 + (monthlyGross - 7800) * 0.3;
   }
   // Bracket 7: 10,900.01+ ETB → 35%
   else {
@@ -113,11 +106,11 @@ export interface NetSalaryResult {
  */
 export function calculateNetSalary(monthlyGross: number): NetSalaryResult {
   const incomeTax = calculateEthiopianIncomeTax(monthlyGross);
-  const { employee: pensionEmployee, employer: pensionEmployer } =
-    calculatePensionDeductions(monthlyGross);
+  const { employee: pensionEmployee, employer: pensionEmployer } = calculatePensionDeductions(
+    monthlyGross,
+  );
 
-  const netSalary =
-    Math.round((monthlyGross - incomeTax - pensionEmployee) * 100) / 100;
+  const netSalary = Math.round((monthlyGross - incomeTax - pensionEmployee) * 100) / 100;
 
   return {
     grossSalary: Math.round(monthlyGross * 100) / 100,
@@ -126,6 +119,14 @@ export function calculateNetSalary(monthlyGross: number): NetSalaryResult {
     pensionEmployer,
     netSalary,
   };
+}
+
+/**
+ * New production calculator: handles allowances, transport exemption, and pension-reduced taxable income.
+ * This is what payroll should use.
+ */
+export function calculateErcaPayrollTax(input: ErcaTaxInput) {
+  return calculateErcaEmploymentTax(input);
 }
 
 // ---------------------------------------------------------------------------

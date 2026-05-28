@@ -24,17 +24,22 @@ export class IdempotencyInterceptor implements NestInterceptor {
   private async initRedis() {
     try {
       const Redis = require('ioredis');
-      const host = process.env.REDIS_HOST || 'localhost';
-      const port = parseInt(process.env.REDIS_PORT || '6379', 10);
-      const password = process.env.REDIS_PASSWORD || 'SecretRedisPass123';
+      const upstashUrl = process.env.UPSTASH_REDIS_URL;
 
-      this.redisClient = new Redis({
-        host,
-        port,
-        password,
-        maxRetriesPerRequest: 2,
-        connectTimeout: 1500,
-      });
+      this.redisClient = upstashUrl
+        ? new Redis(upstashUrl)
+        : new Redis({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: parseInt(process.env.REDIS_PORT || '6379', 10),
+            password: process.env.REDIS_PASSWORD || undefined,
+            tls:
+              process.env.REDIS_TLS === 'true' ||
+              process.env.REDIS_HOST?.includes('upstash.io')
+                ? {}
+                : undefined,
+            maxRetriesPerRequest: 2,
+            connectTimeout: 1500,
+          });
 
       this.redisClient.on('error', (err: any) => {
         this.logger.warn(`Idempotency Redis offline. Scaling lock fallback active: ${err.message}`);

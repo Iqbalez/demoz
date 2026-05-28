@@ -24,11 +24,15 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
 
 import { RedisModule } from './redis/redis.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
     RedisModule,
     DashboardModule,
+    RealtimeModule,
+    WebhooksModule,
     AuthModule,
     HrModule,
     AttendanceModule,

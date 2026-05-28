@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ToastProvider, toast } from "../../components/ui/toast";
+import { apiRequest } from "../../lib/api";
 
 function BiometricLoginContent() {
   const router = useRouter();
@@ -10,26 +11,25 @@ function BiometricLoginContent() {
   const [pinCode, setPinCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
-  // Biometric toggle simulation
-  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  // Login mode: 'owner' (email+password) or 'employee' (phone+pin)
+  const [loginMode, setLoginMode] = useState<"owner" | "employee">("owner");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  // Auto load biometric state if set previously
+  // Auto-load subscription workspace parameters from checkout token
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const checkoutToken = urlParams.get("checkout_token");
       if (checkoutToken) {
-        // Retrieve subscription workspace parameters securely using short-lived opaque token
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/subscription/checkout/state/${checkoutToken}`)
-          .then((res) => res.json())
+        apiRequest<any>(`/subscription/checkout/state/${checkoutToken}`)
           .then((data) => {
-            if (data.success) {
-              localStorage.setItem("demoz_tier", data.tier);
-              localStorage.setItem("demoz_company", data.companyName);
-              localStorage.setItem("demoz_phone", data.phone);
-              setPhoneNumber(data.phone);
-              toast.success("Workspace Provisioned", `Registered ${data.companyName} on the ${data.tier} tier.`);
+            if (data?.success) {
+              setPhoneNumber(data.phone || "");
+              toast.success(
+                "Workspace Provisioned",
+                `Registered ${data.companyName} on the ${data.tier} tier. Please log in.`,
+              );
             }
           })
           .catch((err) => {
@@ -37,16 +37,35 @@ function BiometricLoginContent() {
           });
       }
     }
-
-    const enabled = localStorage.getItem("demoz_biometrics") === "true";
-    setBiometricsEnabled(enabled);
-    if (enabled) {
-      const storedPhone = localStorage.getItem("demoz_phone") || "";
-      setPhoneNumber(storedPhone);
-    }
   }, []);
 
-  const handleManualLogin = (e: React.FormEvent) => {
+  const handleOwnerLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.warning("Validation Failed", "Please enter your email and password.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await apiRequest<any>("/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      if (data?.accessToken) {
+        toast.success("Security Cleared", "Welcome back to Demoz Workforce Cloud.");
+        router.push("/dashboard");
+      } else {
+        toast.error("Login Failed", data.message || "Invalid credentials.");
+      }
+    } catch (err: any) {
+      toast.error("Connection Error", err.message || "Could not reach the Demoz backend.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEmployeeLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber || pinCode.length !== 4) {
       toast.warning("Verification Blocked", "Please enter a valid Phone and 4-digit security PIN.");
@@ -54,36 +73,22 @@ function BiometricLoginContent() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      localStorage.setItem("demoz_phone", phoneNumber);
-      
-      if (!biometricsEnabled) {
-        // Prompt biometrics setup dialog
-        const enable = window.confirm("Enable quick biometrics (Touch/Face ID simulation) for faster future logins?");
-        if (enable) {
-          localStorage.setItem("demoz_biometrics", "true");
-          setBiometricsEnabled(true);
-        }
+    try {
+      const data = await apiRequest<any>("/api/v1/auth/employee-login", {
+        method: "POST",
+        body: JSON.stringify({ phoneNumber, pin: pinCode }),
+      });
+      if (data?.accessToken) {
+        toast.success("Security Cleared", "Welcome back to Demoz Workforce Cloud.");
+        router.push("/dashboard");
+      } else {
+        toast.error("Login Failed", data.message || "Invalid phone or PIN.");
       }
-
-      toast.success("Security Cleared", "Welcome back to Demoz Workforce Cloud.");
-      router.push("/dashboard");
-    }, 1200);
-  };
-
-  const handleTriggerBiometricScan = () => {
-    if (!biometricsEnabled) {
-      toast.info("Biometrics Setup Required", "Log in manually with your PIN first to link biometrics.");
-      return;
+    } catch (err: any) {
+      toast.error("Connection Error", err.message || "Could not reach the Demoz backend.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      toast.success("Touch ID Matched", "Biometric signature validated.");
-      router.push("/dashboard");
-    }, 1500);
   };
 
   const appendPinDigit = (digit: string) => {
@@ -130,110 +135,141 @@ function BiometricLoginContent() {
             </p>
           </div>
 
-          {/* Interactive Biometrics quick login trigger */}
-          {biometricsEnabled && (
-            <div className="flex flex-col items-center justify-center p-4 bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10 rounded-2xl animate-fade-in text-center space-y-3">
-              <div 
-                onClick={handleTriggerBiometricScan}
-                className={`w-16 h-16 rounded-full border border-emerald-200 dark:border-emerald-500/20 bg-emerald-100 dark:bg-emerald-500/10 flex items-center justify-center text-3xl cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-500/20 active:scale-95 transition-all duration-300 relative select-none ${
-                  isScanning ? "animate-pulse border-emerald-400" : ""
-                }`}
+          {/* Mode Selector */}
+          <div className="flex bg-slate-100 dark:bg-zinc-900/60 rounded-xl p-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setLoginMode("owner")}
+              className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                loginMode === "owner"
+                  ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              Owner / HR
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoginMode("employee")}
+              className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                loginMode === "employee"
+                  ? "bg-white dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              Employee
+            </button>
+          </div>
+
+          {/* OWNER / HR Login Form */}
+          {loginMode === "owner" && (
+            <form onSubmit={handleOwnerLogin} className="space-y-4 animate-fade-in">
+              <div className="space-y-3">
+                <div className="space-y-1 text-xs">
+                  <label className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="admin@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="space-y-1 text-xs">
+                  <label className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-900/20 dark:shadow-emerald-950/35 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
               >
-                <span>👤</span>
-                {isScanning && (
-                  <div className="absolute inset-0 border-2 border-emerald-400 rounded-full animate-ping pointer-events-none" />
-                )}
-              </div>
-              <div>
-                <button
-                  type="button"
-                  onClick={handleTriggerBiometricScan}
-                  className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 dark:hover:text-emerald-300 uppercase tracking-widest cursor-pointer"
-                >
-                  {isScanning ? "Scanning touch signature..." : "Click to Scan Touch ID"}
-                </button>
-                <p className="text-[9px] text-slate-500 dark:text-slate-500 mt-1">Biometrics linked with phone {phoneNumber}</p>
-              </div>
-            </div>
+                {isLoading ? "Validating credentials..." : "Access Corporate Console →"}
+              </button>
+            </form>
           )}
 
-          {/* Manual input authentication */}
-          <form onSubmit={handleManualLogin} className="space-y-4">
-            <div className="space-y-3">
-              
-              <div className="space-y-1 text-xs">
-                <label className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Corporate Phone Number</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="0911000000"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs text-slate-900 dark:text-zinc-100 font-mono text-center tracking-wider focus:outline-none focus:border-emerald-500"
-                />
+          {/* EMPLOYEE Login Form */}
+          {loginMode === "employee" && (
+            <form onSubmit={handleEmployeeLogin} className="space-y-4 animate-fade-in">
+              <div className="space-y-3">
+                <div className="space-y-1 text-xs">
+                  <label className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Corporate Phone Number</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="0911000000"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs text-slate-900 dark:text-zinc-100 font-mono text-center tracking-wider focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <label className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">4-Digit Security PIN</label>
+                  <input
+                    type="password"
+                    required
+                    maxLength={4}
+                    placeholder="••••"
+                    value={pinCode}
+                    onChange={(e) => setPinCode(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-lg text-slate-900 dark:text-zinc-100 font-mono text-center tracking-[1em] pl-[1.4em] focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1 text-xs">
-                <label className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">4-Digit Security PIN</label>
-                <input
-                  type="password"
-                  required
-                  maxLength={4}
-                  placeholder="••••"
-                  value={pinCode}
-                  onChange={(e) => setPinCode(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-lg text-slate-900 dark:text-zinc-100 font-mono text-center tracking-[1em] pl-[1.4em] focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-            </div>
-
-            {/* Custom Interactive PIN Pad */}
-            <div className="grid grid-cols-3 gap-2 py-2 select-none">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((digit) => (
+              {/* Custom Interactive PIN Pad */}
+              <div className="grid grid-cols-3 gap-2 py-2 select-none">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map((digit) => (
+                  <button
+                    key={digit}
+                    type="button"
+                    onClick={() => appendPinDigit(digit)}
+                    className={`py-2 bg-slate-100 dark:bg-zinc-900/60 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-xl text-xs font-mono font-bold transition-all cursor-pointer active:scale-95 border border-slate-200 dark:border-zinc-800/40 ${
+                      digit === "0" ? "col-span-2" : ""
+                    }`}
+                  >
+                    {digit}
+                  </button>
+                ))}
                 <button
-                  key={digit}
                   type="button"
-                  onClick={() => appendPinDigit(digit)}
-                  className={`py-2 bg-slate-100 dark:bg-zinc-900/60 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white rounded-xl text-xs font-mono font-bold transition-all cursor-pointer active:scale-95 border border-slate-200 dark:border-zinc-800/40 ${
-                    digit === "0" ? "col-span-2" : ""
-                  }`}
+                  onClick={clearPinDigit}
+                  className="py-2 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 text-red-500 dark:text-red-400 rounded-xl text-[10px] font-bold transition-all cursor-pointer active:scale-95 border border-red-100 dark:border-red-900/20"
                 >
-                  {digit}
+                  Clear
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={clearPinDigit}
-                className="py-2 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/30 text-red-500 dark:text-red-400 rounded-xl text-[10px] font-bold transition-all cursor-pointer active:scale-95 border border-red-100 dark:border-red-900/20"
-              >
-                Clear
-              </button>
-            </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={isLoading || isScanning}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-900/20 dark:shadow-emerald-950/35 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
-            >
-              {isLoading ? "Validating credentials..." : "Access Corporate Console →"}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-900/20 dark:shadow-emerald-950/35 transition-all active:scale-[0.98] cursor-pointer disabled:opacity-40"
+              >
+                {isLoading ? "Validating credentials..." : "Access Corporate Console →"}
+              </button>
+            </form>
+          )}
 
           {/* Quick links */}
           <div className="flex justify-between items-center text-[9px] text-slate-500 dark:text-slate-500 border-t border-slate-200 dark:border-zinc-800/60 pt-4">
             <span className="hover:text-slate-700 dark:hover:text-zinc-300 cursor-pointer">Regulatory Guide</span>
             <span 
-              onClick={() => {
-                localStorage.clear();
-                setBiometricsEnabled(false);
-                setPhoneNumber("");
-                setPinCode("");
-                toast.info("Cache Purged", "Simulated biometric tokens cleared.");
-              }}
-              className="hover:text-red-500 dark:hover:text-red-400 cursor-pointer"
+              onClick={() => router.push("/")}
+              className="hover:text-emerald-500 dark:hover:text-emerald-400 cursor-pointer"
             >
-              Reset Session
+              ← Back to Home
             </span>
           </div>
 
@@ -242,18 +278,18 @@ function BiometricLoginContent() {
 
       {/* Footer copyright */}
       <footer className="text-center text-[9px] text-slate-500 dark:text-slate-500 z-10 select-none">
-        © 2026 Demoz Workforce Cloud. Powered by secure CBE & Chapa APIs. Hawassa & Bole Lemi Industrial Parks Compliance.
+        © 2026 Demoz Workforce Cloud. Powered by secure CBE &amp; Chapa APIs. Hawassa &amp; Bole Lemi Industrial Parks Compliance.
       </footer>
 
-      {/* DISBURSING PROGRESS SPLASH OVERLAY */}
+      {/* LOADING OVERLAY */}
       {isLoading && (
         <div className="fixed inset-0 bg-white/80 dark:bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="w-full max-w-xs bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800 p-6 rounded-3xl shadow-2xl text-center space-y-4 animate-slide-up">
             <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 font-outfit">Symmetric PIN match</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100 font-outfit">Authenticating</h3>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
-                Authorizing session keys with multi-tenant registry limits.
+                Authorizing session keys with multi-tenant registry.
               </p>
             </div>
           </div>
