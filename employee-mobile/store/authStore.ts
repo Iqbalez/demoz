@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import apiClient from '../utils/api';
 
+function normalizePhone(phone: string): string {
+  let p = phone.replace(/\s+/g, '').replace(/-/g, '');
+  if (p.startsWith('+251')) p = `0${p.slice(4)}`;
+  if (p.length === 9 && p.startsWith('9')) p = `0${p}`;
+  return p;
+}
+
 interface AuthState {
   token: string | null;
   phoneNumber: string | null;
@@ -13,6 +20,7 @@ interface AuthState {
     name: string;
     department: string;
     idNumber: string;
+    branchId?: string | null;
   } | null;
   login: (phoneNumber: string, pin: string, enableBio: boolean) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
@@ -37,8 +45,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Real API handshake with NestJS /api/v1/auth/employee-login
+      const normalizedPhone = normalizePhone(phoneNumber);
       const response = await apiClient.post('/api/v1/auth/employee-login', {
-        phoneNumber,
+        phoneNumber: normalizedPhone,
         pin,
       });
 
@@ -56,12 +65,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         name: employee.name,
         department: employee.department || 'Operations',
         idNumber: employee.employeeIdNumber || employee.id || 'N/A',
+        branchId: employee.branchId ?? null,
       };
       await SecureStore.setItemAsync('employee_details', JSON.stringify(employeeDetailsObj));
 
       set({
         token: accessToken,
-        phoneNumber,
+        phoneNumber: normalizedPhone,
         biometricsEnabled: enableBio,
         employeeDetails: employeeDetailsObj,
         isLoading: false

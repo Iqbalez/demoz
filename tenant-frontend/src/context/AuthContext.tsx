@@ -13,6 +13,13 @@ export interface UserPayload {
   email: string;
   subscription_status: TenantStatus | null;
   companyName: string | null;
+  planTier: string | null;
+  maxEmployees: number | null;
+  workspace?: {
+    employeeCount: number;
+    faydaOnFile: number;
+    faydaMissing: number;
+  } | null;
 }
 
 interface AuthContextProps {

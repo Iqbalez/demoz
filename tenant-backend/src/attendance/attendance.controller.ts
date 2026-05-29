@@ -107,6 +107,13 @@ export class AttendanceController {
     return this.attendanceService.getRecords(userId);
   }
 
+  /** HR dashboard: recent clock events for the tenant */
+  @Get('logs')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async getTenantLogs(@Req() req: any) {
+    return this.attendanceService.getTenantAttendanceLogs(req.user.tenantId);
+  }
+
   /**
    * USSD Webhook Parser (Public Callback from Gateways like Africa's Talking)
    */

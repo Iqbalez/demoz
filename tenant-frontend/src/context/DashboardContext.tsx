@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { Employee } from "../features/employees/HRDirectory";
 import { AttendanceLog, Branch } from "../features/attendance/AttendanceTracker";
 import { toast } from "../components/ui/toast";
-import { apiRequest, getAuthToken } from "../lib/api";
+import { apiRequest } from "../lib/api";
+import { useAuth } from "./AuthContext";
 
 export interface AuditLog {
   id: string;
@@ -41,6 +42,7 @@ interface DashboardContextProps {
 const DashboardContext = createContext<DashboardContextProps | undefined>(undefined);
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [backendStatus, setBackendStatus] = useState<"CONNECTED" | "MOCK">("MOCK");
   const [isThemeDark, setIsThemeDark] = useState(false);
 
@@ -58,21 +60,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  // Load from localStorage on mount
+  // Workspace name and plan from authenticated session (real tenant from DB)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedTier = localStorage.getItem("demoz_tier");
-      const storedCompany = localStorage.getItem("demoz_company");
-      if (storedTier || storedCompany) {
-        setStats(prev => ({
-          ...prev,
-          planTier: storedTier || prev.planTier,
-          companyName: storedCompany || prev.companyName,
-          maxEmployees: storedTier ? (storedTier.toUpperCase() === "ENTERPRISE" ? 1000 : storedTier.toUpperCase() === "GROWTH" ? 50 : 10) : prev.maxEmployees
-        }));
-      }
+    if (authLoading || !user || user.role === "SUPER_ADMIN") return;
+
+    setStats((prev) => ({
+      ...prev,
+      companyName: user.companyName?.trim() || prev.companyName,
+      planTier: user.planTier ?? prev.planTier,
+      maxEmployees: user.maxEmployees ?? prev.maxEmployees,
+    }));
+
+    if (user.companyName && typeof window !== "undefined") {
+      localStorage.setItem("demoz_company", user.companyName);
     }
-  }, []);
+    if (user.planTier && typeof window !== "undefined") {
+      localStorage.setItem("demoz_tier", user.planTier);
+    }
+  }, [user, authLoading]);
 
   // Check backend connectivity
   useEffect(() => {
@@ -90,33 +95,38 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     checkBackend();
   }, []);
 
-  // Load tenant data once JWT is available
+  // Load tenant data when logged in (HttpOnly cookie session)
   useEffect(() => {
-    const token = getAuthToken();
-    if (!token) return;
+    if (authLoading || !user || user.role === "SUPER_ADMIN") return;
+
     const loadData = async () => {
       try {
-        const [emp, brn, att] = await Promise.all([
-          apiRequest<Employee[]>("/employees"),
+        await apiRequest("/workspace/bootstrap").catch(() => undefined);
+        const [empRes, brn, att] = await Promise.all([
+          apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500"),
           apiRequest<Branch[]>("/branches"),
-          apiRequest<AttendanceLog[]>("/attendance/logs"),
+          apiRequest<AttendanceLog[]>("/api/v1/attendance/logs"),
         ]);
+        const emp = Array.isArray(empRes) ? empRes : empRes.data ?? [];
         setEmployees(emp);
         setBranches(brn);
         setLogs(att);
         const totalSalary = emp.reduce((sum: number, e: Employee) => sum + (e.baseSalary ?? 0), 0);
-        setStats(prev => ({
+        setStats((prev) => ({
           ...prev,
           totalEmployees: emp.length,
           monthlyPayroll: totalSalary,
-          attendanceRate: Math.min(100, Math.round((att.length / (emp.length * 30)) * 100)),
+          attendanceRate:
+            emp.length > 0 ? Math.min(100, Math.round((att.length / (emp.length * 30)) * 100)) : 0,
         }));
       } catch (e) {
         console.error("Failed to load tenant data", e);
       }
     };
     loadData();
-  }, [backendStatus]);
+    const poll = setInterval(loadData, 20000);
+    return () => clearInterval(poll);
+  }, [user, authLoading, backendStatus]);
 
   // Theme toggle
   useEffect(() => {
@@ -126,10 +136,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, [isThemeDark]);
 
   // CRUD helpers – talk to API
-  const handleAddEmployee = async (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">): Promise<{ success: boolean; message: string }> => {
+  const handleAddEmployee = async (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">): Promise<{ success: boolean; message: string; mobileAppPin?: string }> => {
     if (employees.length >= stats.maxEmployees) return { success: false, message: "Seat capacity limit reached." };
     try {
-      const created = await apiRequest<Employee>("/employees", { method: "POST", body: JSON.stringify(newEmp) });
+      const payload = {
+        firstName: newEmp.firstName,
+        lastName: newEmp.lastName,
+        employeeIdNumber: newEmp.employeeIdNumber,
+        phoneNumber: newEmp.phoneNumber,
+        baseSalary: newEmp.baseSalary ?? 0,
+        departmentName: newEmp.departmentName || "General",
+        status: newEmp.status || "ACTIVE",
+        hireDate: new Date().toISOString().split("T")[0],
+        ...(newEmp.faydaNumber ? { faydaNumber: newEmp.faydaNumber } : {}),
+      };
+      const created = await apiRequest<Employee & { mobileAppPin?: string }>("/employees", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
       setEmployees(prev => [...prev, created]);
       const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       setAuditLogs(prev => [{
@@ -140,7 +164,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         type: "success",
       }, ...prev]);
       setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
-      return { success: true, message: "Employee added." };
+      const pinMsg = created.mobileAppPin
+        ? ` Mobile app PIN: ${created.mobileAppPin} (share with employee; also sent by SMS if configured).`
+        : "";
+      return { success: true, message: `Employee added.${pinMsg}`, mobileAppPin: created.mobileAppPin };
     } catch (e: any) {
       // Offline fallback
       const id = `emp-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -148,7 +175,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         ...newEmp,
         id,
         hireDate: new Date().toISOString().split("T")[0],
-        faydaVerified: true,
+        faydaVerified: /^\d{12}$/.test((newEmp.faydaNumber || "").trim()),
       };
       setEmployees(prev => [...prev, created]);
       const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

@@ -15,6 +15,105 @@ export class AttendanceService {
     private readonly dashboardService: DashboardService,
   ) {}
 
+  /** Mobile JWT uses employee.id; legacy PWA may use User.userId linked on Employee. */
+  private async resolveEmployee(actorId: string) {
+    let employee = await this.prisma.employee.findUnique({
+      where: { id: actorId },
+      include: { department: { include: { branch: true } } },
+    });
+    if (!employee) {
+      employee = await this.prisma.employee.findUnique({
+        where: { userId: actorId },
+        include: { department: { include: { branch: true } } },
+      });
+    }
+    if (!employee) {
+      throw new NotFoundException('Employee record not found.');
+    }
+    return employee;
+  }
+
+  private async upsertDailyAttendance(
+    employeeId: string,
+    tenantId: string,
+    type: 'CLOCK_IN' | 'CLOCK_OUT',
+    latitude?: number,
+    longitude?: number,
+  ) {
+    const todayDate = this.getEthiopianDate();
+    if (type === 'CLOCK_IN') {
+      await this.prisma.attendance.upsert({
+        where: { employeeId_date: { employeeId, date: todayDate } },
+        create: {
+          tenantId,
+          employeeId,
+          date: todayDate,
+          checkInTime: new Date(),
+          checkInLatitude: latitude,
+          checkInLongitude: longitude,
+          checkInMethod: 'MOBILE',
+          status: 'PRESENT',
+        },
+        update: {},
+      });
+    } else {
+      const existing = await this.prisma.attendance.findUnique({
+        where: { employeeId_date: { employeeId, date: todayDate } },
+      });
+      if (existing) {
+        await this.prisma.attendance.update({
+          where: { id: existing.id },
+          data: {
+            checkOutTime: new Date(),
+            checkOutLatitude: latitude,
+            checkOutLongitude: longitude,
+            checkOutMethod: 'MOBILE',
+          },
+        });
+      } else {
+        const now = new Date();
+        await this.prisma.attendance.create({
+          data: {
+            tenantId,
+            employeeId,
+            date: todayDate,
+            checkInTime: now,
+            checkInMethod: 'MOBILE',
+            checkOutTime: now,
+            checkOutLatitude: latitude,
+            checkOutLongitude: longitude,
+            checkOutMethod: 'MOBILE',
+            status: 'PRESENT',
+          },
+        });
+      }
+    }
+  }
+
+  async getTenantAttendanceLogs(tenantId: string) {
+    const logs = await this.prisma.attendanceLog.findMany({
+      where: { tenantId },
+      include: {
+        employee: { select: { firstName: true, lastName: true, phoneNumber: true } },
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 200,
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      employeeName: `${log.employee.firstName} ${log.employee.lastName}`,
+      phoneNumber: log.employee.phoneNumber,
+      timestamp: log.timestamp.toISOString(),
+      type: log.type,
+      source: log.source,
+      latitude: log.latitude != null ? Number(log.latitude) : null,
+      longitude: log.longitude != null ? Number(log.longitude) : null,
+      isAnomaly: log.isAnomaly,
+      anomalyReason: log.anomalyReason,
+    }));
+  }
+
   /**
    * Helper: Calculates current calendar date in Ethiopian Local Time (UTC+3)
    * represented as a Date object at midnight UTC for DB consistency.
@@ -92,34 +191,24 @@ export class AttendanceService {
     }
 
     const branch = employee.department?.branch;
-    if (!branch) {
-      throw new BadRequestException('Employee is not assigned to a department or branch.');
-    }
-
-    if (branch.latitude === null || branch.longitude === null) {
-      throw new BadRequestException('Branch master coordinates are not configured.');
-    }
-
-    const branchLat = Number(branch.latitude);
-    const branchLon = Number(branch.longitude);
-
-    const distance = this.calculateHaversineDistance(
-      latitude,
-      longitude,
-      branchLat,
-      branchLon,
-    );
-
-    const limit = branch.geofenceRadiusMeters;
     let isAnomaly = false;
     let anomalyReason: string | null = null;
+    let branchLat: number | null = null;
+    let branchLon: number | null = null;
+    let limit = 500;
+    let distance = 0;
 
-    if (distance > limit) {
-      isAnomaly = true;
-      anomalyReason = `Geofence Breach: Worker was ${Math.round(distance)} meters away`;
+    if (branch?.latitude != null && branch?.longitude != null) {
+      branchLat = Number(branch.latitude);
+      branchLon = Number(branch.longitude);
+      limit = branch.geofenceRadiusMeters ?? 500;
+      distance = this.calculateHaversineDistance(latitude, longitude, branchLat, branchLon);
+      if (distance > limit) {
+        isAnomaly = true;
+        anomalyReason = `Geofence Breach: Worker was ${Math.round(distance)} meters away`;
+      }
     }
 
-    // Save behavioral telemetry to detect proxy-clocking or location cheating
     const telemetryPayload = {
       clientLat: latitude,
       clientLon: longitude,
@@ -159,32 +248,16 @@ export class AttendanceService {
     }
 
     // 1. Fetch employee and branch coordinates
-    const employee = await this.prisma.employee.findUnique({
-      where: { userId },
-      include: {
-        department: {
-          include: {
-            branch: true,
-          },
-        },
-      },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee record not found for this user.');
-    }
+    const employee = await this.resolveEmployee(userId);
 
     if (employee.status !== 'ACTIVE') {
       throw new BadRequestException('Employee account is not active.');
     }
 
     const branch = employee.department?.branch;
-    if (!branch) {
-      throw new BadRequestException('Employee is not assigned to a department with a valid branch.');
-    }
 
-    // 2. Validate Geofence (100 meters threshold)
-    if (branch.latitude && branch.longitude) {
+    // Geofence optional — log warning if branch missing
+    if (branch?.latitude && branch?.longitude) {
       const branchLat = Number(branch.latitude);
       const branchLon = Number(branch.longitude);
       const distance = this.calculateHaversineDistance(
@@ -199,8 +272,10 @@ export class AttendanceService {
           `Location out of range. You are currently ${Math.round(distance)}m away from the branch geofence (maximum allowed: 100m).`,
         );
       }
-    } else {
+    } else if (branch) {
       this.logger.warn(`Branch ${branch.id} has no registered coordinates. Bypassing distance check.`);
+    } else {
+      this.logger.warn(`Employee ${employee.id} has no branch assigned. Bypassing geofence check.`);
     }
 
     const todayDate = this.getEthiopianDate();
@@ -258,13 +333,7 @@ export class AttendanceService {
       throw new BadRequestException('Active tenant context is missing.');
     }
 
-    const employee = await this.prisma.employee.findUnique({
-      where: { userId },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee record not found for this user.');
-    }
+    const employee = await this.resolveEmployee(userId);
 
     const todayDate = this.getEthiopianDate();
 
@@ -316,13 +385,7 @@ export class AttendanceService {
    * Fetch attendance records for the active tenant/employee
    */
   async getRecords(userId: string) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { userId },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee record not found.');
-    }
+    const employee = await this.resolveEmployee(userId);
 
     return this.prisma.attendance.findMany({
       where: { employeeId: employee.id },
@@ -592,14 +655,7 @@ export class AttendanceService {
       return { status: 'REJECTED', reason: 'Event too old' };
     }
 
-    // Look up employee
-    const employee = await this.prisma.employee.findUnique({
-      where: { userId },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee profile not found for user');
-    }
+    const employee = await this.resolveEmployee(userId);
 
     // Check for duplicate AttendanceLog (same employee, same day, same type)
     const startOfDay = new Date(clientDate);
@@ -622,28 +678,34 @@ export class AttendanceService {
       return { status: 'DUPLICATE', conflictId: existingLog.id };
     }
 
-    // Create new AttendanceLog
     const created = await this.prisma.attendanceLog.create({
       data: {
-        tenantId,
+        tenantId: tenantId || employee.tenantId,
         employeeId: employee.id,
-        branchId,
-        type: type as any,
+        branchId: branchId || employee.department?.branchId,
+        type: type as AttendanceType,
         latitude: lat,
         longitude: lng,
         accuracy,
-        method: method as any || 'GPS',
+        method: (method as any) || 'GPS',
         deviceId,
         clientTime: clientDate,
         timestamp: now,
         syncedAt: now,
-        source: 'WEB_PWA',
+        source: AttendanceSource.WEB_PWA,
       },
     });
 
-    // Invalidate dashboard cache
-    await this.dashboardService.invalidateTenantKPICache(tenantId);
+    if (type === 'CLOCK_IN' || type === 'CLOCK_OUT') {
+      await this.upsertDailyAttendance(employee.id, tenantId || employee.tenantId, type, lat, lng);
+    }
 
-    return { status: 'SUCCESS', attendanceId: created.id };
+    await this.dashboardService.invalidateTenantKPICache(tenantId || employee.tenantId);
+
+    return {
+      status: 'SUCCESS',
+      attendanceId: created.id,
+      message: type === 'CLOCK_IN' ? 'Clock-in recorded.' : 'Clock-out recorded.',
+    };
   }
 }

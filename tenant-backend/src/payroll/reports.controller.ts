@@ -1,108 +1,102 @@
-import { Controller, Get, Param, Res, HttpStatus, NotFoundException, Header } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Res,
+  HttpStatus,
+  NotFoundException,
+  Header,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as express from 'express';
 import { PrismaService } from '../prisma.service';
-import { Public } from '../auth/public.decorator';
 import { tenantStorage } from '../tenant-context';
+import { Roles } from '../auth/roles.decorator';
+import { UserRole } from '@prisma/client';
 
-@Public()
 @Controller('payroll/reports')
 export class ReportsController {
   constructor(private readonly prisma: PrismaService) {}
+
+  private requireTenantId(): string {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      throw new UnauthorizedException('We do not know which company you belong to!');
+    }
+    return tenantId;
+  }
+
+  /** Lists completed payroll runs for export (real DB data only). */
+  @Get('runs')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async listPayrollRuns() {
+    const tenantId = this.requireTenantId();
+    const runs = await this.prisma.payrollRun.findMany({
+      where: {
+        tenantId,
+        status: {
+          in: ['COMPLETED', 'OWNER_APPROVED', 'PAID', 'AI_AUDITED', 'PROCESSING_PAYOUT'],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 24,
+      include: {
+        payrollLineItems: { take: 1, select: { id: true } },
+      },
+    });
+
+    return runs.map((run) => ({
+      id: run.id,
+      periodStart: run.periodStart,
+      periodEnd: run.periodEnd,
+      status: run.status,
+      grossTotal: Number(run.totalGross),
+      netTotal: Number(run.totalNet),
+      taxTotal: Number(run.totalTax),
+      sampleLineItemId: run.payrollLineItems[0]?.id ?? null,
+    }));
+  }
+
+  private async getRunWithLineItems(runId: string) {
+    const tenantId = this.requireTenantId();
+    const run = await this.prisma.payrollRun.findFirst({
+      where: { id: runId, tenantId },
+    });
+    if (!run) {
+      throw new NotFoundException(
+        'Payroll run not found. Generate payroll for a period first, then download reports.',
+      );
+    }
+    const items = await this.prisma.payrollLineItem.findMany({
+      where: { payrollRunId: runId },
+      include: { employee: { include: { tenant: true } } },
+    });
+    if (!items.length) {
+      throw new NotFoundException('This payroll run has no calculated line items yet.');
+    }
+    return { run, items };
+  }
 
   /**
    * Generates a beautifully styled, legally compliant printable HTML/CSS payslip (English & Amharic translations).
    */
   @Get('payslip/:id')
+  @Roles(UserRole.HR, UserRole.OWNER)
   @Header('Content-Type', 'text/html')
   async getPrintablePayslip(@Param('id') id: string, @Res() res: express.Response) {
-    let item: any = null;
-    try {
-      item = await this.prisma.payrollLineItem.findUnique({
-        where: { id },
-        include: {
-          employee: { include: { tenant: true } },
-          payrollRun: true,
-        },
-      }) as any;
-    } catch (e) {}
+    const tenantId = this.requireTenantId();
+    const item = await this.prisma.payrollLineItem.findFirst({
+      where: { id, employee: { tenantId } },
+      include: {
+        employee: { include: { tenant: true } },
+        payrollRun: true,
+      },
+    });
 
     if (!item) {
-      const tenantId = tenantStorage.getStore();
-      if (tenantId) {
-        // Try to get at least one employee from this tenant to show a real payslip format
-        const emp = await this.prisma.employee.findFirst({
-          where: { tenantId, status: 'ACTIVE' },
-          include: { tenant: true }
-        });
-        if (emp) {
-          const base = Number(emp.baseSalary);
-          const transportAllowance = Number(emp.transportAllowance || 0);
-          const grossSalary = base + transportAllowance;
-          const pensionDeduction = base * 0.07;
-          
-          let incomeTax = 0;
-          const taxable = grossSalary - transportAllowance - pensionDeduction;
-          if (taxable > 10900) incomeTax = taxable * 0.35 - 1500;
-          else if (taxable > 7800) incomeTax = taxable * 0.30 - 955;
-          else if (taxable > 5200) incomeTax = taxable * 0.25 - 565;
-          else if (taxable > 3200) incomeTax = taxable * 0.20 - 305;
-          else if (taxable > 1650) incomeTax = taxable * 0.15 - 145;
-          else if (taxable > 600) incomeTax = taxable * 0.10 - 60;
-
-          item = {
-            id,
-            baseSalary: base,
-            transportAllowance,
-            transportAllowanceExempt: transportAllowance,
-            taxableAllowances: 0,
-            grossSalary,
-            incomeTax,
-            pensionDeduction,
-            employerPensionContribution: Math.min(base, 15000) * 0.11,
-            netPay: grossSalary - pensionDeduction - incomeTax,
-            employee: emp,
-            payrollRun: {
-              periodStart: new Date(),
-              periodEnd: new Date()
-            }
-          };
-        }
-      }
-    }
-
-    if (!item) {
-      // Return a realistic mock fallback payslip for demonstration if absolutely no employees
-      item = {
-        id: id,
-        baseSalary: 35000,
-        transportAllowance: 2000,
-        transportAllowanceExempt: 2000,
-        taxableAllowances: 0,
-        grossSalary: 35000,
-        incomeTax: 6200,
-        pensionDeduction: 1050, // Capped: 15000 * 0.07 = 1050
-        employerPensionContribution: 1650, // Capped: 15000 * 0.11 = 1650
-        netPay: 27750,
-        employee: {
-          firstName: "Abebe",
-          lastName: "Kebede",
-          employeeIdNumber: "EMP-4820",
-          tin: "1029384756",
-          pensionId: "PO-99281-ET",
-          faydaNumber: "109283746501",
-          phoneNumber: "0911000001",
-          bankName: "Commercial Bank of Ethiopia",
-          bankAccount: "1000123456789",
-          tenant: {
-            name: "Qali B2B Workspace",
-            tin: "9901827364"
-          }
-        },
-        payrollRun: {
-          periodStart: new Date(),
-          periodEnd: new Date()
-        }
-      };
+      throw new NotFoundException(
+        'Payslip not found. Run payroll first, then open a payslip from a completed run.',
+      );
     }
 
     const { employee, payrollRun } = item;
@@ -400,79 +394,13 @@ export class ReportsController {
    * Format matches SIGTAS e-filing bulk upload template (per tax_reporting_payslip_standards.md).
    */
   @Get('erca/:runId')
+  @Roles(UserRole.HR, UserRole.OWNER)
   async exportErcaSheet(@Param('runId') runId: string, @Res() res: express.Response) {
-    let items: any[] = [];
-    try {
-      items = await this.prisma.payrollLineItem.findMany({
-        where: { payrollRunId: runId },
-        include: { employee: true },
-      }) as any[];
-    } catch (e) {
-      // Ignore Prisma constraint errors if runId is a mock string
-    }
+    const { run, items } = await this.getRunWithLineItems(runId);
+    const period = new Date(run.periodStart).toISOString().slice(0, 7);
 
-    if (!items.length) {
-      const tenantId = tenantStorage.getStore();
-      if (tenantId) {
-        const employees = await this.prisma.employee.findMany({
-          where: { tenantId, status: 'ACTIVE' },
-        });
-        
-        items = employees.map(emp => {
-          const base = Number(emp.baseSalary);
-          const transportAllowance = Number(emp.transportAllowance || 0);
-          const grossSalary = base + transportAllowance;
-          const pensionDeduction = base * 0.07;
-          
-          let incomeTax = 0;
-          const taxable = grossSalary - transportAllowance - pensionDeduction;
-          if (taxable > 10900) incomeTax = taxable * 0.35 - 1500;
-          else if (taxable > 7800) incomeTax = taxable * 0.30 - 955;
-          else if (taxable > 5200) incomeTax = taxable * 0.25 - 565;
-          else if (taxable > 3200) incomeTax = taxable * 0.20 - 305;
-          else if (taxable > 1650) incomeTax = taxable * 0.15 - 145;
-          else if (taxable > 600) incomeTax = taxable * 0.10 - 60;
-          
-          return {
-            baseSalary: base,
-            transportAllowance,
-            transportAllowanceExempt: transportAllowance,
-            taxableAllowances: 0,
-            grossSalary,
-            pensionDeduction,
-            incomeTax,
-            netPay: grossSalary - pensionDeduction - incomeTax,
-            employee: emp
-          };
-        });
-      }
-    }
-
-    if (!items.length) {
-      // Only inject mock data if the company literally has no employees onboarded yet
-      items = [
-        {
-          baseSalary: 25000,
-          transportAllowance: 2000,
-          transportAllowanceExempt: 2000,
-          taxableAllowances: 0,
-          grossSalary: 25000,
-          pensionDeduction: 1050,
-          incomeTax: 4200,
-          netPay: 19750,
-          employee: {
-            firstName: "Abebe",
-            lastName: "Kebede",
-            employeeIdNumber: "EMP-4820",
-            tin: "1029384756",
-            status: "ACTIVE",
-            paymentMethod: "BANK_TRANSFER"
-          }
-        }
-      ];
-    }
-
-    const headers = 'No,Employee ID,Full Name,TIN,Basic Salary,Transport Allowance,Taxable Allowances,Gross Salary,Employee Pension (7%),Taxable Income,Income Tax,Net Pay,Status,Payment Channel\n';
+    const headers =
+      'No,Employee ID,Full Name,TIN,Basic Salary,Transport Allowance,Taxable Allowances,Gross Salary,Employee Pension (7%),Taxable Income,Income Tax,Net Pay,Status,Payment Channel\n';
     const rows = items.map((item, index) => {
       const fullname = `"${item.employee.firstName} ${item.employee.lastName}"`;
       const grossSalary = Number(item.grossSalary || item.baseSalary);
@@ -484,66 +412,25 @@ export class ReportsController {
 
     const csvContent = headers + rows;
     
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=erca-monthly-tax-run-${runId}.csv`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=erca-schedule-a-${period}-${runId.slice(0, 8)}.csv`,
+    );
     res.status(HttpStatus.OK).send(csvContent);
   }
 
   /**
-   * Generates Private Organizations Employees' Social Security Agency (POESSA) monthly pension report.
-   * Includes mandatory Pension ID column per tax_reporting_payslip_standards.md.
+   * POESSA (Private Org Employees Social Security) monthly pension CSV.
    */
   @Get('psssa/:runId')
+  @Roles(UserRole.HR, UserRole.OWNER)
   async exportPsssaSheet(@Param('runId') runId: string, @Res() res: express.Response) {
-    let items: any[] = [];
-    try {
-      items = await this.prisma.payrollLineItem.findMany({
-        where: { payrollRunId: runId },
-        include: { employee: true },
-      }) as any[];
-    } catch (e) {
-      // Ignore Prisma constraint errors if runId is a mock string
-    }
+    const { run, items } = await this.getRunWithLineItems(runId);
+    const period = new Date(run.periodStart).toISOString().slice(0, 7);
 
-    if (!items.length) {
-      const tenantId = tenantStorage.getStore();
-      if (tenantId) {
-        const employees = await this.prisma.employee.findMany({
-          where: { tenantId, status: 'ACTIVE' },
-        });
-        items = employees.map(emp => {
-          const base = Number(emp.baseSalary);
-          const pensionBase = Math.min(base, 15000);
-          return {
-            baseSalary: base,
-            pensionDeduction: pensionBase * 0.07,
-            employerPensionContribution: pensionBase * 0.11,
-            employee: emp
-          };
-        });
-      }
-    }
-
-    if (!items.length) {
-      items = [
-        {
-          baseSalary: 25000,
-          pensionDeduction: 1050, // Capped: 15000 * 0.07 = 1050
-          employerPensionContribution: 1650, // Capped: 15000 * 0.11 = 1650
-          employee: {
-            firstName: "Abebe",
-            lastName: "Kebede",
-            employeeIdNumber: "EMP-4820",
-            pensionId: "PO-99281-ET",
-            tin: "1029384756",
-            bankName: "Commercial Bank of Ethiopia",
-            bankAccount: "1000123456789"
-          }
-        }
-      ];
-    }
-
-    const headers = 'No,Employee ID,Full Name,Pension ID,TIN,Basic Salary,Pension Base (Capped 15k),Employee 7%,Employer 11%,Total 18%,Bank Name,Account Number\n';
+    const headers =
+      'No,Employee ID,Full Name,Pension ID,TIN,Basic Salary,Pension Base (Capped 15k),Employee 7%,Employer 11%,Total 18%,Bank Name,Account Number\n';
     const rows = items.map((item, index) => {
       const fullname = `"${item.employee.firstName} ${item.employee.lastName}"`;
       const base = Number(item.baseSalary);
@@ -557,8 +444,11 @@ export class ReportsController {
 
     const csvContent = headers + rows;
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=poessa-monthly-pension-run-${runId}.csv`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=poessa-pension-${period}-${runId.slice(0, 8)}.csv`,
+    );
     res.status(HttpStatus.OK).send(csvContent);
   }
 }

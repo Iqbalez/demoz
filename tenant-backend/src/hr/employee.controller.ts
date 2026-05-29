@@ -69,13 +69,24 @@ export class EmployeeController {
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async createEmployee(@Body() dto: CreateEmployeeDto) {
     const emp = await this.employeeService.create(dto);
-    return sanitizeEmployee(emp);
+    const { mobileAppPin, ...rest } = emp as typeof emp & { mobileAppPin?: string };
+    return {
+      ...sanitizeEmployee(rest),
+      mobileAppPin,
+      departmentName: (rest as any).department?.name,
+    };
   }
 
   /**
    * Triggers an asynchronous, non-blocking Fayda National ID verification.
    * Instantly returns HTTP 202 Accepted with the background tracking jobId.
    */
+  @Post(':id/reset-mobile-pin')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async resetMobilePin(@Param('id') id: string) {
+    return this.employeeService.resetMobilePin(id);
+  }
+
   @Post('verify-fayda')
   @Roles(UserRole.HR, UserRole.OWNER)
   @HttpCode(HttpStatus.ACCEPTED)

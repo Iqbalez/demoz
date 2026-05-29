@@ -51,7 +51,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <header className="topbar justify-between">
         <div className="flex items-center gap-3">
           <span className="text-xl font-black text-gradient-accent tracking-tighter select-none uppercase">
-            {stats.companyName}
+            {stats.companyName || user?.companyName || "Workspace"}
           </span>
           <span className="accent-badge">Tenant Node</span>
         </div>
@@ -97,7 +97,14 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
           <div className="pt-6 border-t border-[var(--border)] text-xs text-[var(--text-muted)] space-y-2 px-1 pb-4 shrink-0">
             <div className="truncate">Organization: <span className="font-medium text-[var(--text-secondary)]" title={stats.companyName}>{stats.companyName}</span></div>
-            <div className="flex items-center gap-1.5 truncate">Verification: <span className="text-[var(--success)] font-medium">Fayda Verified</span></div>
+            <div className="flex items-center gap-1.5 truncate">
+              Fayda FIN on file:{" "}
+              <span className="font-medium text-[var(--text-secondary)]">
+                {user.workspace
+                  ? `${user.workspace.faydaOnFile}/${user.workspace.employeeCount} employees`
+                  : "—"}
+              </span>
+            </div>
           </div>
         </aside>
 

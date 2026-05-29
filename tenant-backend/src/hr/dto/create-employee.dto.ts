@@ -13,9 +13,14 @@ import {
 import { PaymentMethod, EmployeeStatus } from '@prisma/client';
 
 export class CreateEmployeeDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsUUID()
-  departmentId: string;
+  departmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  departmentName?: string;
 
   @IsOptional()
   @IsUUID()
@@ -86,7 +91,7 @@ export class CreateEmployeeDto {
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus = EmployeeStatus.ACTIVE;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsDateString()
-  hireDate: string;
+  hireDate?: string;
 }

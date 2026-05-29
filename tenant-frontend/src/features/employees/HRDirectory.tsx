@@ -4,6 +4,11 @@ import React, { useState, useEffect, useTransition } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Skeleton } from "../../components/ui/skeleton";
 import { toast } from "../../components/ui/toast";
+import {
+  faydaBadgeClass,
+  faydaStatusLabel,
+  getFaydaComplianceStatus,
+} from "../../lib/fayda-status";
 
 export interface Employee {
   id: string;
@@ -22,7 +27,7 @@ export interface Employee {
 export interface HRDirectoryProps {
   employees: Employee[];
   maxEmployees: number;
-  onAddEmployee: (employee: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => Promise<{ success: boolean; message: string }>;
+  onAddEmployee: (employee: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => Promise<{ success: boolean; message: string; mobileAppPin?: string }>;
   onUpdateEmployee: (id: string, updates: Partial<Employee>) => Promise<{ success: boolean; message: string }>;
 }
 
@@ -59,7 +64,6 @@ export default function HRDirectory({
   const [salary, setSalary] = useState("15000");
   const [fayda, setFayda] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "SUSPENDED">("ACTIVE");
-  const [faydaVerified, setFaydaVerified] = useState(true);
 
   // Local URL filter inputs
   const currentSearch = searchParams.get("search") || "";
@@ -138,6 +142,12 @@ export default function HRDirectory({
         return;
       }
 
+      const fin = fayda.trim();
+      if (fin && !/^\d{12}$/.test(fin)) {
+        toast.warning("Invalid Fayda FIN", "National ID must be exactly 12 digits (no FYD- prefix).");
+        return;
+      }
+
       const result = await onAddEmployee({
         firstName,
         lastName,
@@ -145,12 +155,19 @@ export default function HRDirectory({
         phoneNumber: phone,
         departmentName: department,
         baseSalary: parseFloat(salary),
-        faydaNumber: fayda || `FYD-${Math.floor(100000 + Math.random() * 900000)}`,
+        ...(fin ? { faydaNumber: fin } : {}),
         status: "ACTIVE",
       });
 
       if (result.success) {
-        toast.success("Onboarding Completed", `${firstName} ${lastName} is now active.`);
+        if (result.mobileAppPin) {
+          toast.success(
+            "Employee ready for mobile app",
+            `${firstName} ${lastName} — phone ${phone}, 4-digit PIN: ${result.mobileAppPin}. Use these in the employee APK login.`,
+          );
+        } else {
+          toast.success("Onboarding Completed", `${firstName} ${lastName} is now active.`);
+        }
         setShowAddModal(false);
       } else {
         toast.error("Registry Failed", result.message);
@@ -170,7 +187,6 @@ export default function HRDirectory({
     setSalary(emp.baseSalary?.toString() ?? "");
     setFayda(emp.faydaNumber || "");
     setStatus(emp.status);
-    setFaydaVerified(emp.faydaVerified !== false);
     setShowEditModal(true);
   };
 
@@ -194,9 +210,9 @@ export default function HRDirectory({
       phoneNumber: phone,
       departmentName: department,
       baseSalary: parseFloat(salary),
-      faydaNumber: fayda,
+      faydaNumber: fayda || undefined,
       status: status,
-      faydaVerified: faydaVerified,
+      faydaVerified: /^\d{12}$/.test(fayda.trim()),
     };
 
     setLocalEmployees((prev) =>
@@ -212,9 +228,8 @@ export default function HRDirectory({
         phoneNumber: phone,
         departmentName: department,
         baseSalary: parseFloat(salary),
-        faydaNumber: fayda,
+        ...(fayda.trim() ? { faydaNumber: fayda.trim() } : { faydaNumber: "" }),
         status: status,
-        faydaVerified: faydaVerified,
       });
 
       if (!result.success) {
@@ -372,17 +387,16 @@ export default function HRDirectory({
                             <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100/60 dark:bg-amber-900/10 text-amber-800 dark:text-amber-400 font-sans font-semibold border border-amber-200/20">Hidden for privacy</span>
                           )}
                         </span>
-                        {emp.faydaVerified !== false ? (
-                          <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-500 uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            ✓ Fayda Matched
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[8px] font-bold text-amber-500 uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            ● Verification Pending
-                          </span>
-                        )}
+                        {(() => {
+                          const st = getFaydaComplianceStatus(emp.faydaNumber);
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${faydaBadgeClass(st)}`}
+                            >
+                              {faydaStatusLabel(st)}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </td>
                     {/* Status */}
@@ -606,18 +620,21 @@ export default function HRDirectory({
                 <div className="space-y-4">
                   <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
                     <span className="text-[9px] text-purple-600 dark:text-purple-400 font-extrabold uppercase">Step 3: Biometric Credentials</span>
-                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">Validate the national biometric card signature via Fayda system APIs.</p>
+                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
+                      Optional: enter the 12-digit Fayda FIN from the national ID card. eSignet OIDC verification can be enabled when FAYDA_CLIENT_ID is configured on the server.
+                    </p>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda National ID</label>
+                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda FIN (12 digits)</label>
                     <input
                       type="text"
-                      required
+                      inputMode="numeric"
+                      maxLength={12}
                       value={fayda}
-                      onChange={(e) => setFayda(e.target.value)}
+                      onChange={(e) => setFayda(e.target.value.replace(/\D/g, "").slice(0, 12))}
                       className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono focus:outline-none dark:text-zinc-100 focus:border-emerald-500"
-                      placeholder="FYD-192837465"
+                      placeholder="109283746501"
                     />
                   </div>
 
@@ -720,17 +737,6 @@ export default function HRDirectory({
                     <option value="HR / Admin">HR / Admin</option>
                   </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda Verification</label>
-                  <select
-                    value={faydaVerified ? "true" : "false"}
-                    onChange={(e) => setFaydaVerified(e.target.value === "true")}
-                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none font-semibold cursor-pointer"
-                  >
-                    <option value="true">Biometrics Verified</option>
-                    <option value="false">Unverified Profile</option>
-                  </select>
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -746,12 +752,15 @@ export default function HRDirectory({
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda Number</label>
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda FIN (12 digits)</label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={12}
                     value={fayda}
-                    onChange={(e) => setFayda(e.target.value)}
+                    onChange={(e) => setFayda(e.target.value.replace(/\D/g, "").slice(0, 12))}
                     className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono focus:outline-none dark:text-zinc-100"
+                    placeholder="109283746501"
                   />
                 </div>
               </div>

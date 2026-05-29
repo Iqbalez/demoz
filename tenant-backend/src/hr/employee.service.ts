@@ -9,6 +9,8 @@ import { SubscriptionService } from '../subscription/subscription.service';
 import { tenantStorage } from '../tenant-context';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { AfromessageService } from '../notifications/afromessage.service';
+import { WorkspaceService } from './workspace.service';
+import { normalizeEthiopianPhone } from '../lib/phone';
 
 @Injectable()
 export class EmployeeService {
@@ -17,6 +19,7 @@ export class EmployeeService {
     private readonly subscriptionService: SubscriptionService,
     private readonly dashboardService: DashboardService,
     private readonly afromessageService: AfromessageService,
+    private readonly workspaceService: WorkspaceService,
   ) {}
 
   /**
@@ -75,15 +78,23 @@ export class EmployeeService {
    */
   async create(dto: CreateEmployeeDto) {
     const tenantId = tenantStorage.getStore();
-    if (tenantId) {
-      const hasCapacity = await this.subscriptionService.verifySeatCapacity(tenantId);
-      if (!hasCapacity) {
-        throw new BadRequestException('Subscription Plan Limit Exceeded. You have reached the maximum number of active employees allowed on your tier. Please upgrade your subscription.');
-      }
+    if (!tenantId) {
+      throw new BadRequestException('Active tenant context is missing.');
     }
 
-    // Sanitize phone number to prevent spacing mismatch issues
-    dto.phoneNumber = dto.phoneNumber.replace(/\s+/g, '');
+    const hasCapacity = await this.subscriptionService.verifySeatCapacity(tenantId);
+    if (!hasCapacity) {
+      throw new BadRequestException(
+        'Subscription Plan Limit Exceeded. You have reached the maximum number of active employees allowed on your tier. Please upgrade your subscription.',
+      );
+    }
+
+    dto.phoneNumber = normalizeEthiopianPhone(dto.phoneNumber);
+    const departmentId = await this.workspaceService.resolveDepartmentId(
+      tenantId,
+      dto.departmentId,
+      dto.departmentName,
+    );
 
     // 1. Phone number global uniqueness check
     const existingPhone = await this.prisma.employee.findFirst({
@@ -128,22 +139,35 @@ export class EmployeeService {
         bankName: dto.bankName || null,
         bankAccount: dto.bankAccount || null,
         status: dto.status || 'ACTIVE',
-        hireDate: new Date(dto.hireDate),
-        departmentId: dto.departmentId,
+        hireDate: dto.hireDate ? new Date(dto.hireDate) : new Date(),
+        departmentId,
         userId: dto.userId || null,
         ussdPin: pin,
         ussdPinHash: pinHash,
       } as any,
     });
-    
-    if (tenantId) {
-      await this.dashboardService.invalidateTenantKPICache(tenantId);
-    }
-    
-    // Dispatch SMS asynchronously
-    this.afromessageService.sendEmployeeMobileCredentials(emp.phoneNumber, emp.firstName, pin).catch(e => console.error(e));
 
-    return emp;
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+
+    this.afromessageService.sendEmployeeMobileCredentials(emp.phoneNumber, emp.firstName, pin).catch((e) =>
+      console.error(e),
+    );
+
+    return { ...emp, mobileAppPin: pin };
+  }
+
+  /** Issue a new 4-digit mobile PIN (shown once to HR). */
+  async resetMobilePin(id: string) {
+    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    const pinHash = await bcrypt.hash(pin, 10);
+    const emp = await this.prisma.employee.update({
+      where: { id },
+      data: { ussdPin: pin, ussdPinHash: pinHash },
+    });
+    this.afromessageService.sendEmployeeMobileCredentials(emp.phoneNumber, emp.firstName, pin).catch((e) =>
+      console.error(e),
+    );
+    return { mobileAppPin: pin, phoneNumber: emp.phoneNumber };
   }
 
   /**

@@ -24,7 +24,7 @@ export default function ClockScreen() {
   const timerRef = useRef<any>(null);
 
   // Mock a branch ID for now - in production this would come from the employee details
-  const branchId = employeeDetails?.branchId || "00000000-0000-0000-0000-000000000000";
+  const branchId = employeeDetails?.branchId || undefined;
 
   const handleClockIn = async () => {
     setLocationLoading(true);

@@ -13,6 +13,7 @@ import type { Redis } from 'ioredis';
 import * as crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { withoutTenantIsolation } from '../tenant-context';
+import { normalizeEthiopianPhone, phoneLookupVariants } from '../lib/phone';
 
 type TokenType = 'access' | 'refresh';
 
@@ -114,7 +115,12 @@ export class AuthService {
       role: UserRole;
       twoFactorSecret: string | null;
       tenantId: string | null;
-      tenant: { status: TenantStatus; name: string } | null;
+      tenant: {
+        status: TenantStatus;
+        name: string;
+        planTier: string | null;
+        maxEmployees: number | null;
+      } | null;
     },
     tokens: { accessToken: string; refreshToken: string },
   ) {
@@ -128,6 +134,8 @@ export class AuthService {
         is2FaEnabled: !!user.twoFactorSecret,
         subscription_status: user.tenant?.status ?? null,
         companyName: user.tenant?.name ?? null,
+        planTier: user.tenant?.planTier ?? null,
+        maxEmployees: user.tenant?.maxEmployees ?? null,
       },
       ...tokens,
     };
@@ -219,6 +227,27 @@ export class AuthService {
       throw new UnauthorizedException('Session invalid.');
     }
 
+    let workspace: {
+      employeeCount: number;
+      faydaOnFile: number;
+      faydaMissing: number;
+    } | null = null;
+
+    if (user.tenantId) {
+      const employees = await withoutTenantIsolation(() =>
+        this.prisma.employee.findMany({
+          where: { tenantId: user.tenantId!, status: 'ACTIVE' },
+          select: { faydaNumber: true },
+        }),
+      );
+      const faydaOnFile = employees.filter((e) => /^\d{12}$/.test((e.faydaNumber || '').trim())).length;
+      workspace = {
+        employeeCount: employees.length,
+        faydaOnFile,
+        faydaMissing: employees.length - faydaOnFile,
+      };
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -226,15 +255,21 @@ export class AuthService {
       tenantId: user.tenantId,
       subscription_status: user.tenant?.status ?? null,
       companyName: user.tenant?.name ?? null,
+      planTier: user.tenant?.planTier ?? null,
+      maxEmployees: user.tenant?.maxEmployees ?? null,
+      workspace,
     };
   }
 
   async employeeLogin(credentials: { phoneNumber: string; pin: string }) {
-    const cleanPhone = credentials.phoneNumber.replace(/\s+/g, '');
+    const variants = phoneLookupVariants(credentials.phoneNumber);
     const employee = await withoutTenantIsolation(() =>
-      this.prisma.employee.findUnique({
-        where: { phoneNumber: cleanPhone },
-        include: { tenant: true },
+      this.prisma.employee.findFirst({
+        where: { phoneNumber: { in: variants } },
+        include: {
+          tenant: true,
+          department: { include: { branch: true } },
+        },
       }),
     );
 
@@ -270,12 +305,24 @@ export class AuthService {
 
     const tokens = await this.generateToken(employee.id, employee.tenantId, UserRole.EMPLOYEE);
 
+    const normalizedPhone = normalizeEthiopianPhone(employee.phoneNumber);
+    if (employee.phoneNumber !== normalizedPhone) {
+      await withoutTenantIsolation(() =>
+        this.prisma.employee.update({
+          where: { id: employee.id },
+          data: { phoneNumber: normalizedPhone },
+        }),
+      );
+    }
+
     return {
       employee: {
         id: employee.id,
         name: `${employee.firstName} ${employee.lastName}`,
-        phoneNumber: employee.phoneNumber,
-        department: employee.departmentId,
+        phoneNumber: normalizedPhone,
+        employeeIdNumber: employee.employeeIdNumber,
+        department: employee.department?.name ?? 'General',
+        branchId: employee.department?.branchId ?? null,
       },
       ...tokens,
     };
@@ -309,9 +356,9 @@ export class AuthService {
       };
     } catch {
       if (body.phoneNumber) {
-        const cleanPhone = body.phoneNumber.replace(/\s+/g, '');
+        const variants = phoneLookupVariants(body.phoneNumber);
         const employee = await withoutTenantIsolation(() =>
-          this.prisma.employee.findUnique({ where: { phoneNumber: cleanPhone } }),
+          this.prisma.employee.findFirst({ where: { phoneNumber: { in: variants } } }),
         );
         if (employee && employee.status === 'ACTIVE') {
           const tokens = await this.generateToken(

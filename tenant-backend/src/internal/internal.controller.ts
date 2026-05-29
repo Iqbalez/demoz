@@ -13,6 +13,11 @@ export class InternalController {
     return this.internalService.listTenants();
   }
 
+  @Get('stats')
+  getStats() {
+    return this.internalService.getPlatformStats();
+  }
+
   @Post('tenants')
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   provisionTenant(@Body() body: ProvisionTenantDto) {
@@ -20,7 +25,13 @@ export class InternalController {
       companyName: body.companyName,
       adminEmail: body.adminEmail,
       adminPhone: body.adminPhone,
+      planTier: body.planTier,
     });
+  }
+
+  @Post('tenants/:id/reset-admin-password')
+  resetAdminPassword(@Param('id') id: string) {
+    return this.internalService.resetTenantAdminPassword(id);
   }
 
   @Patch('tenants/:id/billing')

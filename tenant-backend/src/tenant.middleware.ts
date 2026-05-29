@@ -1,20 +1,14 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { tenantStorage } from './tenant-context';
+import { getTenantIdFromRequest } from './lib/jwt-from-request';
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
-    let tenantId: string | null = null;
+    let tenantId: string | null = getTenantIdFromRequest(req);
 
-    // 1. Check if it's a Dashboard Request (Looks for a Bearer Token)
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      // In a real app, you would decode the JWT here. 
-      // For this step, let's assume the token itself contains the tenantId directly.
-      tenantId = token; 
-    } else if (req.query && req.query.token) {
+    if (!tenantId && req.query?.token) {
       tenantId = req.query.token as string;
     }
 
@@ -41,12 +35,7 @@ export class TenantMiddleware implements NestMiddleware {
       ) {
         return next();
       }
-      if (req.originalUrl.includes('/payroll/reports') || req.path.includes('/payroll/reports')) {
-        // We require a tenant token even for report downloads now
-        throw new UnauthorizedException('We do not know which company you belong to! Token missing in download request.');
-      } else {
-        throw new UnauthorizedException('We do not know which company you belong to!');
-      }
+      throw new UnauthorizedException('We do not know which company you belong to!');
     }
 
     // 4. Put the tenantId into our magical pocket for the rest of this request's lifespan

@@ -56,8 +56,26 @@ export class LeaveService {
   }
 
   async getLeaveTypes(tenantId: string) {
-    return this.prisma.leaveType.findMany({
+    let types = await this.prisma.leaveType.findMany({
       where: { tenantId },
+    });
+    if (!types.length) {
+      await this.seedDefaultLeaveTypes(tenantId);
+      types = await this.prisma.leaveType.findMany({ where: { tenantId } });
+    }
+    return types;
+  }
+
+  async getLeaveRequestsForEmployee(tenantId: string, employeeId: string, status?: string) {
+    const whereClause: Record<string, unknown> = { tenantId, employeeId };
+    if (status) whereClause.status = status;
+    return this.prisma.leaveRequest.findMany({
+      where: whereClause,
+      include: {
+        leaveType: { select: { name: true, code: true } },
+        approvedBy: { select: { email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

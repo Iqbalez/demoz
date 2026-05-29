@@ -2,77 +2,37 @@
 
 import React from "react";
 import { useDashboard } from "../context/DashboardContext";
+import { apiRequest } from "@/lib/api";
+import { getPlanMeta, normalizePlanTier } from "@/lib/plan-tiers";
+
+const PLAN_FEATURES: Record<string, string[]> = {
+  FREE: ["Up to 10 employees (sandbox)", "Basic payroll calculations", "Attendance logging"],
+  BASIC: ["Up to 10 employees", "USSD clock-ins", "Geofenced attendance", "ERCA/POESSA CSV exports"],
+  GROWTH: ["Up to 50 employees", "Advanced geofencing", "Compliance exports", "Chapa renewal billing"],
+  ENTERPRISE: ["High seat allocation", "Custom support", "Full statutory export pack"],
+};
 
 export default function BillingPortal() {
-  const { stats, backendStatus } = useDashboard();
+  const { stats } = useDashboard();
   const [invoices, setInvoices] = React.useState<any[]>([]);
 
-  // Fetch invoices on mount
   React.useEffect(() => {
-    if (backendStatus === "CONNECTED") {
-      fetchInvoices();
-    }
-  }, [backendStatus]);
+    fetchInvoices();
+  }, []);
 
   const fetchInvoices = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}`}/subscription/invoices`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setInvoices(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch subscription invoices:", err);
+      const data = await apiRequest<any[]>("/subscription/invoices");
+      setInvoices(data);
+    } catch {
+      setInvoices([]);
     }
   };
 
-  const handleSimulateExpiry = async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}`}/subscription/simulate-expiry`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
-      });
-      if (res.ok) {
-        alert("Subscription expiry simulated. Unpaid invoice generated!");
-        fetchInvoices();
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error("Failed to simulate subscription expiry:", err);
-    }
-  };
-  
-  // Define plan values matching the landing page exactly
-  const plansInfo: Record<string, { price: number; limit: number; features: string[] }> = {
-    BASIC: {
-      price: 3000,
-      limit: 10,
-      features: ["Up to 10 Employees", "Standard USSD clock-ins", "Basic geofenced reporting", "Standard payroll calculations"]
-    },
-    GROWTH: {
-      price: 5000,
-      limit: 50,
-      features: ["Up to 50 Employees", "Advanced Geofencing features", "AI Compliance Audit logs", "Simulated Chapa payouts", "Priority support"]
-    },
-    ENTERPRISE: {
-      price: 10000,
-      limit: 1000,
-      features: ["Up to 1,000 Employees", "Custom geofencing structures", "Full PDF/CSV exports for government", "24/7 Premium SLA response time"]
-    },
-    FREE: {
-      price: 0,
-      limit: 10,
-      features: ["Up to 10 Employees", "Standard sandbox calculations"]
-    }
-  };
-
-  const activePlanKey = (stats.planTier || "FREE").toUpperCase();
-  const activePlan = plansInfo[activePlanKey] || plansInfo.FREE;
+  const planKey = normalizePlanTier(stats.planTier);
+  const planMeta = getPlanMeta(stats.planTier);
+  const seatLimit = stats.maxEmployees || planMeta.maxEmployees;
+  const features = PLAN_FEATURES[planKey] || PLAN_FEATURES.FREE;
   const companySlug = stats.companyName.toUpperCase().replace(/\s+/g, "");
 
   // Find unpaid renewal invoices
@@ -98,14 +58,6 @@ export default function BillingPortal() {
           <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-50 font-outfit">Subscription & Licensing</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">View and manage the active billing configuration for your corporate workspace.</p>
         </div>
-        {backendStatus === "CONNECTED" && (
-          <button
-            onClick={handleSimulateExpiry}
-            className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-sm transition"
-          >
-            Simulate Expiry
-          </button>
-        )}
       </div>
 
       {/* Unpaid Warning Banner */}
@@ -132,7 +84,7 @@ export default function BillingPortal() {
             Active Package
           </span>
           <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-50 uppercase font-outfit">
-            {activePlanKey} TIER
+            {planKey} TIER
           </h3>
           <p className="text-xs text-slate-400">Enforced according to your workspace registration limits.</p>
         </div>
@@ -141,7 +93,7 @@ export default function BillingPortal() {
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Monthly Subscription Fee</span>
           <div className="flex items-baseline gap-1">
             <span className="text-3xl font-black text-slate-800 dark:text-zinc-50 font-outfit">
-              {activePlan.price.toLocaleString()}
+              {planMeta.monthlyPriceEtb.toLocaleString()}
             </span>
             <span className="text-xs text-slate-400 font-semibold font-mono">ETB / month</span>
           </div>
@@ -151,24 +103,24 @@ export default function BillingPortal() {
           <div>
             <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase mb-1">
               <span>Seat Occupancy</span>
-              <span>{stats.totalEmployees} / {activePlan.limit} Seats</span>
+              <span>{stats.totalEmployees} / {seatLimit} Seats</span>
             </div>
             <div className="w-full bg-slate-200 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
               <div 
                 className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
-                style={{ width: `${Math.min((stats.totalEmployees / activePlan.limit) * 100, 100)}%` }}
+                style={{ width: `${Math.min((stats.totalEmployees / seatLimit) * 100, 100)}%` }}
               ></div>
             </div>
           </div>
-          <p className="text-[10px] text-emerald-500 font-bold">✓ Enforcing {activePlan.limit} max onboarded employee constraint</p>
+          <p className="text-[10px] text-emerald-500 font-bold">✓ Seat cap from your tenant record: {seatLimit} employees</p>
         </div>
       </div>
 
       {/* Plan Features */}
       <div className="p-6 rounded-3xl bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800/80 shadow-sm space-y-4">
-        <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Included Features in {activePlanKey}</h4>
+        <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">Included in {planKey}</h4>
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600 dark:text-zinc-300">
-          {activePlan.features.map((feature, i) => (
+          {features.map((feature, i) => (
             <li key={i} className="flex items-center gap-2">
               <span className="text-emerald-500 font-bold">✓</span>
               <span>{feature}</span>

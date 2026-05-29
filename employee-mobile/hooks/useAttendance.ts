@@ -25,8 +25,8 @@ export const useAttendance = () => {
   }, []);
 
   const clockIn = async (branchId: string, lat: number, lng: number, accuracy: number): Promise<{ success: boolean, message: string }> => {
-    if (accuracy > 50) {
-      return Promise.reject({ success: false, message: 'GPS accuracy too low. Please try again.' });
+    if (accuracy > 120) {
+      return Promise.reject({ success: false, message: 'GPS accuracy too low. Please try again outdoors.' });
     }
 
     const payload = {
@@ -46,9 +46,13 @@ export const useAttendance = () => {
     }
 
     try {
-      await apiClient.post('/api/v1/attendance/sync', payload);
-      return { success: true, message: 'Clocked in' };
+      const res = await apiClient.post('/api/v1/attendance/sync', payload);
+      return { success: true, message: res.data?.message || 'Clocked in successfully.' };
     } catch (error: any) {
+      const msg = error.response?.data?.message || error.message;
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        return { success: false, message: msg || 'Session expired. Please log in again.' };
+      }
       await enqueueAttendanceEvent(payload);
       refreshUnSyncedCount();
       return { success: true, message: 'Saved offline. Will sync when online.' };
@@ -73,9 +77,13 @@ export const useAttendance = () => {
     }
 
     try {
-      await apiClient.post('/api/v1/attendance/sync', payload);
-      return { success: true, message: 'Clocked out' };
+      const res = await apiClient.post('/api/v1/attendance/sync', payload);
+      return { success: true, message: res.data?.message || 'Clocked out successfully.' };
     } catch (error: any) {
+      const msg = error.response?.data?.message || error.message;
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        return { success: false, message: msg || 'Session expired. Please log in again.' };
+      }
       await enqueueAttendanceEvent(payload);
       refreshUnSyncedCount();
       return { success: true, message: 'Saved offline. Will sync when online.' };

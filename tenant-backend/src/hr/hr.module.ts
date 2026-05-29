@@ -9,17 +9,22 @@ import { FaydaOidcService } from './fayda-oidc.service';
 import { JwtModule } from '@nestjs/jwt';
 
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WorkspaceService } from './workspace.service';
+import { WorkspaceController } from './workspace.controller';
+import { LeaveModule } from '../leave/leave.module';
 
 @Module({
   imports: [
     SubscriptionModule,
     NotificationsModule,
+    LeaveModule,
     JwtModule.register({}),
     BullModule.registerQueue({
       name: 'fayda-queue',
     }),
   ],
-  controllers: [EmployeeController],
-  providers: [EmployeeService, PrismaService, FaydaProcessor, FaydaOidcService],
+  controllers: [EmployeeController, WorkspaceController],
+  providers: [EmployeeService, WorkspaceService, PrismaService, FaydaProcessor, FaydaOidcService],
+  exports: [WorkspaceService, EmployeeService],
 })
 export class HrModule {}

@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { TenantStatus } from '@prisma/client';
 
 export class ProvisionTenantDto {
@@ -12,6 +12,10 @@ export class ProvisionTenantDto {
   @IsOptional()
   @IsString()
   adminPhone?: string;
+
+  @IsOptional()
+  @IsIn(['FREE', 'BASIC', 'GROWTH', 'ENTERPRISE'])
+  planTier?: string;
 }
 
 export class UpdateTenantBillingDto {

@@ -7,7 +7,8 @@ export class SuperAdminGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    if (!user || user.role !== UserRole.SUPER_ADMIN) {
+    const role = user?.role as UserRole | string | undefined;
+    if (!user || (role !== UserRole.SUPER_ADMIN && role !== 'SUPER_ADMIN')) {
       throw new ForbiddenException('Super Admin access required.');
     }
 

@@ -8,8 +8,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login, checkSavedAuth, token, biometricsEnabled, phoneNumber } = useAuthStore();
   
-  const [phone, setPhone] = useState('0911000004'); // Defaults to Yosef Girma for seamless testing
-  const [pin, setPin] = useState('1234');
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
   const [enableBio, setEnableBio] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasBiometricHardware, setHasBiometricHardware] = useState(false);
@@ -79,6 +79,10 @@ export default function LoginScreen() {
             placeholderTextColor="#64748b"
           />
         </View>
+
+        <Text style={styles.hint}>
+          Use the phone number and 4-digit PIN from HR (not your email password).
+        </Text>
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>4-DIGIT PIN</Text>
@@ -173,7 +177,14 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     marginTop: 4,
-    marginBottom: 28,
+    marginBottom: 12,
+  },
+  hint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 16,
   },
   formGroup: {
     marginBottom: 16,
