@@ -34,6 +34,7 @@ interface DashboardContextProps {
   handleAddEmployee: (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => Promise<{ success: boolean; message: string }>;
   handleUpdateEmployee: (id: string, updates: Partial<Employee>) => Promise<{ success: boolean; message: string }>;
   handleAddBranch: (newBranch: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
+  refreshTenantData: () => Promise<void>;
   handleSimulateLog: (newLog: any) => void;
   handleUpgradePlan: (plan: string, maxEmp: number) => void;
   handleTriggerDisbursement: () => void;
@@ -96,37 +97,62 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Load tenant data when logged in (HttpOnly cookie session)
-  useEffect(() => {
+  const refreshTenantData = React.useCallback(async () => {
     if (authLoading || !user || user.role === "SUPER_ADMIN") return;
 
-    const loadData = async () => {
-      try {
-        await apiRequest("/workspace/bootstrap").catch(() => undefined);
-        const [empRes, brn, att] = await Promise.all([
-          apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500"),
-          apiRequest<Branch[]>("/branches"),
-          apiRequest<AttendanceLog[]>("/api/v1/attendance/logs"),
-        ]);
-        const emp = Array.isArray(empRes) ? empRes : empRes.data ?? [];
+    try {
+      await apiRequest("/workspace/bootstrap").catch(() => undefined);
+
+      const [empRes, brnRes, attRes] = await Promise.allSettled([
+        apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500"),
+        apiRequest<Branch[]>("/branches"),
+        apiRequest<AttendanceLog[]>("/api/v1/attendance/logs"),
+      ]);
+
+      if (empRes.status === "fulfilled") {
+        const emp = Array.isArray(empRes.value) ? empRes.value : empRes.value.data ?? [];
         setEmployees(emp);
-        setBranches(brn);
-        setLogs(att);
         const totalSalary = emp.reduce((sum: number, e: Employee) => sum + (e.baseSalary ?? 0), 0);
         setStats((prev) => ({
           ...prev,
           totalEmployees: emp.length,
           monthlyPayroll: totalSalary,
-          attendanceRate:
-            emp.length > 0 ? Math.min(100, Math.round((att.length / (emp.length * 30)) * 100)) : 0,
         }));
-      } catch (e) {
-        console.error("Failed to load tenant data", e);
       }
-    };
-    loadData();
-    const poll = setInterval(loadData, 20000);
+
+      if (brnRes.status === "fulfilled") {
+        setBranches(brnRes.value);
+      }
+
+      if (attRes.status === "fulfilled") {
+        const att = attRes.value;
+        setLogs(att);
+        setStats((prev) => ({
+          ...prev,
+          attendanceRate:
+            prev.totalEmployees > 0
+              ? Math.min(100, Math.round((att.length / (prev.totalEmployees * 30)) * 100))
+              : 0,
+        }));
+      }
+
+      if (
+        empRes.status === "fulfilled" ||
+        brnRes.status === "fulfilled" ||
+        attRes.status === "fulfilled"
+      ) {
+        setBackendStatus("CONNECTED");
+      }
+    } catch (e) {
+      console.error("Failed to load tenant data", e);
+    }
+  }, [user, authLoading]);
+
+  useEffect(() => {
+    refreshTenantData();
+    const poll = setInterval(refreshTenantData, 20000);
     return () => clearInterval(poll);
-  }, [user, authLoading, backendStatus]);
+  }, [refreshTenantData, backendStatus]);
 
   // Theme toggle
   useEffect(() => {
@@ -245,29 +271,26 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         type: "success" as const,
       }, ...prev]);
       return { success: true, message: "Branch added." };
-    } catch (e: any) {
-      // Offline fallback
-      const id = `branch-${Math.floor(1000 + Math.random() * 9000)}`;
-      const created: Branch = { ...newBranch, id };
-      setBranches(prev => [...prev, created]);
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs(prev => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `setup geofenced branch: ${created.name} (Radius: ${created.geofenceRadiusMeters}m) (Offline)`,
-        type: "success" as const,
-      }, ...prev]);
-      return { success: true, message: "Branch added (Offline)." };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not save branch to the server.";
+      return { success: false, message: msg };
     }
   };
 
-  const handleSimulateLog = async (newLog: any): Promise<void> => {
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const handleSimulateLog = (newLog: Partial<AttendanceLog> & Pick<AttendanceLog, "employeeName" | "type" | "source">): void => {
     const logId = `log-${Date.now()}`;
-    const added: AttendanceLog = { id: logId, timestamp: time.slice(0, 8), ...newLog };
+    const added: AttendanceLog = {
+      id: logId,
+      timestamp: new Date().toISOString(),
+      phoneNumber: newLog.phoneNumber ?? "",
+      latitude: newLog.latitude ?? null,
+      longitude: newLog.longitude ?? null,
+      isAnomaly: newLog.isAnomaly ?? false,
+      anomalyReason: newLog.anomalyReason ?? null,
+      ...newLog,
+    };
     setLogs(prev => [added, ...prev]);
-    try { await apiRequest("/attendance/logs", { method: "POST", body: JSON.stringify(added) }); } catch {}
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const actionDesc = newLog.source === "USSD"
       ? `${newLog.type.toLowerCase().replace("_", " ")} via USSD mobile gateway`
       : newLog.source === "WEB_PWA"
@@ -313,6 +336,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       handleAddEmployee,
       handleUpdateEmployee,
       handleAddBranch,
+      refreshTenantData,
       handleSimulateLog,
       handleUpgradePlan,
       handleTriggerDisbursement,

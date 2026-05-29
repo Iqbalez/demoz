@@ -111,7 +111,11 @@ export class AttendanceController {
   @Get('logs')
   @Roles(UserRole.HR, UserRole.OWNER)
   async getTenantLogs(@Req() req: any) {
-    return this.attendanceService.getTenantAttendanceLogs(req.user.tenantId);
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is required to load attendance logs.');
+    }
+    return this.attendanceService.getTenantAttendanceLogs(tenantId);
   }
 
   /**

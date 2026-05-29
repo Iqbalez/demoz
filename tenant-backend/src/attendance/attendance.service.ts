@@ -91,27 +91,80 @@ export class AttendanceService {
   }
 
   async getTenantAttendanceLogs(tenantId: string) {
-    const logs = await this.prisma.attendanceLog.findMany({
-      where: { tenantId },
-      include: {
-        employee: { select: { firstName: true, lastName: true, phoneNumber: true } },
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 200,
-    });
+    const [logs, dailyRecords] = await Promise.all([
+      this.prisma.attendanceLog.findMany({
+        where: { tenantId },
+        include: {
+          employee: { select: { firstName: true, lastName: true, phoneNumber: true } },
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 200,
+      }),
+      this.prisma.attendance.findMany({
+        where: { tenantId },
+        include: {
+          employee: { select: { firstName: true, lastName: true, phoneNumber: true } },
+        },
+        orderBy: { date: 'desc' },
+        take: 100,
+      }),
+    ]);
 
-    return logs.map((log) => ({
-      id: log.id,
-      employeeName: `${log.employee.firstName} ${log.employee.lastName}`,
-      phoneNumber: log.employee.phoneNumber,
+    const fromLogs = logs
+      .filter((log) => log.employee)
+      .map((log) => ({
+        id: log.id,
+        employeeName: `${log.employee!.firstName} ${log.employee!.lastName}`,
+        phoneNumber: log.employee!.phoneNumber,
       timestamp: log.timestamp.toISOString(),
-      type: log.type,
+      type: log.type as 'CLOCK_IN' | 'CLOCK_OUT',
       source: log.source,
       latitude: log.latitude != null ? Number(log.latitude) : null,
       longitude: log.longitude != null ? Number(log.longitude) : null,
       isAnomaly: log.isAnomaly,
       anomalyReason: log.anomalyReason,
     }));
+
+    const fromDaily: typeof fromLogs = [];
+    for (const row of dailyRecords) {
+      if (!row.employee) continue;
+      const base = {
+        employeeName: `${row.employee.firstName} ${row.employee.lastName}`,
+        phoneNumber: row.employee.phoneNumber,
+        source: row.checkInMethod === 'USSD' ? ('USSD' as const) : ('WEB_PWA' as const),
+        latitude: row.checkInLatitude != null ? Number(row.checkInLatitude) : null,
+        longitude: row.checkInLongitude != null ? Number(row.checkInLongitude) : null,
+        isAnomaly: row.complianceInfraction,
+        anomalyReason: row.complianceInfraction ? row.notes : null,
+      };
+      if (row.checkInTime) {
+        fromDaily.push({
+          id: `${row.id}-in`,
+          ...base,
+          timestamp: row.checkInTime.toISOString(),
+          type: 'CLOCK_IN',
+        });
+      }
+      if (row.checkOutTime) {
+        fromDaily.push({
+          id: `${row.id}-out`,
+          ...base,
+          timestamp: row.checkOutTime.toISOString(),
+          type: 'CLOCK_OUT',
+          latitude: row.checkOutLatitude != null ? Number(row.checkOutLatitude) : base.latitude,
+          longitude: row.checkOutLongitude != null ? Number(row.checkOutLongitude) : base.longitude,
+        });
+      }
+    }
+
+    const seen = new Set(fromLogs.map((l) => `${l.employeeName}-${l.type}-${l.timestamp.slice(0, 16)}`));
+    const merged = [
+      ...fromLogs,
+      ...fromDaily.filter((d) => !seen.has(`${d.employeeName}-${d.type}-${d.timestamp.slice(0, 16)}`)),
+    ];
+
+    merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return merged.slice(0, 200);
   }
 
   /**
@@ -657,6 +710,23 @@ export class AttendanceService {
 
     const employee = await this.resolveEmployee(userId);
 
+    let isAnomaly = false;
+    let anomalyReason: string | null = null;
+    const branch = employee.department?.branch;
+    if (branch?.latitude != null && branch?.longitude != null && lat && lng) {
+      const distance = this.calculateHaversineDistance(
+        Number(lat),
+        Number(lng),
+        Number(branch.latitude),
+        Number(branch.longitude),
+      );
+      const limit = branch.geofenceRadiusMeters ?? 500;
+      if (distance > limit) {
+        isAnomaly = true;
+        anomalyReason = `Geofence breach: ${Math.round(distance)}m from ${branch.name} (limit ${limit}m)`;
+      }
+    }
+
     // Check for duplicate AttendanceLog (same employee, same day, same type)
     const startOfDay = new Date(clientDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -693,6 +763,8 @@ export class AttendanceService {
         timestamp: now,
         syncedAt: now,
         source: AttendanceSource.WEB_PWA,
+        isAnomaly,
+        anomalyReason,
       },
     });
 

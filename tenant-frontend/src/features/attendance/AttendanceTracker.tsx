@@ -33,12 +33,31 @@ export interface AttendanceTrackerProps {
   logs: AttendanceLog[];
   branches: Branch[];
   onAddBranch: (branch: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
+  onRefresh?: () => Promise<void>;
+}
+
+function formatLogTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function sourceLabel(source: AttendanceLog["source"]): string {
+  if (source === "USSD") return "USSD Mobile";
+  if (source === "MOBILE_APP") return "Mobile App";
+  return "Web PWA";
 }
 
 export default function AttendanceTracker({
   logs,
   branches,
   onAddBranch,
+  onRefresh,
 }: AttendanceTrackerProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -51,6 +70,7 @@ export default function AttendanceTracker({
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [radius, setRadius] = useState("100");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Selected anomaly log for the Map Visualizer widget
   const [selectedAnomalyLog, setSelectedAnomalyLog] = useState<AttendanceLog | null>(
@@ -109,6 +129,19 @@ export default function AttendanceTracker({
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+      toast.success("Refreshed", "Attendance data updated from the server.");
+    } catch {
+      toast.error("Refresh failed", "Could not reload attendance data.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleBranchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +204,18 @@ export default function AttendanceTracker({
           </p>
         </div>
 
-        <button
+        <div className="flex flex-wrap gap-2">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="px-4 py-3 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 rounded-2xl font-bold text-xs transition-all active:scale-[0.97] cursor-pointer disabled:opacity-50"
+            >
+              {isRefreshing ? "Refreshing…" : "Refresh logs"}
+            </button>
+          )}
+          <button
           onClick={() => {
             setName("");
             setLocation("");
@@ -185,7 +229,38 @@ export default function AttendanceTracker({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
           </svg>
           Add Geofenced Branch
-        </button>
+          </button>
+        </div>
+      </div>
+
+      {/* Saved branches */}
+      <div className="bg-white dark:bg-[#0c1424] p-5 rounded-3xl border border-slate-100 dark:border-zinc-800/80 shadow-xl">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-50 font-outfit">
+            Registered Branches ({branches.length})
+          </h3>
+          <span className="text-[9px] text-slate-400 font-mono">Geofence nodes for mobile check-in</span>
+        </div>
+        {branches.length === 0 ? (
+          <p className="text-xs text-slate-400 italic py-2">
+            No branches yet. Add one above — employees clock in against the nearest branch geofence.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {branches.map((branch) => (
+              <div
+                key={branch.id}
+                className="p-3 rounded-2xl border border-slate-100 dark:border-zinc-800/80 bg-slate-50/50 dark:bg-zinc-950/30 text-xs"
+              >
+                <div className="font-bold text-slate-800 dark:text-zinc-100">{branch.name}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{branch.location}</div>
+                <div className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 mt-1">
+                  {branch.latitude.toFixed(4)}, {branch.longitude.toFixed(4)} · {branch.geofenceRadiusMeters}m
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Dynamic Geofence node onboarding Form */}
@@ -375,7 +450,7 @@ export default function AttendanceTracker({
                 {selectedAnomalyLog.isAnomaly && (
                   <div className="text-red-500 dark:text-red-400">Infraction: {selectedAnomalyLog.anomalyReason || "Geofence Violation."}</div>
                 )}
-                <div>Timestamp: <span className="font-mono text-slate-700 dark:text-zinc-300">{selectedAnomalyLog.timestamp}</span></div>
+                <div>Timestamp: <span className="font-mono text-slate-700 dark:text-zinc-300">{formatLogTimestamp(selectedAnomalyLog.timestamp)}</span></div>
               </div>
             </div>
           ) : (
@@ -447,10 +522,12 @@ export default function AttendanceTracker({
                         <td className="py-4 px-5 text-right"><Skeleton className="h-7 w-12 rounded-lg ml-auto" /></td>
                       </tr>
                     ))
-                  ) : totalPages > 0 && paginatedLogs.length === 0 ? (
+                  ) : filteredLogs.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-slate-400 font-semibold italic">
-                        No active attendance log files found.
+                        {logs.length === 0
+                          ? "No clock-in/out events yet. Employees use the mobile app (phone + PIN) to check in."
+                          : "No logs match your search or filter."}
                       </td>
                     </tr>
                   ) : (
@@ -460,15 +537,27 @@ export default function AttendanceTracker({
                         className={`hover:bg-slate-50/40 dark:hover:bg-zinc-900/5 transition-all text-slate-700 dark:text-zinc-200 cursor-pointer ${selectedAnomalyLog?.id === log.id ? "bg-emerald-500/5 dark:bg-emerald-500/5" : ""}`}
                         onClick={() => setSelectedAnomalyLog(log)}
                       >
-                        <td className="py-4 px-5 font-mono text-[10px] text-slate-500 dark:text-zinc-400">{log.timestamp}</td>
+                        <td className="py-4 px-5 font-mono text-[10px] text-slate-500 dark:text-zinc-400">{formatLogTimestamp(log.timestamp)}</td>
                         <td className="py-4 px-5">
                           <div className="font-semibold text-slate-900 dark:text-zinc-100">{log.employeeName}</div>
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">{log.phoneNumber}</div>
                         </td>
                         <td className="py-4 px-5 font-bold text-[10px]">
-                          <span className={`inline-flex items-center gap-1 ${log.source === "USSD" ? "text-purple-600 dark:text-purple-400" : "text-sky-600 dark:text-sky-400"}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${log.source === "USSD" ? "bg-purple-500 animate-pulse" : "bg-sky-500"}`} />
-                            {log.source === "USSD" ? "USSD Mobile" : "Web PWA"}
+                          <span className={`inline-flex items-center gap-1 ${
+                            log.source === "USSD"
+                              ? "text-purple-600 dark:text-purple-400"
+                              : log.source === "MOBILE_APP"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-sky-600 dark:text-sky-400"
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              log.source === "USSD"
+                                ? "bg-purple-500 animate-pulse"
+                                : log.source === "MOBILE_APP"
+                                ? "bg-emerald-500"
+                                : "bg-sky-500"
+                            }`} />
+                            {sourceLabel(log.source)}
                           </span>
                         </td>
                         <td className="py-4 px-5">
