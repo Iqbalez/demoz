@@ -1,20 +1,42 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { ToastProvider, toast } from "../../components/ui/toast";
-import { apiRequest } from "../../lib/api";
+import { ApiError, apiRequest } from "../../lib/api";
+import { env } from "../../lib/env";
+import { getPostLoginPath } from "../../lib/auth-redirect";
+import type { UserRole } from "../../context/AuthContext";
 
 function BiometricLoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [pinCode, setPinCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Login mode: 'owner' (email+password) or 'employee' (phone+pin)
+  const [workspaceDenied, setWorkspaceDenied] = useState(false);
+
   const [loginMode, setLoginMode] = useState<"owner" | "employee">("owner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const googleClientId = env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+  const finishLogin = (role: UserRole) => {
+    const next = searchParams.get("next");
+    router.push(getPostLoginPath(role, next));
+  };
+
+  const handleAuthError = (err: unknown) => {
+    if (err instanceof ApiError && err.errorCode === "ERR_UNAUTHORIZED_WORKSPACE") {
+      setWorkspaceDenied(true);
+      toast.error("Access denied", err.message);
+      return;
+    }
+    const message = err instanceof Error ? err.message : "Could not reach the Demoz backend.";
+    toast.error("Connection error", message);
+  };
 
   // Auto-load subscription workspace parameters from checkout token
   useEffect(() => {
@@ -47,19 +69,44 @@ function BiometricLoginContent() {
     }
 
     setIsLoading(true);
+    setWorkspaceDenied(false);
     try {
-      const data = await apiRequest<any>("/api/v1/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
+      const data = await apiRequest<{ accessToken: string; user: { role: UserRole } }>(
+        "/api/v1/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        },
+      );
       if (data?.accessToken) {
-        toast.success("Security Cleared", "Welcome back to Demoz Workforce Cloud.");
-        router.push("/dashboard");
+        toast.success("Welcome back", "You are signed in.");
+        finishLogin(data.user.role);
       } else {
-        toast.error("Login Failed", data.message || "Invalid credentials.");
+        toast.error("Login failed", "Invalid credentials.");
       }
-    } catch (err: any) {
-      toast.error("Connection Error", err.message || "Could not reach the Demoz backend.");
+    } catch (err: unknown) {
+      handleAuthError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (response: CredentialResponse) => {
+    if (!response.credential) return;
+    setIsLoading(true);
+    setWorkspaceDenied(false);
+    try {
+      const data = await apiRequest<{ accessToken: string; user: { role: UserRole } }>(
+        "/api/v1/auth/google",
+        {
+          method: "POST",
+          body: JSON.stringify({ credential: response.credential }),
+        },
+      );
+      toast.success("Welcome back", "Signed in with Google.");
+      finishLogin(data.user.role);
+    } catch (err: unknown) {
+      handleAuthError(err);
     } finally {
       setIsLoading(false);
     }
@@ -161,6 +208,15 @@ function BiometricLoginContent() {
             </button>
           </div>
 
+          {workspaceDenied && loginMode === "owner" && (
+            <div
+              className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-left text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200"
+              role="alert"
+            >
+              Access Denied. Your workspace is not registered. Contact your HR administrator.
+            </div>
+          )}
+
           {/* OWNER / HR Login Form */}
           {loginMode === "owner" && (
             <form onSubmit={handleOwnerLogin} className="space-y-4 animate-fade-in">
@@ -196,6 +252,27 @@ function BiometricLoginContent() {
               >
                 {isLoading ? "Validating credentials..." : "Access Corporate Console →"}
               </button>
+
+              {googleClientId && (
+                <div className="pt-2">
+                  <div className="relative py-2 text-center text-[9px] uppercase tracking-widest text-slate-400">
+                    <span className="bg-white/80 dark:bg-[#0c1424]/60 px-2 relative z-10">or</span>
+                    <span className="absolute left-0 right-0 top-1/2 border-t border-slate-200 dark:border-zinc-800" />
+                  </div>
+                  <div className="flex justify-center">
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() =>
+                        toast.error("Google sign-in failed", "Try email and password instead.")
+                      }
+                      theme="filled_black"
+                      size="large"
+                      shape="pill"
+                      text="continue_with"
+                    />
+                  </div>
+                </div>
+              )}
             </form>
           )}
 
@@ -299,10 +376,25 @@ function BiometricLoginContent() {
   );
 }
 
+function LoginPageWrapper() {
+  const clientId = env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const content = (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-[#070b13]" />}>
+      <BiometricLoginContent />
+    </Suspense>
+  );
+
+  return clientId ? (
+    <GoogleOAuthProvider clientId={clientId}>{content}</GoogleOAuthProvider>
+  ) : (
+    content
+  );
+}
+
 export default function BiometricLoginPage() {
   return (
     <ToastProvider>
-      <BiometricLoginContent />
+      <LoginPageWrapper />
     </ToastProvider>
   );
 }

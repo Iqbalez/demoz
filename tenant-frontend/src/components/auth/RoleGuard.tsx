@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 
 interface RoleGuardProps {
-  allowedRoles: string[]; // e.g. ['OWNER']
+  allowedRoles: string[]; // e.g. ['OWNER', 'HR']
   children: ReactNode;
 }
 
@@ -19,15 +19,12 @@ export default function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
         return;
       }
       // Role mismatch → redirect to appropriate dashboard
+      if (user.role === "SUPER_ADMIN") {
+        router.replace("/admin-portal");
+        return;
+      }
       if (!allowedRoles.includes(user.role)) {
-        // Determine fallback based on role
-        const fallback =
-          user.role === 'HR'
-            ? '/dashboard/hr'
-            : user.role === 'EMPLOYEE'
-            ? '/dashboard/employee'
-            : '/login';
-        router.replace(fallback);
+        router.replace("/dashboard");
       }
     }
   }, [user, loading, allowedRoles, router]);

@@ -18,9 +18,10 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  const frontendOrigin = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true, // Required so HttpOnly cookies are sent with cross-origin requests
+    origin: frontendOrigin,
+    credentials: true,
   });
   app.use(cookieParser()); // Required to parse JWT from HttpOnly cookie
   app.use(express.urlencoded({ limit: '10mb', extended: true }));

@@ -14,6 +14,7 @@ export function validateEnv() {
     'AFROMESSAGE_API_KEY',
     'AFROMESSAGE_SENDER_NAME',
     'SENTRY_DSN',
+    'GOOGLE_CLIENT_ID',
     // Backwards-compat/dev fallback (HS256). Not used when RSA keys exist.
     'JWT_SECRET',
   ];

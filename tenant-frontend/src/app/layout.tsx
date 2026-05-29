@@ -10,12 +10,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Demoz — Intelligent HR & Payroll for Ethiopian Enterprises",
+  title: "Demoz | HR & Payroll for Ethiopian Teams",
   description:
-    "Demoz is Ethiopia's modern B2B payroll, attendance, and HR management platform. Automated tax compliance, geofenced attendance, and Chapa bulk payouts.",
+    "Run ERCA-ready payroll, attendance, and Chapa salary disbursements in one place. Built for Ethiopian companies that are done with spreadsheet month end.",
   keywords: ["HR software Ethiopia", "payroll platform", "ERCA compliance", "POESSA pension", "workforce management"],
   openGraph: {
-    title: "Demoz — HR & Payroll Platform",
+    title: "Demoz | HR & Payroll Platform",
     description: "Automated, compliant payroll for Ethiopian enterprises.",
     type: "website",
   },

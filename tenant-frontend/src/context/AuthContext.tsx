@@ -1,59 +1,65 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+"use client";
 
-interface UserPayload {
+import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { apiRequest } from "@/lib/api";
+
+export type UserRole = "SUPER_ADMIN" | "OWNER" | "HR" | "EMPLOYEE";
+export type TenantStatus = "ACTIVE" | "PAST_DUE" | "SUSPENDED";
+
+export interface UserPayload {
   id: string;
-  tenantId: string;
-  role: 'OWNER' | 'HR' | 'EMPLOYEE';
+  tenantId: string | null;
+  role: UserRole;
   email: string;
+  subscription_status: TenantStatus | null;
+  companyName: string | null;
 }
 
 interface AuthContextProps {
   user: UserPayload | null;
   loading: boolean;
-  logout: () => void;
+  refreshUser: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   loading: true,
-  logout: () => {},
+  refreshUser: async () => {},
+  logout: async () => {},
 });
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/me', { credentials: 'include' });
-      if (res.ok) {
-        const data = (await res.json()) as UserPayload;
-        setUser(data);
-      } else {
-        setUser(null);
-      }
-    } catch (e) {
-      console.error('Auth fetch error', e);
+      const data = await apiRequest<UserPayload>("/api/v1/auth/me");
+      setUser(data);
+    } catch {
       setUser(null);
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    setUser(null);
-  };
-
-  useEffect(() => {
-    fetchUser();
   }, []);
 
+  const logout = useCallback(async () => {
+    try {
+      await apiRequest("/api/v1/auth/logout", { method: "POST" });
+    } catch {
+      // clear local state even if network fails
+    }
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    refreshUser().finally(() => setLoading(false));
+  }, [refreshUser]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading, refreshUser, logout }}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
 export const useAuth = () => useContext(AuthContext);

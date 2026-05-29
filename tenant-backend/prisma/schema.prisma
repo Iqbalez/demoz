@@ -9,6 +9,7 @@ generator client {
 
 /// System-wide authorization roles for platform users
 enum UserRole {
+  SUPER_ADMIN
   OWNER
   HR
   EMPLOYEE
@@ -67,9 +68,12 @@ model Tenant {
 /// Represents individual user accounts belonging to subscriber companies
 model User {
   id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @db.Uuid
+  /// Null only for platform SUPER_ADMIN accounts
+  tenantId     String?  @db.Uuid
   email        String   @db.VarChar(255)
-  passwordHash String   @db.VarChar(255)
+  /// Null for Google-only accounts until first password set
+  passwordHash String?  @db.VarChar(255)
+  googleId     String?  @unique @db.VarChar(255)
   phoneNumber  String   @unique @db.VarChar(20) // Globally unique for USSD credentials lookup
   role             UserRole
   /// @encrypted
@@ -79,7 +83,7 @@ model User {
   updatedAt    DateTime @updatedAt @db.Timestamptz(6)
 
   // Relations
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant       Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employee     Employee?
   auditLogs    AuditLog[]
   approvedLeaves LeaveRequest[]

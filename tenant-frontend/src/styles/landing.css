@@ -1,0 +1,298 @@
+/* Demoz marketing — scoped design system (landing only) */
+
+.marketing-root {
+  --m-bg: #060708;
+  --m-bg-elevated: #0e1014;
+  --m-surface: #14171f;
+  --m-surface-hover: #1c202c;
+  --m-gold: #d9b06a;
+  --m-gold-bright: #f0cc7a;
+  --m-terracotta: #c96b4a;
+  --m-teal: #3d9e8f;
+  --m-cream: #f3efe6;
+  --m-muted: #8e8983;
+  --m-faint: #5c5854;
+  --m-border: rgba(243, 239, 230, 0.09);
+  --m-border-strong: rgba(243, 239, 230, 0.16);
+  --m-glow: rgba(217, 176, 106, 0.35);
+  --font-display: var(--font-instrument), "Georgia", serif;
+  --font-ui: var(--font-outfit), system-ui, sans-serif;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  background: var(--m-bg);
+  color: var(--m-cream);
+  font-family: var(--font-ui);
+}
+
+.marketing-root::selection {
+  background: rgba(217, 176, 106, 0.35);
+  color: var(--m-cream);
+}
+
+/* Ambient mesh */
+.marketing-mesh {
+  background:
+    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(201, 107, 74, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 0%, rgba(217, 176, 106, 0.18), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(61, 158, 143, 0.12), transparent 45%),
+    var(--m-bg);
+}
+
+/* Typography */
+.m-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.m-label {
+  font-family: var(--font-ui);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--m-gold);
+}
+
+.m-body {
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--m-muted);
+}
+
+/* Buttons */
+.m-btn-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--m-bg);
+  background: linear-gradient(135deg, var(--m-gold-bright) 0%, var(--m-gold) 50%, var(--m-terracotta) 100%);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.35s var(--ease-out-expo), box-shadow 0.35s var(--ease-out-expo);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset, 0 12px 40px -8px var(--m-glow);
+}
+
+.m-btn-primary:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset, 0 20px 50px -10px var(--m-glow);
+}
+
+.m-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--m-cream);
+  background: transparent;
+  border: 1px solid var(--m-border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.3s, background 0.3s, transform 0.35s var(--ease-out-expo);
+}
+
+.m-btn-ghost:hover {
+  border-color: rgba(217, 176, 106, 0.45);
+  background: rgba(217, 176, 106, 0.06);
+  transform: translateY(-1px);
+}
+
+/* Cards */
+.m-card {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid var(--m-border);
+  border-radius: 1.25rem;
+  transition: border-color 0.3s var(--ease-out-expo);
+}
+
+.m-card:hover {
+  border-color: var(--m-border-strong);
+}
+
+.m-card-lift {
+  transition: border-color 0.3s var(--ease-out-expo), transform 0.3s var(--ease-out-expo);
+}
+
+@media (hover: hover) {
+  .m-card-lift:hover {
+    transform: translateY(-4px);
+  }
+}
+
+/* Hero entrance (CSS only, no JS) */
+@keyframes m-hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.m-hero-in {
+  animation: m-hero-in 0.55s var(--ease-out-expo) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-hero-in {
+    animation: none;
+  }
+}
+
+/* Progress bar in hero mock */
+@keyframes m-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 94%;
+  }
+}
+
+.m-progress-bar {
+  width: 94%;
+  animation: m-progress 1s var(--ease-out-expo) 0.3s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-progress-bar {
+    animation: none;
+  }
+}
+
+/* Scroll reveal */
+.m-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.5s var(--ease-out-expo),
+    transform 0.5s var(--ease-out-expo);
+}
+
+.m-reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Spotlight bento */
+.m-spotlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.m-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.45s;
+  background: radial-gradient(
+    600px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(217, 176, 106, 0.12),
+    transparent 40%
+  );
+  pointer-events: none;
+}
+
+.m-spotlight:hover::before {
+  opacity: 1;
+}
+
+/* Marquee */
+@keyframes m-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.m-marquee-track {
+  animation: m-marquee 40s linear infinite;
+}
+
+.m-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Grid lines */
+.m-grid-bg {
+  background-image:
+    linear-gradient(var(--m-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--m-border) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 20%, transparent 75%);
+}
+
+/* Shimmer line */
+@keyframes m-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.m-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--m-cream) 0%,
+    var(--m-gold-bright) 45%,
+    var(--m-cream) 90%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: m-shimmer 6s linear infinite;
+}
+
+/* Float */
+@keyframes m-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.m-float {
+  animation: m-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m-float {
+    animation: none;
+  }
+
+  .m-marquee-track {
+    animation: none;
+  }
+}

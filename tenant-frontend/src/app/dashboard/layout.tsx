@@ -5,19 +5,44 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ToastProvider } from "../../components/ui/toast";
 import { DashboardProvider, useDashboard } from "../../context/DashboardContext";
+import { AuthProvider, useAuth } from "../../context/AuthContext";
+import { TenantBillingGate } from "../../components/auth/TenantBillingGate";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, loading: authLoading, logout } = useAuth();
   const { backendStatus, isThemeDark, setIsThemeDark, stats } = useDashboard();
 
   useEffect(() => {
     if (!isThemeDark) {
-      setIsThemeDark(true); // Force dark mode for the techno-futurist vibe
+      setIsThemeDark(true);
     }
   }, [isThemeDark, setIsThemeDark]);
 
-  const handleLogout = () => router.push("/");
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    if (user.role === "SUPER_ADMIN") {
+      router.replace("/admin-portal");
+    }
+  }, [user, authLoading, router, pathname]);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
+  if (authLoading || !user || user.role === "SUPER_ADMIN") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-base)] text-sm text-[var(--text-muted)]">
+        Loading workspace…
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] transition-colors">
@@ -88,9 +113,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
-      <DashboardProvider>
-        <DashboardLayoutContent>{children}</DashboardLayoutContent>
-      </DashboardProvider>
+      <AuthProvider>
+        <DashboardProvider>
+          <DashboardLayoutContent>{children}</DashboardLayoutContent>
+        </DashboardProvider>
+      </AuthProvider>
     </ToastProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { TenantStatus } from '@prisma/client';
+import { TenantStatus, UserRole } from '@prisma/client';
+import { withoutTenantIsolation } from '../tenant-context';
 
 @Injectable()
 export class TenantLifecycleGuard implements CanActivate {
@@ -26,18 +27,28 @@ export class TenantLifecycleGuard implements CanActivate {
 
     // 2. Standard Web Requests
     const user = req.user;
-    if (!user || !user.tenantId) {
-      return true; // Pass through if there's no JWT (handled by Public decorators if applicable)
+    if (!user) {
+      return true;
+    }
+
+    if (user.role === UserRole.SUPER_ADMIN) {
+      return true;
+    }
+
+    if (!user.tenantId) {
+      return true;
     }
 
     const tenantId = user.tenantId;
     let status = this.getCachedStatus(tenantId);
 
     if (!status) {
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { status: true },
-      });
+      const tenant = await withoutTenantIsolation(() =>
+        this.prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { status: true },
+        }),
+      );
 
       if (!tenant) {
         throw new ForbiddenException('Tenant context invalid or not found.');

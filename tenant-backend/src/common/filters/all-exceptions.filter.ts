@@ -24,13 +24,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'An unexpected system error occurred.';
+    let errorCode: string | undefined;
 
     // 1. Intercept NestJS HttpExceptions (validation errors, route guards, manual checks)
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const resExpr = exception.getResponse();
       if (typeof resExpr === 'object' && resExpr !== null) {
-        const rawMsg = (resExpr as any).message;
+        const body = resExpr as { message?: string | string[]; errorCode?: string };
+        if (body.errorCode) errorCode = body.errorCode;
+        const rawMsg = body.message;
         message = Array.isArray(rawMsg) ? rawMsg.join(', ') : rawMsg || exception.message;
       } else {
         message = exception.message;
@@ -79,6 +82,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       success: false,
       statusCode: status,
       message,
+      ...(errorCode ? { errorCode } : {}),
       timestamp: new Date().toISOString(),
     });
   }

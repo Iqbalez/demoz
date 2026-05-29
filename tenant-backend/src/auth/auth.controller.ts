@@ -1,60 +1,41 @@
-import { Controller, Post, Body, Req, Res, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, Res, UseGuards, UsePipes, ValidationPipe, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { RateLimit } from '../common/guards/rate-limit.decorator';
 import { RateLimitGuard } from '../common/guards/rate-limit.guard';
-
-/** Shared cookie options for JWT tokens */
-const ACCESS_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  path: '/',
-  maxAge: 15 * 60 * 1000, // 15 minutes
-};
-
-const REFRESH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  path: '/',
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-};
+import { GoogleLoginDto } from './dto/google-login.dto';
+import {
+  ACCESS_COOKIE_MAX_AGE,
+  getAuthCookieOptions,
+  REFRESH_COOKIE_MAX_AGE,
+} from './cookie-options';
 
 @Controller('api/v1/auth')
 @UseGuards(RateLimitGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /**
-   * Endpoint for Owner registration
-   */
+  private setSessionCookies(res: Response, accessToken: string, refreshToken: string) {
+    res.cookie('access_token', accessToken, getAuthCookieOptions(ACCESS_COOKIE_MAX_AGE));
+    res.cookie('refresh_token', refreshToken, getAuthCookieOptions(REFRESH_COOKIE_MAX_AGE));
+  }
+
+  /** Invite-only: public registration is disabled */
   @Public()
   @RateLimit(5, 60000)
   @Post('register')
-  async register(
-    @Body('companyName') companyName: string,
-    @Body('ownerEmail') ownerEmail: string,
-    @Body('ownerPhone') ownerPhone: string,
-    @Body('password') passwordHash: string,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    if (!companyName || !ownerEmail || !ownerPhone || !passwordHash) {
-      throw new BadRequestException('All registration fields are required.');
+  async register() {
+    return this.authService.register();
+  }
+
+  @Get('me')
+  async me(@Req() req: { user?: { userId: string } }) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new BadRequestException('Invalid user session context.');
     }
-    const result = await this.authService.register({
-      companyName,
-      ownerEmail,
-      ownerPhone,
-      password: passwordHash,
-    });
-
-    // Set HttpOnly cookie for web dashboard
-    res.cookie('access_token', result.accessToken, ACCESS_COOKIE_OPTIONS);
-    res.cookie('refresh_token', result.refreshToken, REFRESH_COOKIE_OPTIONS);
-
-    return result;
+    return this.authService.getMe(userId);
   }
 
   /**
@@ -72,11 +53,17 @@ export class AuthController {
       throw new BadRequestException('Email and password are required.');
     }
     const result = await this.authService.login({ email, passwordHash });
+    this.setSessionCookies(res, result.accessToken, result.refreshToken);
+    return result;
+  }
 
-    // Set HttpOnly cookie for web dashboard
-    res.cookie('access_token', result.accessToken, ACCESS_COOKIE_OPTIONS);
-    res.cookie('refresh_token', result.refreshToken, REFRESH_COOKIE_OPTIONS);
-
+  @Public()
+  @RateLimit(10, 60000)
+  @Post('google')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async googleLogin(@Body() body: GoogleLoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.loginWithGoogle(body.credential);
+    this.setSessionCookies(res, result.accessToken, result.refreshToken);
     return result;
   }
 
@@ -116,10 +103,10 @@ export class AuthController {
 
     // Update HttpOnly cookie with new access token for web dashboard
     if (res && result.accessToken) {
-      res.cookie('access_token', result.accessToken, ACCESS_COOKIE_OPTIONS);
+      res.cookie('access_token', result.accessToken, getAuthCookieOptions(ACCESS_COOKIE_MAX_AGE));
     }
     if (res && result.newRefreshToken) {
-      res.cookie('refresh_token', result.newRefreshToken, REFRESH_COOKIE_OPTIONS);
+      res.cookie('refresh_token', result.newRefreshToken, getAuthCookieOptions(REFRESH_COOKIE_MAX_AGE));
     }
 
     return result;
@@ -130,12 +117,13 @@ export class AuthController {
    */
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', { path: '/' });
+    const clearOpts = getAuthCookieOptions(0);
+    res.clearCookie('access_token', clearOpts);
     const refresh = (res as any)?.req?.cookies?.refresh_token as string | undefined;
     if (refresh) {
       await this.authService.revokeRefreshToken(refresh);
     }
-    res.clearCookie('refresh_token', { path: '/' });
+    res.clearCookie('refresh_token', clearOpts);
     return { success: true, message: 'Session terminated.' };
   }
 

@@ -26,6 +26,7 @@ import { RedisModule } from './redis/redis.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { InternalModule } from './internal/internal.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     DashboardModule,
     RealtimeModule,
     WebhooksModule,
+    InternalModule,
     AuthModule,
     HrModule,
     AttendanceModule,
