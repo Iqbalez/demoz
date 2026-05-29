@@ -70,12 +70,18 @@ export class AuthService {
 
   private async findUserByEmail(email: string) {
     const normalized = email.trim().toLowerCase();
-    return withoutTenantIsolation(() =>
-      this.prisma.user.findFirst({
-        where: { email: normalized },
+    return withoutTenantIsolation(async () => {
+      const users = await this.prisma.user.findMany({
+        where: { email: normalized, isActive: true },
         include: { tenant: true },
-      }),
-    );
+      });
+
+      if (users.length === 0) return null;
+
+      // Same email can exist on a tenant (OWNER) and as platform admin; prefer SUPER_ADMIN.
+      const superAdmin = users.find((u) => u.role === UserRole.SUPER_ADMIN);
+      return superAdmin ?? users[0];
+    });
   }
 
   private assertUserCanAuthenticate(user: {

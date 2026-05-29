@@ -34,6 +34,11 @@ function BiometricLoginContent() {
       toast.error("Access denied", err.message);
       return;
     }
+    if (err instanceof ApiError) {
+      const title = err.status === 401 ? "Login failed" : "Request failed";
+      toast.error(title, err.message);
+      return;
+    }
     const message = err instanceof Error ? err.message : "Could not reach the Demoz backend.";
     toast.error("Connection error", message);
   };

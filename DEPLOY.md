@@ -27,12 +27,16 @@ Render (`tenant-backend` root) and Vercel will redeploy from `main`.
 
 Your Neon DB already has tables from an earlier deploy. Do **not** run `migrate reset` on production.
 
-**On your PC** (PowerShell), use the **pooler** connection string from Neon dashboard:
+**On your PC** (PowerShell), use the **exact** connection string copied from Neon (do not type the password by hand).
+
+Important: `tenant-backend/.env` has a **local** `DATABASE_URL` (localhost). Prisma loads `.env` on every command. Either paste the Neon URL into `.env` temporarily, or set `$env:DATABASE_URL` in the **same** PowerShell window **before** each Prisma command (see below).
 
 ```powershell
 cd tenant-backend
 
-$env:DATABASE_URL="postgresql://neondb_owner:YOUR_PASSWORD@ep-floral-firefly-aqlgxb95-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require"
+# Paste the full string from Neon → Connect → Pooled connection → Copy
+# Use SINGLE quotes so PowerShell does not break special characters in the password
+$env:DATABASE_URL='postgresql://neondb_owner:PASTE_EXACT_PASSWORD_FROM_NEON@ep-floral-firefly-aqlgxb95-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require'
 
 # Mark baseline as already applied (DB already has schema)
 npx prisma migrate resolve --schema=./prisma/schema.prisma --applied 00000000000000_baseline
