@@ -6,13 +6,16 @@ import { useDashboard } from "../../../context/DashboardContext";
 import { Skeleton } from "../../../components/ui/skeleton";
 
 function AttendancePageContent() {
-  const { logs, branches, handleAddBranch, refreshTenantData } = useDashboard();
+  const { logs, branches, handleAddBranch, handleUpdateBranch, handleDeleteBranch, refreshTenantData } =
+    useDashboard();
 
   return (
     <AttendanceTracker
       logs={logs}
       branches={branches}
       onAddBranch={handleAddBranch}
+      onUpdateBranch={handleUpdateBranch}
+      onDeleteBranch={handleDeleteBranch}
       onRefresh={refreshTenantData}
     />
   );

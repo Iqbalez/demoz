@@ -34,6 +34,8 @@ interface DashboardContextProps {
   handleAddEmployee: (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">) => Promise<{ success: boolean; message: string }>;
   handleUpdateEmployee: (id: string, updates: Partial<Employee>) => Promise<{ success: boolean; message: string }>;
   handleAddBranch: (newBranch: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
+  handleUpdateBranch: (id: string, updates: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
+  handleDeleteBranch: (id: string) => Promise<{ success: boolean; message: string }>;
   refreshTenantData: () => Promise<void>;
   handleSimulateLog: (newLog: any) => void;
   handleUpgradePlan: (plan: string, maxEmp: number) => void;
@@ -284,6 +286,51 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleUpdateBranch = async (
+    id: string,
+    updates: Omit<Branch, "id">,
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const updated = await apiRequest<Branch>(`/branches/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(updates),
+      });
+      setBranches((prev) => prev.map((b) => (b.id === id ? updated : b)));
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setAuditLogs((prev) => [{
+        id: `act-${Date.now()}`,
+        timestamp: time,
+        user: "HR Operator",
+        action: `updated branch ${updated.name}`,
+        type: "warning" as const,
+      }, ...prev]);
+      return { success: true, message: "Branch updated." };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not update branch.";
+      return { success: false, message: msg };
+    }
+  };
+
+  const handleDeleteBranch = async (id: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const removed = branches.find((b) => b.id === id);
+      await apiRequest(`/branches/${id}`, { method: "DELETE" });
+      setBranches((prev) => prev.filter((b) => b.id !== id));
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setAuditLogs((prev) => [{
+        id: `act-${Date.now()}`,
+        timestamp: time,
+        user: "HR Operator",
+        action: `removed branch ${removed?.name ?? id}`,
+        type: "warning" as const,
+      }, ...prev]);
+      return { success: true, message: "Branch removed." };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Could not remove branch.";
+      return { success: false, message: msg };
+    }
+  };
+
   const handleSimulateLog = (newLog: Partial<AttendanceLog> & Pick<AttendanceLog, "employeeName" | "type" | "source">): void => {
     const logId = `log-${Date.now()}`;
     const added: AttendanceLog = {
@@ -343,6 +390,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       handleAddEmployee,
       handleUpdateEmployee,
       handleAddBranch,
+      handleUpdateBranch,
+      handleDeleteBranch,
       refreshTenantData,
       handleSimulateLog,
       handleUpgradePlan,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UsePipes, ValidationPipe } from '@nestjs/common';
 import { WorkspaceService } from './workspace.service';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '@prisma/client';
@@ -63,5 +63,32 @@ export class WorkspaceController {
       longitude: branch.longitude != null ? Number(branch.longitude) : 38.763611,
       geofenceRadiusMeters: branch.geofenceRadiusMeters,
     };
+  }
+
+  @Patch('branches/:id')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateBranch(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      location?: string;
+      latitude?: number;
+      longitude?: number;
+      geofenceRadiusMeters?: number;
+    },
+  ) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.updateBranch(tenantId, id, body);
+  }
+
+  @Delete('branches/:id')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async deleteBranch(@Param('id') id: string) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.deleteBranch(tenantId, id);
   }
 }

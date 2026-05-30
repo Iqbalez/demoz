@@ -32,9 +32,9 @@
   --danger: #dc2626;
   --danger-dim: rgba(220, 38, 38, 0.08);
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #0a0a0a;
+  --text-secondary: #1e293b;
+  --text-muted: #64748b;
 
   --border: #e2e8f0;
   --border-hover: #cbd5e1;
@@ -107,4 +107,23 @@
 
 .workspace-theme .btn-primary:hover {
   background: var(--brand-primary-hover);
+}
+
+.workspace-theme .kpi-stat {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.workspace-theme .kpi-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.workspace-theme .kpi-footnote {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
 }

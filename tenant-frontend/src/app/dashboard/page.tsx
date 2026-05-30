@@ -80,8 +80,6 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="space-y-6 animate-slide-up">
-      
-      {/* Welcome banner */}
       <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-[var(--brand-primary-light)] to-white p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
@@ -98,170 +96,140 @@ export default function DashboardOverviewPage() {
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* KPI 1: Seats Occupied */}
-        <div className="bento-tile flex flex-col justify-between h-36 p-5">
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employees</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bento-tile flex flex-col gap-3 p-5">
+          <span className="kpi-label">Employees</span>
+          <p className="kpi-stat text-3xl tracking-tight">
+            {stats.totalEmployees}{" "}
+            <span className="text-base font-medium text-[var(--text-muted)]">/ {stats.maxEmployees}</span>
+          </p>
+          <div className="w-full bg-[var(--bg-elevated)] h-1.5 rounded-full overflow-hidden border border-[var(--border)]">
+            <div
+              className="bg-[var(--accent)] h-full rounded-full transition-all duration-500"
+              style={{ width: `${seatPercentage}%` }}
+            />
           </div>
-          <div>
-            <div className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-              {stats.totalEmployees} <span className="text-sm text-[var(--text-muted)] font-medium">/ {stats.maxEmployees}</span>
-            </div>
-            <div className="w-full bg-[var(--bg-elevated)] h-1.5 rounded-full mt-3 overflow-hidden border border-[var(--border)]">
-              <div 
-                className="bg-[var(--accent)] h-full rounded-full transition-all duration-500" 
-                style={{ width: `${seatPercentage}%` }}
-              ></div>
-            </div>
-          </div>
-          <div className="absolute right-5 bottom-4">
-            <span className="text-[11px] font-medium text-[var(--accent)]">
-              {Math.round(seatPercentage)}% allocated
-            </span>
-          </div>
+          <p className="kpi-footnote">{Math.round(seatPercentage)}% seat allocation</p>
         </div>
 
-        {/* KPI 2: Attendance Rate */}
-        <div className="bento-tile flex flex-col justify-between h-36 p-5">
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Attendance Rate</span>
-          </div>
-          <div>
-            <div className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-              {stats.attendanceRate}%
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
-              {logs.length > 0 ? `${logs.length} total check-ins` : "No data today"}
-            </p>
-          </div>
-          <div className="absolute right-5 bottom-4">
-            {attendanceDelta !== null ? (
-              <span className={`pill ${attendanceDelta.direction === "up" ? "pill-success" : "pill-danger"}`}>
+        <div className="bento-tile flex flex-col gap-3 p-5">
+          <div className="flex items-start justify-between gap-2">
+            <span className="kpi-label">Attendance rate</span>
+            {attendanceDelta !== null && (
+              <span className={`pill shrink-0 ${attendanceDelta.direction === "up" ? "pill-success" : "pill-danger"}`}>
                 {attendanceDelta.direction === "up" ? "↑" : "↓"} {Math.abs(attendanceDelta.diff)}%
               </span>
-            ) : (
-              <span className="text-[11px] font-medium text-[var(--text-muted)]">—</span>
             )}
           </div>
+          <p className="kpi-stat text-3xl tracking-tight">{stats.attendanceRate}%</p>
+          <p className="kpi-footnote">
+            {logs.length > 0 ? `${logs.length} total check-ins` : "No check-ins recorded yet"}
+          </p>
         </div>
 
-        {/* KPI 3: Estimated Monthly Payroll */}
-        <div className="bento-tile flex flex-col justify-between h-36 p-5">
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Monthly Payroll</span>
-          </div>
-          <div>
-            <div className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-              {stats.monthlyPayroll.toLocaleString()} <span className="text-sm text-[var(--text-muted)] font-medium">ETB</span>
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
-              Tax & Pension Compliant
-            </p>
-          </div>
-          <div className="absolute right-5 bottom-4">
-            {payrollInsight !== null ? (
-              <span className="pill pill-accent">
-                {payrollInsight.ratio}% active
-              </span>
-            ) : (
-              <span className="text-[11px] font-medium text-[var(--text-muted)]">—</span>
+        <div className="bento-tile flex flex-col gap-3 p-5">
+          <div className="flex items-start justify-between gap-2">
+            <span className="kpi-label">Monthly payroll</span>
+            {payrollInsight !== null && (
+              <span className="pill pill-accent shrink-0">{payrollInsight.ratio}% active</span>
             )}
           </div>
+          <p className="kpi-stat text-3xl tracking-tight">
+            {stats.monthlyPayroll.toLocaleString()}{" "}
+            <span className="text-base font-medium text-[var(--text-muted)]">ETB</span>
+          </p>
+          <p className="kpi-footnote">Tax &amp; pension compliant</p>
         </div>
 
-        {/* KPI 4: Active Subscription Plan */}
-        <div className="bento-tile flex flex-col justify-between h-36 p-5">
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">Current Plan</span>
-          </div>
-          <div>
-            <div className="text-2xl font-bold tracking-tight text-[var(--accent)] uppercase">
-              {stats.planTier}
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1 font-medium">
-              Active Subscription
-            </p>
-          </div>
+        <div className="bento-tile flex flex-col gap-3 p-5">
+          <span className="kpi-label">Current plan</span>
+          <p className="kpi-stat text-2xl uppercase text-[var(--brand-primary)]">{stats.planTier}</p>
+          <p className="kpi-footnote">Active subscription</p>
         </div>
       </div>
 
-      {/* Main Data Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Weekly Chart */}
-        <div className="lg:col-span-2 bento-tile flex flex-col justify-between min-h-[340px]">
+        <div className="lg:col-span-2 bento-tile flex flex-col justify-between min-h-[340px] p-5">
           <div>
-            <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Weekly Attendance Overview</h3>
+            <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
+              Weekly attendance overview
+            </h3>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
               {hasChartData
                 ? `Activity breakdown across ${logs.length} check-ins this week.`
                 : "No attendance data available yet."}
             </p>
           </div>
-          
+
           {hasChartData ? (
             <>
               <div className="my-8 flex items-end justify-between h-40 px-6 border-b border-[var(--border)] pb-2 relative">
-                {/* Horizontal grid lines */}
-                <div className="absolute w-full h-px bg-[var(--border)] top-10 left-0"></div>
-                <div className="absolute w-full h-px bg-[var(--border)] top-20 left-0"></div>
-                
+                <div className="absolute w-full h-px bg-[var(--border)] top-10 left-0" />
+                <div className="absolute w-full h-px bg-[var(--border)] top-20 left-0" />
+
                 {weeklyChartData.map((bar, idx) => (
                   <div key={idx} className="flex flex-col items-center gap-3 w-1/5 relative z-10">
                     <div className="flex items-end justify-center gap-2 w-full h-28">
-                      <div 
-                        className="w-4 bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-all duration-300 rounded-t cursor-pointer" 
+                      <div
+                        className="w-4 bg-[var(--accent)] hover:bg-[var(--accent-hover)] transition-all duration-300 rounded-t cursor-pointer"
                         style={{ height: `${bar.ussd > 0 ? Math.max((bar.ussd / chartMax) * 100, 4) : 0}%` }}
                         title={`USSD: ${bar.ussd}`}
-                      ></div>
-                      <div 
-                        className="w-4 bg-[var(--text-muted)] hover:bg-[var(--text-secondary)] transition-all duration-300 rounded-t cursor-pointer" 
-                        style={{ height: `${(bar.web + bar.mobile) > 0 ? Math.max(((bar.web + bar.mobile) / chartMax) * 100, 4) : 0}%` }}
+                      />
+                      <div
+                        className="w-4 bg-[var(--text-muted)] hover:bg-[var(--text-secondary)] transition-all duration-300 rounded-t cursor-pointer"
+                        style={{
+                          height: `${bar.web + bar.mobile > 0 ? Math.max(((bar.web + bar.mobile) / chartMax) * 100, 4) : 0}%`,
+                        }}
                         title={`Web/Mobile: ${bar.web + bar.mobile}`}
-                      ></div>
+                      />
                     </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[11px] font-medium text-[var(--text-muted)]">{bar.day}</span>
-                    </div>
+                    <span className="text-[11px] font-medium text-[var(--text-secondary)]">{bar.day}</span>
                   </div>
                 ))}
               </div>
               <div className="flex gap-6 text-[11px] justify-center font-medium">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded bg-[var(--accent)]"></span>
-                  <span className="text-[var(--text-secondary)]">USSD Check-ins</span>
+                  <span className="w-2 h-2 rounded bg-[var(--accent)]" />
+                  <span className="text-[var(--text-secondary)]">USSD check-ins</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded bg-[var(--text-muted)]"></span>
-                  <span className="text-[var(--text-secondary)]">Web/App Check-ins</span>
+                  <span className="w-2 h-2 rounded bg-[var(--text-muted)]" />
+                  <span className="text-[var(--text-secondary)]">Web/app check-ins</span>
                 </div>
               </div>
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8">
-              <p className="text-sm text-[var(--text-muted)] text-center">No data available to display chart.</p>
+              <p className="text-sm text-[var(--text-secondary)] text-center">No data available to display chart.</p>
             </div>
           )}
         </div>
 
-        {/* Live Event Stream */}
-        <div className="bento-tile flex flex-col h-[340px]">
+        <div className="bento-tile flex flex-col h-[340px] p-5">
           <div className="mb-4">
-            <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Activity Log</h3>
+            <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Activity log</h3>
             <p className="text-sm text-[var(--text-secondary)] mt-1">Recent platform events</p>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto pr-2 space-y-3">
             {auditLogs.length > 0 ? (
               auditLogs.map((log) => {
-                const isWarning = log.type === 'warning';
+                const isWarning = log.type === "warning";
                 return (
-                  <div key={log.id} className={`p-3 rounded-lg border ${isWarning ? 'border-[var(--danger-dim)] bg-[var(--danger-dim)]' : 'border-[var(--border)] bg-[var(--bg-elevated)]'} text-xs`}>
+                  <div
+                    key={log.id}
+                    className={`p-3 rounded-lg border text-xs ${
+                      isWarning
+                        ? "border-[var(--danger-dim)] bg-[var(--danger-dim)]"
+                        : "border-[var(--border)] bg-[var(--bg-elevated)]"
+                    }`}
+                  >
                     <div className="flex justify-between items-start mb-1">
-                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${isWarning ? 'text-[var(--danger)]' : 'text-[var(--accent)]'}`}>
+                      <span
+                        className={`text-[10px] font-semibold uppercase tracking-wide ${
+                          isWarning ? "text-[var(--danger)]" : "text-[var(--brand-primary)]"
+                        }`}
+                      >
                         {log.type}
                       </span>
                       <span className="text-[10px] text-[var(--text-muted)]">{log.timestamp}</span>
@@ -279,7 +247,6 @@ export default function DashboardOverviewPage() {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

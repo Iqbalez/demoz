@@ -33,6 +33,8 @@ export interface AttendanceTrackerProps {
   logs: AttendanceLog[];
   branches: Branch[];
   onAddBranch: (branch: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
+  onUpdateBranch?: (id: string, branch: Omit<Branch, "id">) => Promise<{ success: boolean; message: string }>;
+  onDeleteBranch?: (id: string) => Promise<{ success: boolean; message: string }>;
   onRefresh?: () => Promise<void>;
 }
 
@@ -57,6 +59,8 @@ export default function AttendanceTracker({
   logs,
   branches,
   onAddBranch,
+  onUpdateBranch,
+  onDeleteBranch,
   onRefresh,
 }: AttendanceTrackerProps) {
   const router = useRouter();
@@ -65,12 +69,34 @@ export default function AttendanceTracker({
   const [isPending, startTransition] = useTransition();
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [radius, setRadius] = useState("100");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const resetBranchForm = () => {
+    setName("");
+    setLocation("");
+    setLat("");
+    setLng("");
+    setRadius("100");
+    setEditingBranchId(null);
+    setShowAddForm(false);
+  };
+
+  const openEditBranch = (branch: Branch) => {
+    setEditingBranchId(branch.id);
+    setName(branch.name);
+    setLocation(branch.location);
+    setLat(String(branch.latitude));
+    setLng(String(branch.longitude));
+    setRadius(String(branch.geofenceRadiusMeters));
+    setShowAddForm(true);
+  };
 
   // Selected anomaly log for the Map Visualizer widget
   const [selectedAnomalyLog, setSelectedAnomalyLog] = useState<AttendanceLog | null>(
@@ -151,26 +177,51 @@ export default function AttendanceTracker({
         return;
       }
 
-      const result = await onAddBranch({
+      const payload = {
         name,
         location,
         latitude: parseFloat(lat),
         longitude: parseFloat(lng),
         geofenceRadiusMeters: parseInt(radius, 10),
-      });
+      };
+
+      const result = editingBranchId && onUpdateBranch
+        ? await onUpdateBranch(editingBranchId, payload)
+        : await onAddBranch(payload);
 
       if (result.success) {
-        toast.success("Geofence Synced", `Branch ${name} has been mapped successfully!`);
-        setName("");
-        setLocation("");
-        setLat("");
-        setLng("");
-        setShowAddForm(false);
+        toast.success(
+          editingBranchId ? "Branch updated" : "Geofence synced",
+          editingBranchId ? `${name} was saved.` : `Branch ${name} has been mapped successfully.`,
+        );
+        resetBranchForm();
       } else {
-        toast.error("Geofence Mapped Failed", result.message);
+        toast.error(editingBranchId ? "Update failed" : "Save failed", result.message);
       }
-    } catch (err: any) {
-      toast.error("Internal Form Error", err.message || "An exception occurred.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An exception occurred.";
+      toast.error("Form error", message);
+    }
+  };
+
+  const handleDeleteBranch = async (branch: Branch) => {
+    if (!onDeleteBranch) return;
+    if (!window.confirm(`Remove branch "${branch.name}"? This cannot be undone.`)) return;
+
+    setDeletingId(branch.id);
+    try {
+      const result = await onDeleteBranch(branch.id);
+      if (result.success) {
+        toast.success("Branch removed", `${branch.name} was deleted.`);
+        if (editingBranchId === branch.id) resetBranchForm();
+      } else {
+        toast.error("Could not remove branch", result.message);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An exception occurred.";
+      toast.error("Delete failed", message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -217,11 +268,14 @@ export default function AttendanceTracker({
           )}
           <button
           onClick={() => {
-            setName("");
-            setLocation("");
-            setLat("9.0305");
-            setLng("38.7405");
-            setShowAddForm((prev) => !prev);
+            if (showAddForm && !editingBranchId) {
+              resetBranchForm();
+            } else {
+              resetBranchForm();
+              setLat("9.0305");
+              setLng("38.7405");
+              setShowAddForm(true);
+            }
           }}
           className="px-4.5 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-2xl shadow-xl shadow-emerald-950/20 font-bold text-xs transition-all active:scale-[0.97] cursor-pointer flex items-center gap-1.5"
         >
@@ -250,13 +304,38 @@ export default function AttendanceTracker({
             {branches.map((branch) => (
               <div
                 key={branch.id}
-                className="p-3 rounded-2xl border border-slate-100 dark:border-zinc-800/80 bg-slate-50/50 dark:bg-zinc-950/30 text-xs"
+                className="p-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-subtle)] text-xs flex flex-col gap-2"
               >
-                <div className="font-bold text-slate-800 dark:text-zinc-100">{branch.name}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">{branch.location}</div>
-                <div className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 mt-1">
-                  {branch.latitude.toFixed(4)}, {branch.longitude.toFixed(4)} · {branch.geofenceRadiusMeters}m
+                <div>
+                  <div className="font-bold text-[var(--text-primary)]">{branch.name}</div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{branch.location}</div>
+                  <div className="text-[10px] font-mono text-[var(--text-muted)] mt-1">
+                    {branch.latitude.toFixed(4)}, {branch.longitude.toFixed(4)} · {branch.geofenceRadiusMeters}m
+                  </div>
                 </div>
+                {(onUpdateBranch || onDeleteBranch) && (
+                  <div className="flex gap-2 pt-1 border-t border-[var(--border)]">
+                    {onUpdateBranch && (
+                      <button
+                        type="button"
+                        onClick={() => openEditBranch(branch)}
+                        className="flex-1 py-1.5 rounded-lg border border-[var(--border)] bg-white text-[11px] font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {onDeleteBranch && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBranch(branch)}
+                        disabled={deletingId === branch.id}
+                        className="flex-1 py-1.5 rounded-lg border border-red-200 bg-red-50 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        {deletingId === branch.id ? "Removing…" : "Remove"}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -267,7 +346,9 @@ export default function AttendanceTracker({
       {showAddForm && (
         <form onSubmit={handleBranchSubmit} className="p-5 rounded-3xl bg-white dark:bg-[#0c1424] border border-slate-100 dark:border-zinc-800/80 shadow-xl space-y-4 animate-slide-up">
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-zinc-800/80 pb-3">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-zinc-50 font-outfit">Onboard New Geofence Node</h3>
+            <h3 className="text-xs font-bold text-[var(--text-primary)] font-outfit">
+              {editingBranchId ? "Edit geofence branch" : "Add geofence branch"}
+            </h3>
             <span className="text-[9px] text-slate-400 font-mono">Biometric GPS Gateway</span>
           </div>
 
@@ -338,16 +419,16 @@ export default function AttendanceTracker({
           <div className="flex gap-2 justify-end pt-2 border-t dark:border-zinc-800/80">
             <button
               type="button"
-              onClick={() => setShowAddForm(false)}
-              className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
+              onClick={resetBranchForm}
+              className="px-4 py-2 bg-[var(--bg-subtle)] text-[var(--text-secondary)] font-semibold rounded-xl text-xs cursor-pointer active:scale-95 border border-[var(--border)]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
+              className="px-4 py-2 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
             >
-              Save Registry Node
+              {editingBranchId ? "Save changes" : "Save branch"}
             </button>
           </div>
         </form>
