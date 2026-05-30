@@ -13,7 +13,7 @@ function BillingLockedContent() {
   const isSuspended = reason === "suspended" || user?.subscription_status === "SUSPENDED";
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg-base)] px-6 text-center">
+    <div className="workspace-theme flex min-h-screen flex-col items-center justify-center bg-white px-6 text-center">
       <div className="max-w-md space-y-6 rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-10">
         <p className="text-xs font-semibold uppercase tracking-widest text-amber-500">
           {isSuspended ? "Workspace suspended" : "Payment required"}

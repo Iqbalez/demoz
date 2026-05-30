@@ -2,9 +2,20 @@
 
 import React, { useMemo } from "react";
 import { useDashboard } from "../../context/DashboardContext";
+import { useAuth } from "../../context/AuthContext";
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function DashboardOverviewPage() {
+  const { user } = useAuth();
   const { stats, auditLogs, logs, employees } = useDashboard();
+  const firstName = user?.email?.split("@")[0]?.split(/[._]/)[0] ?? "there";
+  const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
   const seatPercentage = Math.min((stats.totalEmployees / stats.maxEmployees) * 100, 100);
 
   const weeklyChartData = useMemo(() => {
@@ -70,19 +81,20 @@ export default function DashboardOverviewPage() {
   return (
     <div className="space-y-6 animate-slide-up">
       
-      {/* Top Banner */}
-      <div className="bento-tile flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* Welcome banner */}
+      <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-[var(--brand-primary-light)] to-white p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
-            Overview
-          </h2>
-          <p className="text-sm text-[var(--text-secondary)] mt-1 font-medium">
-            At-a-glance metrics for {stats.companyName}
+          <h1 className="text-2xl lg:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+            {getGreeting()}, {greetingName}
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-2 max-w-lg">
+            Here&apos;s what&apos;s happening at{" "}
+            <span className="font-semibold text-[var(--text-primary)]">{stats.companyName}</span> today.
           </p>
         </div>
-        <div className="pill pill-success">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] mr-2"></span>
-          System Online
+        <div className="pill pill-success shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] mr-2" />
+          All systems online
         </div>
       </div>
 

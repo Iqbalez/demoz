@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description:
     "Run ERCA-ready payroll, attendance, and Chapa salary disbursements in one place. Built for Ethiopian companies that are done with spreadsheet month end.",
   keywords: ["HR software Ethiopia", "payroll platform", "ERCA compliance", "POESSA pension", "workforce management"],
+  icons: {
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+  },
   openGraph: {
     title: "Demoz | HR & Payroll Platform",
     description: "Automated, compliant payroll for Ethiopian enterprises.",

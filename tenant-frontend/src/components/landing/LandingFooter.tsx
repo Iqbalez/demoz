@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function LandingFooter() {
   const year = new Date().getFullYear();
@@ -7,8 +8,9 @@ export function LandingFooter() {
     <footer className="border-t border-[var(--m-border)] bg-[var(--m-bg)]/80">
       <div className="mx-auto flex max-w-[76rem] flex-col gap-10 px-6 py-14 lg:flex-row lg:items-start lg:justify-between lg:px-10">
         <div>
-          <Link href="/" className="m-display text-2xl text-[var(--m-cream)]">
-            Demoz
+          <Link href="/" className="inline-flex items-center gap-2.5">
+            <Image src="/favicon.png" alt="Demoz" width={32} height={32} className="rounded-lg" />
+            <span className="m-display text-2xl text-[var(--m-cream)]">Demoz</span>
           </Link>
           <p className="mt-3 max-w-xs text-[0.875rem] leading-relaxed text-[var(--m-muted)]">
             HR and payroll software for Ethiopian businesses. Built in Addis for teams who are done

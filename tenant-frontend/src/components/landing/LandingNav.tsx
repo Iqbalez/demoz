@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 const links = [
@@ -29,9 +30,14 @@ export function LandingNav() {
     >
       <div className="mx-auto flex h-[4.5rem] max-w-[76rem] items-center justify-between px-6 lg:px-10">
         <Link href="/" className="group flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--m-border-strong)] bg-[var(--m-surface)]">
-            <span className="m-display text-lg text-[var(--m-gold)]">D</span>
-          </span>
+          <Image
+            src="/favicon.png"
+            alt="Demoz"
+            width={36}
+            height={36}
+            className="rounded-xl"
+            priority
+          />
           <span className="m-display text-xl text-[var(--m-cream)]">Demoz</span>
         </Link>
 

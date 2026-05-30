@@ -6,6 +6,7 @@ import {
   Param,
   Body,
   Query,
+  Req,
   UsePipes,
   ValidationPipe,
   UseInterceptors,
@@ -25,15 +26,17 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { FaydaOidcService } from './fayda-oidc.service';
 
-function sanitizeEmployee(emp: any) {
+function canViewHrSensitiveFields(role?: UserRole) {
+  return role === UserRole.HR || role === UserRole.OWNER;
+}
+
+function formatEmployeeResponse(emp: any, role?: UserRole) {
   if (!emp) return emp;
   const copy = { ...emp };
   delete copy.ussdPin;
   delete copy.ussdPinHash;
   delete copy.pinHash;
   delete copy.nationalId;
-  delete copy.faydaNumber;
-  delete copy.baseSalary;
   delete copy.salary;
   delete copy.locationCoordinates;
   delete copy.latitude;
@@ -42,6 +45,19 @@ function sanitizeEmployee(emp: any) {
   delete copy.checkInLongitude;
   delete copy.checkOutLatitude;
   delete copy.checkOutLongitude;
+
+  if (!canViewHrSensitiveFields(role)) {
+    delete copy.faydaNumber;
+    delete copy.baseSalary;
+  } else if (copy.baseSalary != null) {
+    copy.baseSalary = Number(copy.baseSalary);
+  }
+
+  if (copy.department?.name) {
+    copy.departmentName = copy.department.name;
+  }
+  delete copy.department;
+
   return copy;
 }
 
@@ -56,10 +72,10 @@ export class EmployeeController {
   @Get()
   @Roles(UserRole.EMPLOYEE, UserRole.HR, UserRole.OWNER) // Accessible by all logged in tenant members
   @UsePipes(new ValidationPipe({ transform: true }))
-  async getAllEmployees(@Query() query: GetEmployeesQueryDto) {
+  async getAllEmployees(@Query() query: GetEmployeesQueryDto, @Req() req: { user?: { role?: UserRole } }) {
     const result = await this.employeeService.findAll(query);
     if (result && Array.isArray(result.data)) {
-      result.data = result.data.map(sanitizeEmployee);
+      result.data = result.data.map((emp) => formatEmployeeResponse(emp, req.user?.role));
     }
     return result;
   }
@@ -67,13 +83,12 @@ export class EmployeeController {
   @Post()
   @Roles(UserRole.HR, UserRole.OWNER) // Only HR managers or corporate owners can onboard employees
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async createEmployee(@Body() dto: CreateEmployeeDto) {
+  async createEmployee(@Body() dto: CreateEmployeeDto, @Req() req: { user?: { role?: UserRole } }) {
     const emp = await this.employeeService.create(dto);
     const { mobileAppPin, ...rest } = emp as typeof emp & { mobileAppPin?: string };
     return {
-      ...sanitizeEmployee(rest),
+      ...formatEmployeeResponse(rest, req.user?.role),
       mobileAppPin,
-      departmentName: (rest as any).department?.name,
     };
   }
 
@@ -122,9 +137,13 @@ export class EmployeeController {
   @Patch(':id')
   @Roles(UserRole.HR, UserRole.OWNER) // Only HR managers or corporate owners can modify profiles
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async updateEmployee(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
+  async updateEmployee(
+    @Param('id') id: string,
+    @Body() dto: UpdateEmployeeDto,
+    @Req() req: { user?: { role?: UserRole } },
+  ) {
     const emp = await this.employeeService.update(id, dto);
-    return sanitizeEmployee(emp);
+    return formatEmployeeResponse(emp, req.user?.role);
   }
 
   @Post('bulk-upload')

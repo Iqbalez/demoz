@@ -9,6 +9,7 @@ import {
   faydaStatusLabel,
   getFaydaComplianceStatus,
 } from "../../lib/fayda-status";
+import { EmployeeMobilePinModal } from "../../components/employees/EmployeeMobilePinModal";
 
 export interface Employee {
   id: string;
@@ -64,6 +65,11 @@ export default function HRDirectory({
   const [salary, setSalary] = useState("15000");
   const [fayda, setFayda] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "SUSPENDED">("ACTIVE");
+  const [mobilePinCredentials, setMobilePinCredentials] = useState<{
+    employeeName: string;
+    phoneNumber: string;
+    mobileAppPin: string;
+  } | null>(null);
 
   // Local URL filter inputs
   const currentSearch = searchParams.get("search") || "";
@@ -161,10 +167,11 @@ export default function HRDirectory({
 
       if (result.success) {
         if (result.mobileAppPin) {
-          toast.success(
-            "Employee ready for mobile app",
-            `${firstName} ${lastName} — phone ${phone}, 4-digit PIN: ${result.mobileAppPin}. Use these in the employee APK login.`,
-          );
+          setMobilePinCredentials({
+            employeeName: `${firstName} ${lastName}`,
+            phoneNumber: phone,
+            mobileAppPin: result.mobileAppPin,
+          });
         } else {
           toast.success("Onboarding Completed", `${firstName} ${lastName} is now active.`);
         }
@@ -228,7 +235,7 @@ export default function HRDirectory({
         phoneNumber: phone,
         departmentName: department,
         baseSalary: parseFloat(salary),
-        ...(fayda.trim() ? { faydaNumber: fayda.trim() } : { faydaNumber: "" }),
+        ...(fayda.trim() ? { faydaNumber: fayda.trim() } : {}),
         status: status,
       });
 
@@ -260,7 +267,7 @@ export default function HRDirectory({
 
         <button
           onClick={handleOpenAddModal}
-          className="px-4.5 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl shadow-md shadow-emerald-500/10 font-bold text-xs transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center gap-2"
+          className="px-4.5 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white rounded-xl shadow-md shadow-[var(--brand-primary)]/20 font-bold text-xs transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center gap-2"
         >
           <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -784,6 +791,14 @@ export default function HRDirectory({
           </div>
         </div>
       )}
+
+      <EmployeeMobilePinModal
+        open={!!mobilePinCredentials}
+        employeeName={mobilePinCredentials?.employeeName ?? ""}
+        phoneNumber={mobilePinCredentials?.phoneNumber ?? ""}
+        mobileAppPin={mobilePinCredentials?.mobileAppPin ?? ""}
+        onClose={() => setMobilePinCredentials(null)}
+      />
     </div>
   );
 }

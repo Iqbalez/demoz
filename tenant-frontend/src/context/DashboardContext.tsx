@@ -180,16 +180,23 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setEmployees(prev => [...prev, created]);
+      const normalized: Employee = {
+        ...created,
+        departmentName: created.departmentName || newEmp.departmentName || "General",
+        baseSalary: created.baseSalary ?? newEmp.baseSalary,
+        faydaNumber: created.faydaNumber ?? newEmp.faydaNumber,
+        faydaVerified: /^\d{12}$/.test(String(created.faydaNumber ?? newEmp.faydaNumber ?? "").trim()),
+      };
+      setEmployees(prev => [...prev, normalized]);
       const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       setAuditLogs(prev => [{
         id: `act-${Date.now()}`,
         timestamp: time,
         user: "HR Operator",
-        action: `onboarded employee ${created.firstName} ${created.lastName}`,
+        action: `onboarded employee ${normalized.firstName} ${normalized.lastName}`,
         type: "success",
       }, ...prev]);
-      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
+      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (normalized.baseSalary ?? 0) }));
       const pinMsg = created.mobileAppPin
         ? ` Mobile app PIN: ${created.mobileAppPin} (share with employee; also sent by SMS if configured).`
         : "";

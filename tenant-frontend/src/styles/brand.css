@@ -1,0 +1,110 @@
+/* Demoz brand tokens — shared across workspace (dashboard) and auth */
+
+:root {
+  /* Logo / favicon blue */
+  --brand-primary: #4a7fd4;
+  --brand-primary-hover: #3a6fc4;
+  --brand-primary-light: #e8f1fc;
+  --brand-primary-muted: rgba(74, 127, 212, 0.12);
+
+  /* Landing page accents (marketing alignment) */
+  --brand-gold: #d9b06a;
+  --brand-gold-bright: #f0cc7a;
+  --brand-teal: #3d9e8f;
+  --brand-terracotta: #c96b4a;
+}
+
+/* Light workspace shell — client dashboard & sign-in */
+.workspace-theme {
+  --bg-base: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f8fafc;
+  --bg-elevated: #f1f5f9;
+
+  --accent: var(--brand-primary);
+  --accent-dim: var(--brand-primary-muted);
+  --accent-hover: var(--brand-primary-hover);
+
+  --success: #0d9488;
+  --success-dim: rgba(13, 148, 136, 0.1);
+  --warning: #d97706;
+  --warning-dim: rgba(217, 119, 6, 0.1);
+  --danger: #dc2626;
+  --danger-dim: rgba(220, 38, 38, 0.08);
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
+
+  color-scheme: light;
+}
+
+.workspace-theme .bento-tile,
+.workspace-theme .glass-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.workspace-theme .bento-tile:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.workspace-theme .glass-card {
+  background: var(--bg-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.workspace-theme ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+.workspace-theme ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.workspace-theme .text-gradient-accent {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-teal) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.workspace-theme .accent-badge {
+  background: var(--brand-primary-muted);
+  color: var(--brand-primary);
+  border-color: rgba(74, 127, 212, 0.25);
+}
+
+.workspace-theme .input-field {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.workspace-theme .input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.workspace-theme .input-field:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-primary-muted);
+}
+
+.workspace-theme .nav-item.active {
+  color: var(--brand-primary);
+  background: var(--brand-primary-muted);
+}
+
+.workspace-theme .btn-primary {
+  background: var(--brand-primary);
+}
+
+.workspace-theme .btn-primary:hover {
+  background: var(--brand-primary-hover);
+}
