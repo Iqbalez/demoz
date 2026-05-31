@@ -29,6 +29,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { InternalModule } from './internal/internal.module';
 import { RetentionModule } from './retention/retention.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { InvitationModule } from './invitation/invitation.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     HrModule,
     AttendanceModule,
     UssdModule,
+    InvitationModule,
     BullModule.forRoot({
       connection: {
         url: process.env.UPSTASH_REDIS_URL,

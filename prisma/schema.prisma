@@ -9,9 +9,19 @@ generator client {
 
 /// System-wide authorization roles for platform users
 enum UserRole {
-  OWNER
+  SUPER_ADMIN
+  ORG_ADMIN
   HR
+  FINANCE
+  MANAGER
   EMPLOYEE
+  OWNER // Legacy, to be migrated to ORG_ADMIN
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
 }
 
 enum PaymentMethod {
@@ -40,6 +50,9 @@ model Tenant {
   status                TenantStatus @default(ACTIVE)
   planTier              String       @default("FREE") @db.VarChar(50)
   maxEmployees          Int          @default(10) @db.Integer
+  tinNumber             String?      @db.VarChar(50)
+  licenseUrl            String?      @db.VarChar(255)
+  taxRegion             String?      @db.VarChar(100)
   subscriptionExpiresAt DateTime?    @db.Timestamptz(6)
   isActive              Boolean      @default(true) @db.Boolean
   createdAt             DateTime     @default(now()) @db.Timestamptz(6)
@@ -58,6 +71,8 @@ model Tenant {
   subscriptionInvoices SubscriptionInvoice[]
   leaveTypes           LeaveType[]
   leaveRequests        LeaveRequest[]
+  members              TenantMember[]
+  invitations          Invitation[]
 
   @@index([status, subscriptionExpiresAt])
   @@map("tenants") // Maps Prisma model to plural lowercase PostgreSQL table name
@@ -66,27 +81,58 @@ model Tenant {
 /// Represents individual user accounts belonging to subscriber companies
 model User {
   id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @db.Uuid
   email        String   @db.VarChar(255)
   passwordHash String   @db.VarChar(255)
   phoneNumber  String   @unique @db.VarChar(20) // Globally unique for USSD credentials lookup
-  role             UserRole
   twoFactorSecret  String?  @db.VarChar(255)
+  is2FAEnabled     Boolean  @default(false) @db.Boolean
   isActive         Boolean  @default(true) @db.Boolean
   createdAt        DateTime @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @db.Timestamptz(6)
 
   // Relations
-  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  members      TenantMember[]
   employee     Employee?
   auditLogs    AuditLog[]
   approvedLeaves LeaveRequest[]
 
   // Indexes & Constraints
-  @@unique([tenantId, email], name: "tenant_email_unique") // Strict tenant-level email uniqueness
-  @@index([tenantId]) // Index foreign key for optimal join performance
-  @@index([phoneNumber]) // Explicit index for fast USSD authentication
   @@map("users") // Maps Prisma model to plural lowercase PostgreSQL table name
+}
+
+model TenantMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tenantId  String   @db.Uuid
+  role      UserRole
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("tenant_members")
+}
+
+model Invitation {
+  id        String           @id @default(uuid()) @db.Uuid
+  tenantId  String           @db.Uuid
+  email     String           @db.VarChar(255)
+  token     String           @unique @db.VarChar(255) // Secure hash
+  role      UserRole
+  status    InvitationStatus @default(PENDING)
+  expiresAt DateTime         @db.Timestamptz(6)
+  createdAt DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime         @updatedAt @db.Timestamptz(6)
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([token])
+  @@map("invitations")
 }
 
 model Branch {
@@ -325,6 +371,9 @@ model AuditLog {
   tenantId  String   @db.Uuid
   userId    String   @db.Uuid
   action    String   @db.VarChar(255)
+  entity    String?  @db.VarChar(100)
+  entityId  String?  @db.Uuid
+  ipAddress String?  @db.VarChar(45)
   metadata  Json     @default("{}") @db.JsonB
   createdAt DateTime @default(now()) @db.Timestamptz(6)
 

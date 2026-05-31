@@ -3,11 +3,15 @@ import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { IS_PUBLIC_KEY } from './public.decorator';
-import { tenantStorage } from '../tenant-context';
+import { tenantStorage, withoutTenantIsolation } from '../tenant-context';
+import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
-  constructor(private reflector: Reflector) {
+  constructor(
+    private reflector: Reflector,
+    private prisma: PrismaService,
+  ) {
     super();
   }
 
@@ -35,22 +39,61 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user = request.user; // populated by jwt.strategy
 
     if (!user?.userId) {
       throw new UnauthorizedException('Token validation failed.');
     }
 
-    // Super Admin operates outside tenant scope
-    if (user.role === UserRole.SUPER_ADMIN) {
+    // Check if user is SUPER_ADMIN first globally
+    const dbUser = await withoutTenantIsolation(() =>
+      this.prisma.user.findUnique({
+        where: { id: user.userId },
+        include: { members: true },
+      }),
+    );
+
+    if (!dbUser || !dbUser.isActive) {
+      throw new UnauthorizedException('User account is invalid or suspended.');
+    }
+
+    // If super admin, bypass
+    if (dbUser.role === UserRole.SUPER_ADMIN) {
+      request.user.role = UserRole.SUPER_ADMIN;
       return true;
     }
 
-    if (!user.tenantId) {
-      throw new UnauthorizedException('Token validation failed: Tenant identifier missing.');
+    const requireTenant = this.reflector.getAllAndOverride<boolean>('requireTenant', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    const tenantIdHeader = request.headers['x-tenant-id'];
+
+    if (requireTenant && !tenantIdHeader) {
+      throw new UnauthorizedException('Missing X-Tenant-ID header. This endpoint requires an active workspace.');
     }
 
-    tenantStorage.enterWith(user.tenantId);
+    if (tenantIdHeader) {
+      // Validate TenantMember
+      const membership = dbUser.members.find((m: any) => m.tenantId === tenantIdHeader);
+      
+      if (!membership) {
+        throw new UnauthorizedException('Access Denied. You do not belong to the requested workspace.');
+      }
+
+      // Attach current role and tenant context to request
+      request.user.role = membership.role;
+      request.user.tenantId = membership.tenantId;
+
+      // Activate Prisma RLS Context
+      tenantStorage.enterWith(membership.tenantId);
+    } else {
+      // If no tenant header is provided and it's not required, proceed with global user context
+      request.user.role = null;
+      request.user.tenantId = null;
+    }
+    
     return true;
   }
 }

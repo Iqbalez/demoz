@@ -72,10 +72,8 @@ export class AuthService {
 
   async generateToken(
     userId: string,
-    tenantId: string | null,
-    role: UserRole,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload = { sub: userId, tenantId, role };
+    const payload = { sub: userId };
 
     const accessToken = this.jwtService.sign(
       { ...payload, typ: 'access' as TokenType },
@@ -94,56 +92,27 @@ export class AuthService {
   private async findUserByEmail(email: string) {
     const normalized = email.trim().toLowerCase();
     return withoutTenantIsolation(async () => {
-      const users = await this.prisma.user.findMany({
+      const user = await this.prisma.user.findFirst({
         where: { email: normalized, isActive: true },
-        include: { tenant: true },
+        include: { members: { include: { tenant: true } } },
       });
 
-      if (users.length === 0) return null;
-
-      // Same email can exist on a tenant (OWNER) and as platform admin; prefer SUPER_ADMIN.
-      const superAdmin = users.find((u) => u.role === UserRole.SUPER_ADMIN);
-      return superAdmin ?? users[0];
+      return user;
     });
   }
 
-  private assertUserCanAuthenticate(user: {
-    isActive: boolean;
-    role: UserRole;
-    tenant: { status: TenantStatus } | null;
-  }) {
+  private assertUserCanAuthenticate(user: any) {
     if (!user.isActive) {
       throw new UnauthorizedException(UNAUTHORIZED_WORKSPACE);
     }
 
-    if (user.role === UserRole.SUPER_ADMIN) {
-      return;
-    }
-
-    if (!user.tenant) {
-      throw new UnauthorizedException(UNAUTHORIZED_WORKSPACE);
-    }
-
-    if (user.tenant.status === TenantStatus.SUSPENDED) {
-      throw new UnauthorizedException('Your company account is currently suspended.');
+    if (user.members.length === 0) {
+      throw new UnauthorizedException('You do not belong to any active workspaces.');
     }
   }
 
   private buildSessionResponse(
-    user: {
-      id: string;
-      email: string;
-      phoneNumber: string;
-      role: UserRole;
-      twoFactorSecret: string | null;
-      tenantId: string | null;
-      tenant: {
-        status: TenantStatus;
-        name: string;
-        planTier: string | null;
-        maxEmployees: number | null;
-      } | null;
-    },
+    user: any,
     tokens: { accessToken: string; refreshToken: string },
   ) {
     return {
@@ -151,13 +120,14 @@ export class AuthService {
         id: user.id,
         email: user.email,
         phoneNumber: user.phoneNumber,
-        role: user.role,
-        tenantId: user.tenantId,
         is2FaEnabled: !!user.twoFactorSecret,
-        subscription_status: user.tenant?.status ?? null,
-        companyName: user.tenant?.name ?? null,
-        planTier: user.tenant?.planTier ?? null,
-        maxEmployees: user.tenant?.maxEmployees ?? null,
+        workspaces: user.members.map((m: any) => ({
+          tenantId: m.tenantId,
+          role: m.role,
+          status: m.tenant.status,
+          companyName: m.tenant.name,
+        })),
+        defaultTenantId: user.members[0]?.tenantId || null,
       },
       ...tokens,
     };
@@ -325,7 +295,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid security PIN.');
     }
 
-    const tokens = await this.generateToken(employee.id, employee.tenantId, UserRole.EMPLOYEE);
+    const tokens = await this.generateToken(employee.id);
 
     const normalizedPhone = normalizeEthiopianPhone(employee.phoneNumber);
     if (employee.phoneNumber !== normalizedPhone) {
@@ -381,7 +351,7 @@ export class AuthService {
         await this.redis.set(this.getRefreshBlocklistKey(decoded.jti), '1', 'EX', ttlSeconds);
       }
 
-      const tokens = await this.generateToken(decoded.sub, decoded.tenantId ?? null, decoded.role);
+      const tokens = await this.generateToken(decoded.sub);
       return {
         accessToken: tokens.accessToken,
         newRefreshToken: tokens.refreshToken,
@@ -393,11 +363,7 @@ export class AuthService {
           this.prisma.employee.findFirst({ where: { phoneNumber: { in: variants } } }),
         );
         if (employee && employee.status === 'ACTIVE') {
-          const tokens = await this.generateToken(
-            employee.id,
-            employee.tenantId,
-            UserRole.EMPLOYEE,
-          );
+          const tokens = await this.generateToken(employee.id);
           return {
             accessToken: tokens.accessToken,
             newRefreshToken: tokens.refreshToken,

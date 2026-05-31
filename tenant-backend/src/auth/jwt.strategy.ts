@@ -9,8 +9,6 @@ import { withoutTenantIsolation } from '../tenant-context';
 
 export interface JwtPayload {
   sub: string;
-  tenantId: string | null;
-  role: UserRole;
   iat?: number;
 }
 
@@ -41,32 +39,34 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     await this.authService.assertSessionValid(payload.sub, payload.iat);
 
+    // 1. Try to find an Admin/Manager User first
     const user = await withoutTenantIsolation(() =>
       this.prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { id: true, tenantId: true, role: true, isActive: true },
+        select: { id: true, isActive: true },
       }),
     );
 
     if (user?.isActive) {
       return {
         userId: user.id,
-        tenantId: user.tenantId,
-        role: user.role,
+        // tenantId and role are resolved dynamically by JwtAuthGuard via X-Tenant-ID
+        // or by explicitly assigning SUPER_ADMIN.
       };
     }
 
-    if (payload.role === UserRole.EMPLOYEE) {
-      const employee = await withoutTenantIsolation(() =>
-        this.prisma.employee.findUnique({
-          where: { id: payload.sub },
-          select: { id: true, tenantId: true, status: true },
-        }),
-      );
+    // 2. If not found, check if it's an Employee logging in via USSD/PWA
+    // Employees are rigidly bound to a single tenant.
+    const employee = await withoutTenantIsolation(() =>
+      this.prisma.employee.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, tenantId: true, status: true },
+      }),
+    );
 
-      if (!employee || employee.status !== 'ACTIVE') {
-        throw new UnauthorizedException('Employee session invalid or profile inactive.');
-      }
+    if (!employee || employee.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Employee session invalid or profile inactive.');
+    }
 
       return {
         userId: employee.id,
