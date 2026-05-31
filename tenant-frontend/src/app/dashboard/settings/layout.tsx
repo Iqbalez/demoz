@@ -8,7 +8,7 @@ const navItems = [
   { name: 'Organization', href: '/dashboard/settings' },
   { name: 'Team & Roles', href: '/dashboard/settings/team' },
   { name: 'Compliance', href: '/dashboard/settings/compliance' },
-  { name: 'Audit Logs', href: '/dashboard/settings/audit', roles: ['SUPER_ADMIN', 'ORG_ADMIN'] },
+  { name: 'Audit Logs', href: '/dashboard/settings/audit', roles: ['SUPER_ADMIN', 'OWNER'] },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

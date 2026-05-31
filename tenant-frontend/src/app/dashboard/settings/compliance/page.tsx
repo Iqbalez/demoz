@@ -40,7 +40,7 @@ export default function ComplianceSettingsPage() {
           </select>
         </div>
 
-        <RequireRole allowedRoles={['SUPER_ADMIN', 'ORG_ADMIN', 'FINANCE']}>
+        <RequireRole allowedRoles={['SUPER_ADMIN', 'OWNER']}>
           <div className="pt-6">
             <button type="submit" className="px-4 py-2 bg-[var(--m-primary)] text-white rounded-md text-sm font-medium hover:bg-indigo-600 transition-colors">
               Save Compliance Settings

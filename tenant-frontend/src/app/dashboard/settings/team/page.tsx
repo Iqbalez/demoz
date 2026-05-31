@@ -8,7 +8,7 @@ export default function TeamManagementPage() {
 
   // Mock data for display purposes
   const teamMembers = [
-    { id: 1, name: 'Abebe Kebede', email: 'abebe@demoz.com', role: 'ORG_ADMIN', status: 'ACTIVE' },
+    { id: 1, name: 'Abebe Kebede', email: 'abebe@demoz.com', role: 'OWNER', status: 'ACTIVE' },
     { id: 2, name: 'Martha Tadesse', email: 'martha@demoz.com', role: 'HR', status: 'ACTIVE' },
     { id: 3, name: 'Dawit Hailu', email: 'dawit@demoz.com', role: 'FINANCE', status: 'PENDING_INVITE' },
   ];
@@ -20,7 +20,7 @@ export default function TeamManagementPage() {
           <h1 className="text-2xl font-semibold text-[var(--m-cream)]">Team Management</h1>
           <p className="text-sm text-[var(--m-muted)] mt-1">Manage user access and provision roles via email invitations.</p>
         </div>
-        <RequireRole allowedRoles={['SUPER_ADMIN', 'ORG_ADMIN', 'HR']}>
+        <RequireRole allowedRoles={['SUPER_ADMIN', 'OWNER', 'HR']}>
           <button 
             onClick={() => setIsInviteModalOpen(true)}
             className="px-4 py-2 bg-[var(--m-primary)] text-white rounded-md text-sm font-medium hover:bg-indigo-600 transition-colors"
@@ -66,7 +66,7 @@ export default function TeamManagementPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <RequireRole allowedRoles={['SUPER_ADMIN', 'ORG_ADMIN']}>
+                  <RequireRole allowedRoles={['SUPER_ADMIN', 'OWNER']}>
                     <button className="text-[var(--m-primary)] hover:text-indigo-400">Edit</button>
                   </RequireRole>
                 </td>
@@ -96,7 +96,7 @@ export default function TeamManagementPage() {
                   <option value="HR">HR Manager</option>
                   <option value="FINANCE">Finance / Payroll</option>
                   <option value="MANAGER">Department Manager</option>
-                  <option value="ORG_ADMIN">Organization Admin</option>
+                  <option value="OWNER">Owner</option>
                 </select>
               </div>
               <div className="flex justify-end gap-3 mt-6">

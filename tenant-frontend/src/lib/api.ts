@@ -51,11 +51,13 @@ export async function apiRequest<T>(
   retried = false,
 ): Promise<T> {
   const baseUrl = env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const tenantId = typeof window !== 'undefined' ? localStorage.getItem('demoz_tenant_id') : null;
   const response = await fetch(`${baseUrl}${endpoint}`, {
     credentials: "include",
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(tenantId ? { "X-Tenant-ID": tenantId } : {}),
       ...(init?.headers ?? {}),
     },
   });

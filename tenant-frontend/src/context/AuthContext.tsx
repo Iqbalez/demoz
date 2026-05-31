@@ -55,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const data = await apiRequest<UserPayload>("/api/v1/auth/me");
       setUser(data);
+      if (data?.tenantId && typeof window !== 'undefined') {
+        localStorage.setItem('demoz_tenant_id', data.tenantId);
+      }
     } catch {
       setUser(null);
     }
