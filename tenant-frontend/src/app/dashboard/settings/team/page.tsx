@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RequireRole } from '@/components/auth/RequireRole';
 import { apiRequest } from '@/lib/api';
-import { useToast } from '@/components/ui/toast';
+import { toast } from '@/components/ui/toast';
 
 interface TeamMember {
   id: string;
@@ -21,7 +21,7 @@ interface PendingInvite {
 }
 
 export default function TeamManagementPage() {
-  const toast = useToast();
+
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);

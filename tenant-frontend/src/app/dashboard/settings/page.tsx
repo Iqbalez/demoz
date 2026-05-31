@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RequireRole } from '@/components/auth/RequireRole';
 import { useAuth } from '@/context/AuthContext';
 import { apiRequest } from '@/lib/api';
-import { useToast } from '@/components/ui/toast';
+import { toast } from '@/components/ui/toast';
 
 interface TenantProfile {
   id: string;
@@ -20,7 +20,7 @@ interface TenantProfile {
 
 export default function OrganizationSettingsPage() {
   const { user } = useAuth();
-  const toast = useToast();
+
   const [profile, setProfile] = useState<TenantProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

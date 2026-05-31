@@ -2,11 +2,10 @@
 
 import React, { useState, useCallback } from "react";
 import { useDashboard } from "../../../../context/DashboardContext";
-import { useToast } from "../../../../components/ui/toast";
+import { toast } from "../../../../components/ui/toast";
 
 export default function OnboardingPage() {
   const { handleAddEmployee, stats } = useDashboard();
-  const toast = useToast();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",

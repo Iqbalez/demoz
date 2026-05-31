@@ -26,6 +26,10 @@ export class CreateEmployeeDto {
   @IsUUID()
   userId?: string;
 
+  @IsOptional()
+  @IsUUID()
+  managerId?: string;
+
   @IsNotEmpty()
   @IsString()
   @MaxLength(100)

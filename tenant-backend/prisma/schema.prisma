@@ -166,11 +166,14 @@ model Employee {
   hireDate           DateTime        @db.Timestamptz(6)
   createdAt          DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt          DateTime        @updatedAt @db.Timestamptz(6)
+  managerId          String?         @db.Uuid
 
   // Relations
   tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   department         Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  manager            Employee?       @relation("EmployeeToManager", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates       Employee[]      @relation("EmployeeToManager")
   attendances        Attendance[]
   attendanceLogs     AttendanceLog[]
   payrollLineItems   PayrollLineItem[]

@@ -54,7 +54,10 @@ export class EmployeeService {
         where: whereClause,
         skip,
         take: limit,
-        include: { department: { select: { name: true, branchId: true } } },
+        include: { 
+          department: { select: { name: true, branchId: true } },
+          manager: { select: { id: true, firstName: true, lastName: true } }
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.employee.count({ where: whereClause }),
@@ -141,6 +144,7 @@ export class EmployeeService {
         status: dto.status || 'ACTIVE',
         hireDate: dto.hireDate ? new Date(dto.hireDate) : new Date(),
         departmentId,
+        managerId: dto.managerId || null,
         userId: dto.userId || null,
         ussdPin: pin,
         ussdPinHash: pinHash,

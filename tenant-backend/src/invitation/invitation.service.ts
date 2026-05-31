@@ -8,6 +8,18 @@ import * as bcrypt from 'bcryptjs';
 export class InvitationService {
   constructor(private prisma: PrismaService) {}
 
+  async getTeam(tenantId: string) {
+    const users = await this.prisma.user.findMany({
+      where: { tenantId },
+      select: { id: true, email: true, role: true, isActive: true, createdAt: true },
+    });
+    const pendingInvites = await this.prisma.invitation.findMany({
+      where: { tenantId, status: 'PENDING' },
+      select: { id: true, email: true, role: true, status: true, createdAt: true, expiresAt: true },
+    });
+    return { users, pendingInvites };
+  }
+
   async createInvite(tenantId: string, email: string, role: UserRole) {
     const normalizedEmail = email.trim().toLowerCase();
 

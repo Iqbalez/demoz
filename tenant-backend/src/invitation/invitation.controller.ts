@@ -22,6 +22,14 @@ export class InvitationController {
     return this.invitationService.createInvite(req.user.tenantId, email, role);
   }
 
+  @Get('team')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @RequireTenant()
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  async getTeam(@Request() req) {
+    return this.invitationService.getTeam(req.user.tenantId);
+  }
+
   @Get('validate/:token')
   async validateInvite(@Param('token') token: string) {
     return this.invitationService.validateInvite(token);
