@@ -1,10 +1,117 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { withoutTenantIsolation } from '../tenant-context';
 
 /** Ensures every tenant has a branch + department for mobile clock-in and HR onboarding. */
 @Injectable()
 export class WorkspaceService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getTenantProfile(tenantId: string) {
+    const tenant = await withoutTenantIsolation(() =>
+      this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          id: true,
+          name: true,
+          companyCode: true,
+          tin: true,
+          taxRegion: true,
+          planTier: true,
+          maxEmployees: true,
+          status: true,
+          licenseUrl: true,
+          createdAt: true,
+        },
+      }),
+    );
+    if (!tenant) throw new NotFoundException('Tenant not found.');
+    return tenant;
+  }
+
+  async updateTenantProfile(
+    tenantId: string,
+    data: { name?: string; tin?: string; taxRegion?: string; licenseUrl?: string },
+  ) {
+    const updateData: any = {};
+    if (data.name?.trim()) updateData.name = data.name.trim();
+    if (data.tin !== undefined) updateData.tin = data.tin?.trim() || null;
+    if (data.taxRegion !== undefined) updateData.taxRegion = data.taxRegion?.trim() || null;
+    if (data.licenseUrl !== undefined) updateData.licenseUrl = data.licenseUrl?.trim() || null;
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('No valid fields to update.');
+    }
+
+    const updated = await withoutTenantIsolation(() =>
+      this.prisma.tenant.update({
+        where: { id: tenantId },
+        data: updateData,
+        select: {
+          id: true,
+          name: true,
+          companyCode: true,
+          tin: true,
+          taxRegion: true,
+          planTier: true,
+          maxEmployees: true,
+          status: true,
+          licenseUrl: true,
+        },
+      }),
+    );
+    return updated;
+  }
+
+  async getTeamMembers(tenantId: string) {
+    // Fetch real users belonging to this tenant
+    const users = await withoutTenantIsolation(() =>
+      this.prisma.user.findMany({
+        where: {
+          members: { some: { tenantId } },
+        },
+        select: {
+          id: true,
+          email: true,
+          isActive: true,
+          members: {
+            where: { tenantId },
+            select: { role: true },
+          },
+        },
+      }),
+    );
+
+    // Fetch pending invitations
+    const invitations = await withoutTenantIsolation(() =>
+      this.prisma.invitation.findMany({
+        where: { tenantId, status: 'PENDING' },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          status: true,
+          expiresAt: true,
+        },
+      }),
+    );
+
+    return {
+      members: users.map(u => ({
+        id: u.id,
+        email: u.email,
+        role: u.members[0]?.role || null,
+        status: u.isActive ? 'ACTIVE' : 'INACTIVE',
+      })),
+      pendingInvitations: invitations.map(inv => ({
+        id: inv.id,
+        email: inv.email,
+        role: inv.role,
+        status: 'PENDING_INVITE',
+        expiresAt: inv.expiresAt,
+      })),
+    };
+  }
 
   async ensureDefaultWorkspace(tenantId: string) {
     let branch = await this.prisma.branch.findFirst({

@@ -59,7 +59,6 @@ model Tenant {
   updatedAt             DateTime     @updatedAt @db.Timestamptz(6)
 
   // Relations
-  users                User[]
   branches             Branch[]
   departments          Department[]
   employees            Employee[]
@@ -178,6 +177,7 @@ model Employee {
   tenantId           String          @db.Uuid
   userId             String?         @unique @db.Uuid
   departmentId       String          @db.Uuid
+  managerId          String?         @db.Uuid  // Self-referencing for Org Chart hierarchy
   firstName          String          @db.VarChar(100)
   lastName           String          @db.VarChar(100)
   employeeIdNumber   String          @db.VarChar(50)
@@ -204,6 +204,8 @@ model Employee {
   tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   department         Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  manager            Employee?       @relation("ManagerReports", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports      Employee[]      @relation("ManagerReports")
   attendances        Attendance[]
   attendanceLogs     AttendanceLog[]
   payrollLineItems   PayrollLineItem[]
@@ -214,6 +216,7 @@ model Employee {
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([phoneNumber])
+  @@index([managerId])
   @@map("employees")
 }
 

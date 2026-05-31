@@ -23,6 +23,33 @@ export class WorkspaceController {
     return workspace;
   }
 
+  @Get('workspace/profile')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async getProfile() {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.getTenantProfile(tenantId);
+  }
+
+  @Patch('workspace/profile')
+  @Roles(UserRole.OWNER)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateProfile(
+    @Body() body: { name?: string; tin?: string; taxRegion?: string; licenseUrl?: string },
+  ) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.updateTenantProfile(tenantId, body);
+  }
+
+  @Get('workspace/team')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async getTeamMembers() {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.getTeamMembers(tenantId);
+  }
+
   @Get('branches')
   @Roles(UserRole.HR, UserRole.OWNER, UserRole.EMPLOYEE)
   async listBranches() {

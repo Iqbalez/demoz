@@ -8,18 +8,55 @@ import { DashboardProvider, useDashboard } from "../../context/DashboardContext"
 import { AuthProvider, useAuth } from "../../context/AuthContext";
 import { DemozLogo } from "../../components/brand/DemozLogo";
 
-const NAV_ITEMS = [
+const NAV_GROUPS = [
   { path: "/dashboard", label: "Home", icon: "home" },
-  { path: "/dashboard/employees", label: "Employees", icon: "users" },
-  { path: "/dashboard/attendance", label: "Attendance", icon: "clock" },
-  { path: "/dashboard/leave", label: "Leave", icon: "leave" },
-  { path: "/dashboard/payroll", label: "Payroll", icon: "pay" },
+  {
+    label: "Employees",
+    icon: "users",
+    subItems: [
+      { path: "/dashboard/employees/onboarding", label: "Onboarding" },
+      { path: "/dashboard/employees", label: "Directory" },
+      { path: "/dashboard/employees/exits", label: "Exits" },
+    ],
+  },
+  {
+    label: "Payroll",
+    icon: "pay",
+    subItems: [
+      { path: "/dashboard/payroll", label: "Runs & Processing" },
+    ],
+  },
+  {
+    label: "Leave",
+    icon: "leave",
+    subItems: [
+      { path: "/dashboard/leave/requests", label: "Leave Requests" },
+      { path: "/dashboard/leave", label: "Leave Overview" },
+    ],
+  },
   { path: "/dashboard/reports", label: "Reports", icon: "chart" },
+  {
+    label: "Time & Attendance",
+    icon: "clock",
+    subItems: [
+      { path: "/dashboard/attendance", label: "Analytics" },
+      { path: "/dashboard/attendance/logs", label: "Raw Logs" },
+    ],
+  },
+  { path: "/dashboard/org-structure", label: "Org. structure", icon: "users" },
   { path: "/dashboard/billing", label: "Billing", icon: "card" },
-  { path: "/dashboard/settings", label: "Settings", icon: "settings" },
+  {
+    label: "Settings",
+    icon: "settings",
+    subItems: [
+      { path: "/dashboard/settings", label: "Organization" },
+      { path: "/dashboard/settings/team", label: "Team Management" },
+      { path: "/dashboard/settings/compliance", label: "Compliance" },
+    ],
+  },
 ] as const;
 
-function NavIcon({ type }: { type: (typeof NAV_ITEMS)[number]["icon"] }) {
+function NavIcon({ type }: { type: string }) {
   const cls = "w-[18px] h-[18px] shrink-0";
   switch (type) {
     case "home":
@@ -74,6 +111,99 @@ function NavIcon({ type }: { type: (typeof NAV_ITEMS)[number]["icon"] }) {
     default:
       return null;
   }
+}
+
+function SidebarNav() {
+  const pathname = usePathname();
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>(() => {
+    // Auto-expand groups that contain the current path
+    const initial: Record<string, boolean> = {};
+    NAV_GROUPS.forEach(g => {
+      if (g.subItems) {
+        if (g.subItems.some(sub => pathname === sub.path || pathname.startsWith(sub.path + '/'))) {
+          initial[g.label] = true;
+        }
+      }
+    });
+    return initial;
+  });
+
+  const toggleGroup = (label: string) => {
+    setExpanded(prev => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  return (
+    <nav className="flex-1 p-3 space-y-1">
+      {NAV_GROUPS.map((group) => {
+        const isGroupExpanded = expanded[group.label];
+        const isGroupActive = group.path ? pathname === group.path : group.subItems?.some(s => pathname === s.path || pathname.startsWith(s.path + '/'));
+
+        if (!group.subItems) {
+          return (
+            <Link
+              key={group.label}
+              href={group.path as string}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                isGroupActive
+                  ? "bg-[var(--brand-primary-muted)] text-[var(--brand-primary)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <NavIcon type={group.icon!} />
+              {group.label}
+            </Link>
+          );
+        }
+
+        return (
+          <div key={group.label} className="flex flex-col">
+            <button
+              onClick={() => toggleGroup(group.label)}
+              className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full text-left ${
+                isGroupActive
+                  ? "text-[var(--brand-primary)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <NavIcon type={group.icon!} />
+                {group.label}
+              </div>
+              <svg 
+                className={`w-4 h-4 transition-transform ${isGroupExpanded ? 'rotate-90' : ''}`} 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            
+            {isGroupExpanded && (
+              <div className="ml-9 mt-1 space-y-1 flex flex-col relative before:absolute before:left-[-11px] before:top-0 before:bottom-2 before:w-[1px] before:bg-[var(--border)]">
+                {group.subItems.map(sub => {
+                  const isSubActive = pathname === sub.path;
+                  return (
+                    <Link
+                      key={sub.label}
+                      href={sub.path}
+                      className={`relative px-3 py-1.5 text-[13px] font-medium transition-colors rounded-md ${
+                        isSubActive
+                          ? "text-[var(--brand-primary)] bg-[var(--brand-primary-muted)]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-subtle)]"
+                      } before:absolute before:left-[-11px] before:top-1/2 before:w-2 before:h-[1px] before:bg-[var(--border)]`}
+                    >
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
 }
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
@@ -165,27 +295,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar */}
         <aside className="hidden md:flex w-56 lg:w-60 flex-col border-r border-[var(--border)] bg-[var(--bg-subtle)] shrink-0 overflow-y-auto">
-          <nav className="flex-1 p-3 space-y-0.5">
-            {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-white text-[var(--brand-primary)] shadow-sm border border-[var(--border)]"
-                      : "text-[var(--text-secondary)] hover:bg-white/80 hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  <span className="flex w-[18px] items-center justify-center shrink-0" aria-hidden>
-                    <NavIcon type={item.icon} />
-                  </span>
-                  <span className="leading-none">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          <SidebarNav />
 
           <div className="p-4 m-3 rounded-xl border border-[var(--border)] bg-white text-xs text-[var(--text-muted)] space-y-1.5">
             <p className="font-semibold text-[var(--text-secondary)] truncate" title={stats.companyName}>
@@ -205,19 +315,19 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
-        {/* Mobile nav */}
+        {/* Mobile bottom nav — show top-level items only */}
         <div className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-[var(--border)] bg-white px-1 py-1 safe-area-pb">
-          {NAV_ITEMS.slice(0, 5).map((item) => {
-            const isActive = pathname === item.path;
+          {NAV_GROUPS.filter(g => g.path).slice(0, 5).map((item) => {
+            const isActive = pathname === (item as any).path;
             return (
               <Link
-                key={item.path}
-                href={item.path}
+                key={item.label}
+                href={(item as any).path}
                 className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium rounded-lg ${
                   isActive ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"
                 }`}
               >
-                <NavIcon type={item.icon} />
+                <NavIcon type={item.icon!} />
                 <span>{item.label}</span>
               </Link>
             );
