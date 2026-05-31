@@ -119,7 +119,7 @@ function SidebarNav() {
     // Auto-expand groups that contain the current path
     const initial: Record<string, boolean> = {};
     NAV_GROUPS.forEach(g => {
-      if (g.subItems) {
+      if ('subItems' in g) {
         if (g.subItems.some(sub => pathname === sub.path || pathname.startsWith(sub.path + '/'))) {
           initial[g.label] = true;
         }
@@ -136,9 +136,9 @@ function SidebarNav() {
     <nav className="flex-1 p-3 space-y-1">
       {NAV_GROUPS.map((group) => {
         const isGroupExpanded = expanded[group.label];
-        const isGroupActive = group.path ? pathname === group.path : group.subItems?.some(s => pathname === s.path || pathname.startsWith(s.path + '/'));
+        const isGroupActive = 'path' in group ? pathname === group.path : ('subItems' in group ? group.subItems.some(s => pathname === s.path || pathname.startsWith(s.path + '/')) : false);
 
-        if (!group.subItems) {
+        if (!('subItems' in group)) {
           return (
             <Link
               key={group.label}
@@ -317,12 +317,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
         {/* Mobile bottom nav — show top-level items only */}
         <div className="md:hidden fixed bottom-0 inset-x-0 z-30 flex border-t border-[var(--border)] bg-white px-1 py-1 safe-area-pb">
-          {NAV_GROUPS.filter(g => g.path).slice(0, 5).map((item) => {
-            const isActive = pathname === (item as any).path;
+          {NAV_GROUPS.filter((g): g is typeof g & { path: string } => 'path' in g).slice(0, 5).map((item) => {
+            const isActive = pathname === item.path;
             return (
               <Link
                 key={item.label}
-                href={(item as any).path}
+                href={item.path}
                 className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium rounded-lg ${
                   isActive ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"
                 }`}
