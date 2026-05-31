@@ -8,6 +8,10 @@ export class TenantMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     let tenantId: string | null = getTenantIdFromRequest(req);
 
+    if (!tenantId && req.headers['x-tenant-id']) {
+      tenantId = req.headers['x-tenant-id'] as string;
+    }
+
     if (!tenantId && req.query?.token) {
       tenantId = req.query.token as string;
     }
@@ -31,7 +35,9 @@ export class TenantMiddleware implements NestMiddleware {
         req.originalUrl.includes('/internal') ||
         req.path.includes('/internal') ||
         req.originalUrl.includes('/health') ||
-        req.path.includes('/health')
+        req.path.includes('/health') ||
+        req.originalUrl.includes('/company-data') ||
+        req.path.includes('/company-data')
       ) {
         return next();
       }
