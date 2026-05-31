@@ -1,7 +1,7 @@
 'use client';
 
 import { RequireRole } from '@/components/auth/RequireRole';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAuth } from '@/context/AuthContext';
 
 export default function OrganizationSettingsPage() {
   const { user } = useAuth();
