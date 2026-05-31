@@ -49,7 +49,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const dbUser = await withoutTenantIsolation(() =>
       this.prisma.user.findUnique({
         where: { id: user.userId },
-        include: { members: true },
       }),
     );
 
@@ -75,19 +74,16 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     if (tenantIdHeader) {
-      // Validate TenantMember
-      const membership = dbUser.members.find((m: any) => m.tenantId === tenantIdHeader);
-      
-      if (!membership) {
+      if (dbUser.tenantId !== tenantIdHeader) {
         throw new UnauthorizedException('Access Denied. You do not belong to the requested workspace.');
       }
 
       // Attach current role and tenant context to request
-      request.user.role = membership.role;
-      request.user.tenantId = membership.tenantId;
+      request.user.role = dbUser.role;
+      request.user.tenantId = dbUser.tenantId;
 
       // Activate Prisma RLS Context
-      tenantStorage.enterWith(membership.tenantId);
+      tenantStorage.enterWith(dbUser.tenantId!);
     } else {
       // If no tenant header is provided and it's not required, proceed with global user context
       request.user.role = null;

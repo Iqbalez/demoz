@@ -94,7 +94,7 @@ export class AuthService {
     return withoutTenantIsolation(async () => {
       const user = await this.prisma.user.findFirst({
         where: { email: normalized, isActive: true },
-        include: { members: { include: { tenant: true } } },
+        include: { tenant: true },
       });
 
       return user;
@@ -106,7 +106,7 @@ export class AuthService {
       throw new UnauthorizedException(UNAUTHORIZED_WORKSPACE);
     }
 
-    if (user.members.length === 0) {
+    if (!user.tenantId && user.role !== UserRole.SUPER_ADMIN) {
       throw new UnauthorizedException('You do not belong to any active workspaces.');
     }
   }
@@ -121,13 +121,13 @@ export class AuthService {
         email: user.email,
         phoneNumber: user.phoneNumber,
         is2FaEnabled: !!user.twoFactorSecret,
-        workspaces: user.members.map((m: any) => ({
-          tenantId: m.tenantId,
-          role: m.role,
-          status: m.tenant.status,
-          companyName: m.tenant.name,
-        })),
-        defaultTenantId: user.members[0]?.tenantId || null,
+        workspaces: user.tenantId ? [{
+          tenantId: user.tenantId,
+          role: user.role,
+          status: user.tenant?.status,
+          companyName: user.tenant?.name,
+        }] : [],
+        defaultTenantId: user.tenantId || null,
       },
       ...tokens,
     };
@@ -162,7 +162,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const tokens = await this.generateToken(user.id, user.tenantId, user.role);
+    const tokens = await this.generateToken(user.id);
     return this.buildSessionResponse(user, tokens);
   }
 
@@ -203,7 +203,7 @@ export class AuthService {
       throw new UnauthorizedException('Google account does not match our records.');
     }
 
-    const tokens = await this.generateToken(user.id, user.tenantId, user.role);
+    const tokens = await this.generateToken(user.id);
     return this.buildSessionResponse(user, tokens);
   }
 
@@ -211,7 +211,7 @@ export class AuthService {
     const user = await withoutTenantIsolation(() =>
       this.prisma.user.findFirst({
         where: { id: userId },
-        include: { members: { include: { tenant: true } } },
+        include: { tenant: true },
       }),
     );
 
@@ -219,18 +219,16 @@ export class AuthService {
       throw new UnauthorizedException('Session invalid.');
     }
 
-    const defaultMembership = user.members[0];
-
     let workspace: {
       employeeCount: number;
       faydaOnFile: number;
       faydaMissing: number;
     } | null = null;
 
-    if (defaultMembership) {
+    if (user.tenantId) {
       const employees = await withoutTenantIsolation(() =>
         this.prisma.employee.findMany({
-          where: { tenantId: defaultMembership.tenantId, status: 'ACTIVE' },
+          where: { tenantId: user.tenantId!, status: 'ACTIVE' },
           select: { faydaNumber: true },
         }),
       );
@@ -247,13 +245,13 @@ export class AuthService {
       email: user.email,
       role: user.role ?? null,
       tenantId: user.tenantId ?? null,
-      workspaces: user.members.map((m: any) => ({
-        tenantId: m.tenantId,
-        role: m.role,
-        status: m.tenant.status,
-        companyName: m.tenant.name,
-      })),
-      defaultTenantId: defaultMembership?.tenantId || null,
+      workspaces: user.tenantId ? [{
+        tenantId: user.tenantId,
+        role: user.role,
+        status: user.tenant?.status,
+        companyName: user.tenant?.name,
+      }] : [],
+      defaultTenantId: user.tenantId || null,
       workspace,
     };
   }

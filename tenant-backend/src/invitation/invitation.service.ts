@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { UserRole } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 
@@ -14,10 +14,9 @@ export class InvitationService {
     // Check if user is already a member
     const existingUser = await this.prisma.user.findFirst({
       where: { email: normalizedEmail },
-      include: { members: true },
     });
 
-    if (existingUser && existingUser.members.some(m => m.tenantId === tenantId)) {
+    if (existingUser && existingUser.tenantId === tenantId) {
       throw new BadRequestException('User is already a member of this workspace.');
     }
 
@@ -102,17 +101,19 @@ export class InvitationService {
             email: invite.email,
             passwordHash,
             phoneNumber: body.phoneNumber,
+            tenantId: invite.tenantId,
+            role: invite.role,
+          },
+        });
+      } else {
+        user = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            tenantId: invite.tenantId,
+            role: invite.role,
           },
         });
       }
-
-      await tx.tenantMember.create({
-        data: {
-          userId: user.id,
-          tenantId: invite.tenantId,
-          role: invite.role,
-        },
-      });
 
       await tx.invitation.update({
         where: { id: invite.id },

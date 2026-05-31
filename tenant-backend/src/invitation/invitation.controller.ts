@@ -13,7 +13,7 @@ export class InvitationController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequireTenant()
-  @Roles('SUPER_ADMIN', 'ORG_ADMIN', 'HR')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   async createInvite(
     @Request() req,
     @Body('email') email: string,

@@ -15,8 +15,8 @@ export class AppController {
     @Query('tenantId') tenantId = 'tenant_id_google',
     @Query('role') role: UserRole = UserRole.EMPLOYEE,
   ) {
-    const token = await this.authService.generateToken(userId, tenantId, role);
-    return { accessToken: token };
+    const token = await this.authService.generateToken(userId);
+    return { accessToken: token.accessToken };
   }
 
   @Get('dashboard')

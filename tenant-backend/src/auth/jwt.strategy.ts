@@ -68,12 +68,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Employee session invalid or profile inactive.');
     }
 
-      return {
-        userId: employee.id,
-        tenantId: employee.tenantId,
-        role: UserRole.EMPLOYEE,
-      };
-    }
+    return {
+      userId: employee.id,
+      tenantId: employee.tenantId,
+      role: UserRole.EMPLOYEE,
+    };
 
     throw new UnauthorizedException('Session invalid or user deactivated.');
   }

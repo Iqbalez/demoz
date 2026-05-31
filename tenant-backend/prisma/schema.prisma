@@ -60,6 +60,7 @@ model Tenant {
   leaveTypes           LeaveType[]
   leaveRequests        LeaveRequest[]
   paymentTransactions  PaymentTransaction[]
+  invitations          Invitation[]
 
   @@index([status, subscriptionExpiresAt])
   @@map("tenants") // Maps Prisma model to plural lowercase PostgreSQL table name
@@ -481,4 +482,22 @@ model PaymentTransaction {
   @@index([tenantId, status])
   @@index([createdAt])
   @@map("payment_transactions")
+}
+
+model Invitation {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  email     String   @db.VarChar(255)
+  token     String   @unique @db.VarChar(255)
+  role      UserRole
+  status    String   @default("PENDING") @db.VarChar(50)
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([token])
+  @@map("invitations")
 }
