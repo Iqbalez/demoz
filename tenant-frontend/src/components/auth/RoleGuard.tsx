@@ -23,14 +23,14 @@ export default function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
         router.replace("/admin-portal");
         return;
       }
-      if (!allowedRoles.includes(user.role)) {
+      if (!user.role || !allowedRoles.includes(user.role)) {
         router.replace("/dashboard");
       }
     }
   }, [user, loading, allowedRoles, router]);
 
   // While loading or redirecting, render nothing to avoid flicker
-  if (loading || !user || !allowedRoles.includes(user?.role || '')) {
+  if (loading || !user || !user.role || !allowedRoles.includes(user.role)) {
     return null;
   }
 
