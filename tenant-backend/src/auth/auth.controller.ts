@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Req, Res, UseGuards, UsePipes, ValidationPipe, BadRequestException } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './public.decorator';
 import { RateLimit } from '../common/guards/rate-limit.decorator';
@@ -89,13 +89,15 @@ export class AuthController {
    * Endpoint for silent session token refreshes (Axios interceptors)
    */
   @Public()
+  @RateLimit(30, 60000)
   @Post('refresh')
   async refresh(
+    @Req() req: Request,
     @Body('refreshToken') refreshToken: string,
     @Body('phoneNumber') phoneNumber?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
-    const cookieRefresh = (res as any)?.req?.cookies?.refresh_token as string | undefined;
+    const cookieRefresh = req.cookies?.refresh_token as string | undefined;
     const tokenToUse = refreshToken || cookieRefresh;
     if (!tokenToUse) throw new BadRequestException('Refresh token is required.');
 
@@ -116,10 +118,15 @@ export class AuthController {
    * Logout — clears the HttpOnly cookie
    */
   @Post('logout')
-  async logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const userId = (req as Request & { user?: { userId?: string } }).user?.userId;
+    if (userId) {
+      await this.authService.invalidateUserSessions(userId);
+    }
+
     const clearOpts = getAuthCookieOptions(0);
     res.clearCookie('access_token', clearOpts);
-    const refresh = (res as any)?.req?.cookies?.refresh_token as string | undefined;
+    const refresh = req.cookies?.refresh_token as string | undefined;
     if (refresh) {
       await this.authService.revokeRefreshToken(refresh);
     }

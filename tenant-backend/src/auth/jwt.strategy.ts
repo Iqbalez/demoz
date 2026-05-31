@@ -4,12 +4,14 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 import { PrismaService } from '../prisma.service';
+import { AuthService } from './auth.service';
 import { withoutTenantIsolation } from '../tenant-context';
 
 export interface JwtPayload {
   sub: string;
   tenantId: string | null;
   role: UserRole;
+  iat?: number;
 }
 
 function cookieThenBearerExtractor(req: Request): string | null {
@@ -21,7 +23,10 @@ function cookieThenBearerExtractor(req: Request): string | null {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {
     super({
       jwtFromRequest: cookieThenBearerExtractor,
       ignoreExpiration: false,
@@ -34,6 +39,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   /** User sessions + employee mobile sessions (sub = employee.id, role = EMPLOYEE). */
   async validate(payload: JwtPayload) {
+    await this.authService.assertSessionValid(payload.sub, payload.iat);
+
     const user = await withoutTenantIsolation(() =>
       this.prisma.user.findUnique({
         where: { id: payload.sub },

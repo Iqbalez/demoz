@@ -27,6 +27,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { InternalModule } from './internal/internal.module';
+import { RetentionModule } from './retention/retention.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { InternalModule } from './internal/internal.module';
     RealtimeModule,
     WebhooksModule,
     InternalModule,
+    RetentionModule,
+    ScheduleModule.forRoot(),
     AuthModule,
     HrModule,
     AttendanceModule,

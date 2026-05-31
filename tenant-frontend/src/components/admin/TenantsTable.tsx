@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, ApiError } from "@/lib/api";
 import { toast } from "@/components/ui/toast";
 import { CredentialsModal } from "./CredentialsModal";
 import {
@@ -50,7 +50,13 @@ export function TenantsTable({
       toast.success("Updated", `Status set to ${subscription_status}`);
       onUpdated();
     } catch (err: unknown) {
-      toast.error("Error", err instanceof Error ? err.message : "Update failed");
+      const msg =
+        err instanceof ApiError && err.status === 403
+          ? "You do not have permission for this action."
+          : err instanceof Error
+            ? err.message
+            : "Update failed";
+      toast.error("Error", msg);
     }
   };
 
@@ -70,7 +76,13 @@ export function TenantsTable({
       });
       toast.success("Password reset", "Share the new password once with the client.");
     } catch (err: unknown) {
-      toast.error("Error", err instanceof Error ? err.message : "Reset failed");
+      const msg =
+        err instanceof ApiError && err.status === 403
+          ? "You do not have permission for this action."
+          : err instanceof Error
+            ? err.message
+            : "Reset failed";
+      toast.error("Error", msg);
     } finally {
       setResettingId(null);
     }

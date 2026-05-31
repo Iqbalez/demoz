@@ -50,8 +50,16 @@ export function LandingFooter() {
                   Contact
                 </a>
               </li>
-              <li><span>Privacy</span></li>
-              <li><span>Terms</span></li>
+              <li>
+                <Link href="/privacy" className="hover:text-[var(--m-cream)]">
+                  Privacy
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="hover:text-[var(--m-cream)]">
+                  Terms
+                </Link>
+              </li>
             </ul>
           </div>
           <div>

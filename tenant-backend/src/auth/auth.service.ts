@@ -48,6 +48,28 @@ export class AuthService {
     return `auth:refresh:blocklist:${jti}`;
   }
 
+  private getUserInvalidatedAtKey(userId: string) {
+    return `auth:user:invalidated_at:${userId}`;
+  }
+
+  /** Reject access/refresh tokens issued before password reset or forced logout. */
+  async assertSessionValid(userId: string, tokenIssuedAt?: number) {
+    if (!tokenIssuedAt) return;
+    const invalidatedAt = await this.redis.get(this.getUserInvalidatedAtKey(userId));
+    if (invalidatedAt && tokenIssuedAt * 1000 < Number(invalidatedAt)) {
+      throw new UnauthorizedException('Session invalidated. Please sign in again.');
+    }
+  }
+
+  async invalidateUserSessions(userId: string) {
+    await this.redis.set(
+      this.getUserInvalidatedAtKey(userId),
+      String(Date.now()),
+      'EX',
+      this.getRefreshTtlSeconds(),
+    );
+  }
+
   async generateToken(
     userId: string,
     tenantId: string | null,
@@ -336,6 +358,8 @@ export class AuthService {
         sub: string;
         tenantId: string | null;
         role: UserRole;
+        iat?: number;
+        exp?: number;
       };
 
       if (decoded?.typ !== 'refresh') {
@@ -347,6 +371,14 @@ export class AuthService {
         if (isBlocked) {
           throw new UnauthorizedException('Refresh token revoked.');
         }
+      }
+
+      await this.assertSessionValid(decoded.sub, decoded.iat);
+
+      if (decoded.jti && decoded.exp) {
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        const ttlSeconds = Math.max(1, decoded.exp - nowSeconds);
+        await this.redis.set(this.getRefreshBlocklistKey(decoded.jti), '1', 'EX', ttlSeconds);
       }
 
       const tokens = await this.generateToken(decoded.sub, decoded.tenantId ?? null, decoded.role);

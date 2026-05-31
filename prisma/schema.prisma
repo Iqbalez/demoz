@@ -178,10 +178,10 @@ model Attendance {
   date                 DateTime  @db.Date
   checkInTime          DateTime  @db.Timestamptz(6)
   checkOutTime         DateTime? @db.Timestamptz(6)
-  checkInLatitude      Decimal?  @db.Decimal(10, 8)
-  checkInLongitude     Decimal?  @db.Decimal(11, 8)
-  checkOutLatitude     Decimal?  @db.Decimal(10, 8)
-  checkOutLongitude    Decimal?  @db.Decimal(11, 8)
+  checkInLatitude      String?  @db.VarChar(255) // Encrypted
+  checkInLongitude     String?  @db.VarChar(255) // Encrypted
+  checkOutLatitude     String?  @db.VarChar(255) // Encrypted
+  checkOutLongitude    String?  @db.VarChar(255) // Encrypted
   checkInMethod        String    @db.VarChar(50) // 'PWA' or 'USSD'
   checkOutMethod       String?   @db.VarChar(50) // 'PWA' or 'USSD'
   status               String    @db.VarChar(50) // 'PRESENT', 'ABSENT', 'LATE', 'INFRACTION', etc.
@@ -219,8 +219,8 @@ model AttendanceLog {
   timestamp     DateTime         @default(now()) @db.Timestamptz(6)
   type          AttendanceType
   source        AttendanceSource
-  latitude      Decimal?         @db.Decimal(10, 8)
-  longitude     Decimal?         @db.Decimal(11, 8)
+  latitude      String?          @db.VarChar(255) // Encrypted
+  longitude     String?          @db.VarChar(255) // Encrypted
   isAnomaly     Boolean          @default(false)
   anomalyReason String?          @db.VarChar(255)
   telemetry     Json             @default("{}")

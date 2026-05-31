@@ -5,6 +5,7 @@ import { withoutTenantIsolation } from '../tenant-context';
 import { getPlanMeta, normalizePlanTier } from '../lib/plan-tiers';
 import { WorkspaceService } from '../hr/workspace.service';
 import { LeaveService } from '../leave/leave.service';
+import { AuthService } from '../auth/auth.service';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 
@@ -14,6 +15,7 @@ export class InternalService {
     private readonly prisma: PrismaService,
     private readonly workspaceService: WorkspaceService,
     private readonly leaveService: LeaveService,
+    private readonly authService: AuthService,
   ) {}
 
   async listTenants() {
@@ -75,6 +77,8 @@ export class InternalService {
         where: { id: owner.id },
         data: { passwordHash },
       });
+
+      await this.authService.invalidateUserSessions(owner.id);
 
       return {
         adminEmail: owner.email,

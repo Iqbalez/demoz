@@ -137,6 +137,39 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
               decryptFields(result, ['tin', 'pensionId', 'bankAccount', 'accountName', 'faydaNumber']);
               return result;
             }
+          },
+          tenant: {
+            async $allOperations({ model, operation, args, query }) {
+              const anyArgs = args as any;
+              if (anyArgs.data) {
+                encryptFields(anyArgs.data, ['tin']);
+              }
+              const result = await query(args);
+              decryptFields(result, ['tin']);
+              return result;
+            }
+          },
+          attendance: {
+            async $allOperations({ model, operation, args, query }) {
+              const anyArgs = args as any;
+              if (anyArgs.data) {
+                encryptFields(anyArgs.data, ['checkInLatitude', 'checkInLongitude', 'checkOutLatitude', 'checkOutLongitude']);
+              }
+              const result = await query(args);
+              decryptFields(result, ['checkInLatitude', 'checkInLongitude', 'checkOutLatitude', 'checkOutLongitude']);
+              return result;
+            }
+          },
+          attendanceLog: {
+            async $allOperations({ model, operation, args, query }) {
+              const anyArgs = args as any;
+              if (anyArgs.data) {
+                encryptFields(anyArgs.data, ['latitude', 'longitude']);
+              }
+              const result = await query(args);
+              decryptFields(result, ['latitude', 'longitude']);
+              return result;
+            }
           }
         }
       })

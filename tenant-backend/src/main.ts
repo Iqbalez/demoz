@@ -23,6 +23,10 @@ async function bootstrap() {
     origin: frontendOrigin,
     credentials: true,
   });
+  
+  // Enforce secure HTTP headers and strict transport security (HTTPS)
+  const helmet = (await import('helmet')).default;
+  app.use(helmet());
   app.use(cookieParser()); // Required to parse JWT from HttpOnly cookie
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
   app.use(express.json({
