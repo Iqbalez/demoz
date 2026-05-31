@@ -6,15 +6,26 @@ import { apiRequest } from "@/lib/api";
 export type UserRole = "SUPER_ADMIN" | "OWNER" | "HR" | "EMPLOYEE";
 export type TenantStatus = "ACTIVE" | "PAST_DUE" | "SUSPENDED";
 
+export interface WorkspaceInfo {
+  tenantId: string;
+  role: UserRole;
+  status: TenantStatus;
+  companyName: string;
+}
+
 export interface UserPayload {
   id: string;
-  tenantId: string | null;
-  role: UserRole;
   email: string;
-  subscription_status: TenantStatus | null;
-  companyName: string | null;
-  planTier: string | null;
-  maxEmployees: number | null;
+  phoneNumber?: string;
+  is2FaEnabled?: boolean;
+  tenantId: string | null;
+  role: UserRole | null;
+  workspaces?: WorkspaceInfo[];
+  defaultTenantId?: string | null;
+  subscription_status?: TenantStatus | null;
+  companyName?: string | null;
+  planTier?: string | null;
+  maxEmployees?: number | null;
   workspace?: {
     employeeCount: number;
     faydaOnFile: number;

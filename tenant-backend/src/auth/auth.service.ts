@@ -211,7 +211,7 @@ export class AuthService {
     const user = await withoutTenantIsolation(() =>
       this.prisma.user.findFirst({
         where: { id: userId },
-        include: { tenant: true },
+        include: { members: { include: { tenant: true } } },
       }),
     );
 
@@ -219,16 +219,18 @@ export class AuthService {
       throw new UnauthorizedException('Session invalid.');
     }
 
+    const defaultMembership = user.members[0];
+
     let workspace: {
       employeeCount: number;
       faydaOnFile: number;
       faydaMissing: number;
     } | null = null;
 
-    if (user.tenantId) {
+    if (defaultMembership) {
       const employees = await withoutTenantIsolation(() =>
         this.prisma.employee.findMany({
-          where: { tenantId: user.tenantId!, status: 'ACTIVE' },
+          where: { tenantId: defaultMembership.tenantId, status: 'ACTIVE' },
           select: { faydaNumber: true },
         }),
       );
@@ -243,12 +245,15 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-      subscription_status: user.tenant?.status ?? null,
-      companyName: user.tenant?.name ?? null,
-      planTier: user.tenant?.planTier ?? null,
-      maxEmployees: user.tenant?.maxEmployees ?? null,
+      role: user.role ?? null,
+      tenantId: user.tenantId ?? null,
+      workspaces: user.members.map((m: any) => ({
+        tenantId: m.tenantId,
+        role: m.role,
+        status: m.tenant.status,
+        companyName: m.tenant.name,
+      })),
+      defaultTenantId: defaultMembership?.tenantId || null,
       workspace,
     };
   }
