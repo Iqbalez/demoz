@@ -5,7 +5,7 @@ import { usePayrollJobStatus } from "../../hooks/usePayrollJobStatus";
 
 export interface PayrollEngineProps {
   employees: Employee[];
-  onTriggerDisbursement: () => void;
+  onTriggerDisbursement: (runId: string, totpCode: string) => Promise<void>;
 }
 
 // Progressive Income Tax Brackets (Proclamation No. 1395/2025 - Schedule A)
@@ -123,20 +123,21 @@ export default function PayrollEngine({
   };
 
   // Checker action: Finalize disbursement via 2FA
-  const handleFinalizeDisburse = (e: React.FormEvent) => {
+  const handleFinalizeDisburse = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (totpCode !== "123456") {
-      toast.error("Authorization Failed", "Invalid 2FA TOTP token. Please check your authenticator application.");
+    if (!activeRunId) {
+      toast.error("Error", "No active payroll run to disburse.");
       return;
     }
 
     setShow2FaModal(false);
     setPayrollStatus("DISBURSING");
-    setTimeout(() => {
+    try {
+      await onTriggerDisbursement(activeRunId, totpCode);
       setPayrollStatus("PAID");
-      onTriggerDisbursement();
-      toast.success("Disbursement Dispatched", "SaaS Bulk Payroll Ledger settled with Chapa.");
-    }, 2000);
+    } catch (err) {
+      setPayrollStatus("SUBMITTED");
+    }
   };
 
   const handleResetPayroll = () => {

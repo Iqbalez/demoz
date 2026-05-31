@@ -13,4 +13,11 @@ export class DashboardController {
     const tenantId = req.user.tenantId;
     return this.dashboardService.getTenantKPIs(tenantId);
   }
+  @Get('audit-logs')
+  @Roles(UserRole.HR, UserRole.OWNER, UserRole.SUPER_ADMIN)
+  async getAuditLogs(@Req() req: any) {
+    const tenantId = req.user.tenantId;
+    if (!tenantId) return [];
+    return this.dashboardService.getAuditLogs(tenantId);
+  }
 }

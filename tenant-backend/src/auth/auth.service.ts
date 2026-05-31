@@ -129,6 +129,9 @@ export class AuthService {
           companyName: user.tenant?.name,
         }] : [],
         defaultTenantId: user.tenantId || null,
+        companyName: user.tenant?.name || null,
+        planTier: user.tenant?.planTier || null,
+        maxEmployees: user.tenant?.maxEmployees || null,
       },
       ...tokens,
     };
@@ -253,6 +256,9 @@ export class AuthService {
         companyName: user.tenant?.name,
       }] : [],
       defaultTenantId: user.tenantId || null,
+      companyName: user.tenant?.name || null,
+      planTier: user.tenant?.planTier || null,
+      maxEmployees: user.tenant?.maxEmployees || null,
       workspace,
     };
   }

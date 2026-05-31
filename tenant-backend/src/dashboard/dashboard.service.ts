@@ -72,4 +72,25 @@ export class DashboardService {
       this.logger.warn(`[Redis] failed to invalidate payroll cache for ${cacheKey}`);
     }
   }
+
+  async getAuditLogs(tenantId: string) {
+    const logs = await this.prisma.auditLog.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        user: {
+          select: { email: true, role: true },
+        },
+      },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      timestamp: log.createdAt,
+      user: log.user.email,
+      action: log.action,
+      type: 'info', // Frontend expects info, success, warning
+    }));
+  }
 }

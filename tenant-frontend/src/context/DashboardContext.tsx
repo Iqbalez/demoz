@@ -38,8 +38,7 @@ interface DashboardContextProps {
   handleDeleteBranch: (id: string) => Promise<{ success: boolean; message: string }>;
   refreshTenantData: () => Promise<void>;
   handleSimulateLog: (newLog: any) => void;
-  handleUpgradePlan: (plan: string, maxEmp: number) => void;
-  handleTriggerDisbursement: () => void;
+  handleTriggerDisbursement: (runId: string, totpCode: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextProps | undefined>(undefined);
@@ -105,10 +104,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiRequest("/workspace/bootstrap").catch(() => undefined);
 
-      const [empRes, brnRes, attRes] = await Promise.allSettled([
+      const [empRes, brnRes, attRes, auditRes] = await Promise.allSettled([
         apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500"),
         apiRequest<Branch[]>("/branches"),
         apiRequest<AttendanceLog[]>("/api/v1/attendance/logs"),
+        apiRequest<AuditLog[]>("/dashboard/audit-logs"),
       ]);
 
       if (empRes.status === "fulfilled") {
@@ -138,10 +138,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         }));
       }
 
+      if (auditRes.status === "fulfilled") {
+        setAuditLogs(auditRes.value);
+      }
+
       if (
         empRes.status === "fulfilled" ||
         brnRes.status === "fulfilled" ||
-        attRes.status === "fulfilled"
+        attRes.status === "fulfilled" ||
+        auditRes.status === "fulfilled"
       ) {
         setBackendStatus("CONNECTED");
       }
@@ -190,39 +195,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         faydaVerified: /^\d{12}$/.test(String(created.faydaNumber ?? newEmp.faydaNumber ?? "").trim()),
       };
       setEmployees(prev => [...prev, normalized]);
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs(prev => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `onboarded employee ${normalized.firstName} ${normalized.lastName}`,
-        type: "success",
-      }, ...prev]);
       setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (normalized.baseSalary ?? 0) }));
       const pinMsg = created.mobileAppPin
         ? ` Mobile app PIN: ${created.mobileAppPin} (share with employee; also sent by SMS if configured).`
         : "";
       return { success: true, message: `Employee added.${pinMsg}`, mobileAppPin: created.mobileAppPin };
     } catch (e: any) {
-      // Offline fallback
-      const id = `emp-${Math.floor(1000 + Math.random() * 9000)}`;
-      const created: Employee = {
-        ...newEmp,
-        id,
-        hireDate: new Date().toISOString().split("T")[0],
-        faydaVerified: /^\d{12}$/.test((newEmp.faydaNumber || "").trim()),
-      };
-      setEmployees(prev => [...prev, created]);
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs(prev => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `onboarded employee ${created.firstName} ${created.lastName} (Offline)`,
-        type: "success",
-      }, ...prev]);
-      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
-      return { success: true, message: "Employee added (Offline)." };
+      return { success: false, message: e.message || "Failed to onboard employee." };
     }
   };
 
@@ -230,14 +209,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     try {
       const updated = await apiRequest<Employee>(`/employees/${id}`, { method: "PATCH", body: JSON.stringify(updates) });
       setEmployees(prev => prev.map(e => (e.id === id ? updated : e)));
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs(prev => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `updated employee ${updated.firstName} ${updated.lastName}`,
-        type: "warning" as const,
-      }, ...prev]);
         if (updates.baseSalary !== undefined) {
           const original = employees.find(e => e.id === id)?.baseSalary ?? 0;
           const newSalary = updates.baseSalary;
@@ -245,25 +216,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         }
       return { success: true, message: "Employee updated." };
     } catch (e: any) {
-      // Offline fallback
-      setEmployees(prev => prev.map(e => (e.id === id ? { ...e, ...updates } as Employee : e)));
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const targetEmp = employees.find(e => e.id === id);
-      if (targetEmp) {
-        setAuditLogs(prev => [{
-          id: `act-${Date.now()}`,
-          timestamp: time,
-          user: "HR Operator",
-          action: `updated employee ${targetEmp.firstName} ${targetEmp.lastName} (Offline)`,
-          type: "warning" as const,
-        }, ...prev]);
-      }
-      if (updates.baseSalary !== undefined) {
-        const original = employees.find(e => e.id === id)?.baseSalary ?? 0;
-        const newSalary = updates.baseSalary;
-        setStats(prev => ({ ...prev, monthlyPayroll: prev.monthlyPayroll - original + newSalary }));
-      }
-      return { success: true, message: "Employee updated (Offline)." };
+      return { success: false, message: e.message || "Failed to update employee." };
     }
   };
 
@@ -271,14 +224,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     try {
       const created = await apiRequest<Branch>("/branches", { method: "POST", body: JSON.stringify(newBranch) });
       setBranches(prev => [...prev, created]);
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs(prev => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `setup geofenced branch: ${created.name} (Radius: ${created.geofenceRadiusMeters}m)`,
-        type: "success" as const,
-      }, ...prev]);
       return { success: true, message: "Branch added." };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not save branch to the server.";
@@ -296,14 +241,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(updates),
       });
       setBranches((prev) => prev.map((b) => (b.id === id ? updated : b)));
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs((prev) => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `updated branch ${updated.name}`,
-        type: "warning" as const,
-      }, ...prev]);
       return { success: true, message: "Branch updated." };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not update branch.";
@@ -316,14 +253,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const removed = branches.find((b) => b.id === id);
       await apiRequest(`/branches/${id}`, { method: "DELETE" });
       setBranches((prev) => prev.filter((b) => b.id !== id));
-      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      setAuditLogs((prev) => [{
-        id: `act-${Date.now()}`,
-        timestamp: time,
-        user: "HR Operator",
-        action: `removed branch ${removed?.name ?? id}`,
-        type: "warning" as const,
-      }, ...prev]);
       return { success: true, message: "Branch removed." };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not remove branch.";
@@ -344,37 +273,21 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       ...newLog,
     };
     setLogs(prev => [added, ...prev]);
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const actionDesc = newLog.source === "USSD"
-      ? `${newLog.type.toLowerCase().replace("_", " ")} via USSD mobile gateway`
-      : newLog.source === "WEB_PWA"
-      ? `${newLog.type.toLowerCase().replace("_", " ")} via Web PWA browser GPS`
-      : `${newLog.type.toLowerCase().replace("_", " ")} via native app`;
-    const newAct: AuditLog = {
-      id: `act-${Date.now()}`,
-      timestamp: time,
-      user: newLog.employeeName,
-      action: newLog.isAnomaly ? `${actionDesc} (GEOFENCE INFRACTION)` : actionDesc,
-      type: newLog.isAnomaly ? "warning" as const : "success" as const,
-    };
-    setAuditLogs(prev => [newAct, ...prev]);
     if (newLog.type === "CLOCK_IN") setStats(prev => ({ ...prev, attendanceRate: Math.min(prev.attendanceRate + 2, 100) }));
   };
-  const handleUpgradePlan = (plan: string, maxEmp: number) => {
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setStats(prev => ({ ...prev, planTier: plan, maxEmployees: maxEmp }));
-    setAuditLogs(prev => [{ id: `act-${Date.now()}`, timestamp: time, user: "Owner", action: `upgraded subscription to ${plan} (seat limit ${maxEmp})`, type: "success" }, ...prev]);
-  };
 
-  const handleTriggerDisbursement = () => {
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setAuditLogs(prev => [{
-      id: `act-${Date.now()}`,
-      timestamp: time,
-      user: "Owner Finance",
-      action: `executed bulk disbursement of ${stats.monthlyPayroll.toLocaleString()} ETB via Chapa gateway.`,
-      type: "success",
-    }, ...prev]);
+  const handleTriggerDisbursement = async (runId: string, totpCode: string) => {
+    try {
+      await apiRequest(`/api/v1/finance/payroll/${runId}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ totpToken: totpCode })
+      });
+      toast.success("Payroll Disbursed", "Successfully initiated payroll disbursement via Chapa.");
+      await refreshTenantData();
+    } catch (e: any) {
+      toast.error("Disbursement Failed", e.message || "Failed to initiate payroll disbursement.");
+      throw e;
+    }
   };
 
   return (
@@ -394,7 +307,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       handleDeleteBranch,
       refreshTenantData,
       handleSimulateLog,
-      handleUpgradePlan,
       handleTriggerDisbursement,
     }}>
       {children}
