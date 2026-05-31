@@ -47,6 +47,7 @@ function BiometricLoginContent() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      localStorage.removeItem("demoz_tenant_id");
       const urlParams = new URLSearchParams(window.location.search);
       const checkoutToken = urlParams.get("checkout_token");
       if (checkoutToken) {

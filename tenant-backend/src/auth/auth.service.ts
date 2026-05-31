@@ -119,6 +119,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        role: user.role,
         phoneNumber: user.phoneNumber,
         is2FaEnabled: !!user.twoFactorSecret,
         workspaces: user.tenantId ? [{

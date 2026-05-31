@@ -69,6 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // clear local state even if network fails
     }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("demoz_tenant_id");
+    }
     setUser(null);
   }, []);
 
