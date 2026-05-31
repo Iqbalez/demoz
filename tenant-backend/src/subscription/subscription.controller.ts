@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 interface CheckoutState {
   tenantId: string;
   phone: string;
+  email: string;
   tier: string;
   companyName: string;
 }
@@ -107,6 +108,7 @@ export class SubscriptionController {
       state: {
         tenantId: tenant.id,
         phone,
+        email,
         tier,
         companyName,
       },

@@ -54,6 +54,8 @@ function BiometricLoginContent() {
           .then((data) => {
             if (data?.success) {
               setPhoneNumber(data.phone || "");
+              if (data.email) setEmail(data.email);
+              setLoginMode("owner");
               toast.success(
                 "Workspace ready",
                 `Registered ${data.companyName} on the ${data.tier} tier. Sign in to continue.`,
