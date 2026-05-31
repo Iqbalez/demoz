@@ -35,7 +35,7 @@ export class WorkspaceController {
   @Roles(UserRole.OWNER)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async updateProfile(
-    @Body() body: { name?: string; tin?: string; taxRegion?: string; licenseUrl?: string },
+    @Body() body: { name?: string; tin?: string },
   ) {
     const tenantId = tenantStorage.getStore();
     if (!tenantId) throw new BadRequestException('Tenant context missing.');

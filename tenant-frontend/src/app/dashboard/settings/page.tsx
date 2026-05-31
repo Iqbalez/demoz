@@ -11,11 +11,9 @@ interface TenantProfile {
   name: string;
   companyCode: string;
   tin: string | null;
-  taxRegion: string | null;
   planTier: string;
   maxEmployees: number;
   status: string;
-  licenseUrl: string | null;
 }
 
 export default function OrganizationSettingsPage() {
@@ -27,7 +25,6 @@ export default function OrganizationSettingsPage() {
 
   const [name, setName] = useState('');
   const [tin, setTin] = useState('');
-  const [taxRegion, setTaxRegion] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -36,7 +33,6 @@ export default function OrganizationSettingsPage() {
         setProfile(data);
         setName(data?.name || '');
         setTin(data?.tin || '');
-        setTaxRegion(data?.taxRegion || '');
       } catch {
         // leave empty
       } finally {
@@ -52,7 +48,7 @@ export default function OrganizationSettingsPage() {
     try {
       const updated = await apiRequest<TenantProfile>('/workspace/profile', {
         method: 'PATCH',
-        body: JSON.stringify({ name, tin: tin || null, taxRegion: taxRegion || null }),
+        body: JSON.stringify({ name, tin: tin || null }),
       });
       setProfile(updated);
       toast.success('Settings saved', 'Organization profile updated successfully.');
@@ -61,7 +57,7 @@ export default function OrganizationSettingsPage() {
     } finally {
       setSaving(false);
     }
-  }, [name, tin, taxRegion, toast]);
+  }, [name, tin]);
 
   if (loading) {
     return (
@@ -109,29 +105,6 @@ export default function OrganizationSettingsPage() {
               placeholder="e.g. 0001234567"
               className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
             />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[var(--text-primary)]">Tax Region</label>
-            <select
-              value={taxRegion}
-              onChange={e => setTaxRegion(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none"
-            >
-              <option value="">Select Region</option>
-              <option value="ADDIS_ABABA">Addis Ababa</option>
-              <option value="OROMIA">Oromia</option>
-              <option value="AMHARA">Amhara</option>
-              <option value="TIGRAY">Tigray</option>
-              <option value="SNNPR">SNNPR</option>
-              <option value="SOMALI">Somali</option>
-              <option value="AFAR">Afar</option>
-              <option value="BENISHANGUL_GUMUZ">Benishangul-Gumuz</option>
-              <option value="GAMBELA">Gambela</option>
-              <option value="HARARI">Harari</option>
-              <option value="DIRE_DAWA">Dire Dawa</option>
-              <option value="SIDAMA">Sidama</option>
-              <option value="SW_ETHIOPIA">South West Ethiopia</option>
-            </select>
           </div>
         </div>
 

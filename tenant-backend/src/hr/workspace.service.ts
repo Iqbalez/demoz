@@ -16,11 +16,9 @@ export class WorkspaceService {
           name: true,
           companyCode: true,
           tin: true,
-          taxRegion: true,
           planTier: true,
           maxEmployees: true,
           status: true,
-          licenseUrl: true,
           createdAt: true,
         },
       }),
@@ -31,13 +29,11 @@ export class WorkspaceService {
 
   async updateTenantProfile(
     tenantId: string,
-    data: { name?: string; tin?: string; taxRegion?: string; licenseUrl?: string },
+    data: { name?: string; tin?: string },
   ) {
     const updateData: any = {};
     if (data.name?.trim()) updateData.name = data.name.trim();
     if (data.tin !== undefined) updateData.tin = data.tin?.trim() || null;
-    if (data.taxRegion !== undefined) updateData.taxRegion = data.taxRegion?.trim() || null;
-    if (data.licenseUrl !== undefined) updateData.licenseUrl = data.licenseUrl?.trim() || null;
 
     if (Object.keys(updateData).length === 0) {
       throw new BadRequestException('No valid fields to update.');
@@ -52,11 +48,9 @@ export class WorkspaceService {
           name: true,
           companyCode: true,
           tin: true,
-          taxRegion: true,
           planTier: true,
           maxEmployees: true,
           status: true,
-          licenseUrl: true,
         },
       }),
     );
@@ -64,20 +58,15 @@ export class WorkspaceService {
   }
 
   async getTeamMembers(tenantId: string) {
-    // Fetch real users belonging to this tenant
+    // Fetch real users belonging to this tenant (direct tenantId FK)
     const users = await withoutTenantIsolation(() =>
       this.prisma.user.findMany({
-        where: {
-          members: { some: { tenantId } },
-        },
+        where: { tenantId },
         select: {
           id: true,
           email: true,
+          role: true,
           isActive: true,
-          members: {
-            where: { tenantId },
-            select: { role: true },
-          },
         },
       }),
     );
@@ -100,7 +89,7 @@ export class WorkspaceService {
       members: users.map(u => ({
         id: u.id,
         email: u.email,
-        role: u.members[0]?.role || null,
+        role: u.role,
         status: u.isActive ? 'ACTIVE' : 'INACTIVE',
       })),
       pendingInvitations: invitations.map(inv => ({
