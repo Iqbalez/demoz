@@ -3,6 +3,10 @@
 import React, { useMemo } from "react";
 import { useDashboard } from "../../context/DashboardContext";
 import { useAuth } from "../../context/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "../../lib/api";
+import { AttendanceLog } from "../../features/attendance/AttendanceTracker";
+import { Employee } from "../../features/employees/HRDirectory";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -13,7 +17,23 @@ function getGreeting() {
 
 export default function DashboardOverviewPage() {
   const { user } = useAuth();
-  const { stats, auditLogs, logs, employees } = useDashboard();
+  const { stats, auditLogs } = useDashboard();
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const res = await apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500");
+      return Array.isArray(res) ? res : res.data ?? [];
+    }
+  });
+
+  const { data: logs = [] } = useQuery({
+    queryKey: ['attendanceLogs'],
+    queryFn: async () => {
+      const res = await apiRequest<{ data: AttendanceLog[] } | AttendanceLog[]>("/attendance/logs");
+      return Array.isArray(res) ? res : res.data ?? [];
+    }
+  });
   const firstName = user?.email?.split("@")[0]?.split(/[._]/)[0] ?? "there";
   const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
   const seatPercentage = Math.min((stats.totalEmployees / stats.maxEmployees) * 100, 100);

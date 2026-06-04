@@ -19,7 +19,7 @@ interface LeaveRequest {
 }
 
 function LeaveOverviewContent() {
-  const { employees } = useDashboard();
+  const {} = useDashboard();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("ALL");

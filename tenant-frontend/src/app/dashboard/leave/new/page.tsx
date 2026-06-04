@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useDashboard } from "../../../../context/DashboardContext";
 import { apiRequest } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 import EthiopianDatePicker from "@/components/EthiopianDatePicker";
 
 interface LeaveType {
@@ -26,7 +27,14 @@ interface LeaveBalance {
 }
 
 function NewLeaveRequestContent() {
-  const { employees } = useDashboard();
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const res = await apiRequest<{ data: any[] } | any[]>("/employees?page=1&limit=500");
+      return Array.isArray(res) ? res : res.data ?? [];
+    }
+  });
+
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedType, setSelectedType] = useState("");

@@ -139,7 +139,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   // CRUD helpers – talk to API
   const handleAddEmployee = async (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">): Promise<{ success: boolean; message: string; mobileAppPin?: string }> => {
-    if (employees.length >= stats.maxEmployees) return { success: false, message: "Seat capacity limit reached." };
+    if (stats.totalEmployees >= stats.maxEmployees) return { success: false, message: "Seat capacity limit reached." };
     try {
       const payload = {
         firstName: newEmp.firstName,

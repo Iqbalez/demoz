@@ -4,9 +4,20 @@ import React, { Suspense } from "react";
 import PayrollEngine from "../../../features/payroll/PayrollEngine";
 import { useDashboard } from "../../../context/DashboardContext";
 import { Skeleton } from "../../../components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "../../../lib/api";
+import { Employee } from "../../../features/employees/HRDirectory";
 
 function PayrollPageContent() {
-  const { employees, handleTriggerDisbursement } = useDashboard();
+  const { handleTriggerDisbursement } = useDashboard();
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const res = await apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500");
+      return Array.isArray(res) ? res : res.data ?? [];
+    }
+  });
 
   return (
     <PayrollEngine

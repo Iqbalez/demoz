@@ -4,10 +4,21 @@ import React, { Suspense } from "react";
 import AttendanceTracker from "../../../features/attendance/AttendanceTracker";
 import { useDashboard } from "../../../context/DashboardContext";
 import { Skeleton } from "../../../components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "../../../lib/api";
+import { AttendanceLog } from "../../../features/attendance/AttendanceTracker";
 
 function AttendancePageContent() {
-  const { logs, branches, handleAddBranch, handleUpdateBranch, handleDeleteBranch, refreshTenantData } =
+  const { branches, handleAddBranch, handleUpdateBranch, handleDeleteBranch, refreshTenantData } =
     useDashboard();
+
+  const { data: logs = [] } = useQuery({
+    queryKey: ['attendanceLogs'],
+    queryFn: async () => {
+      const res = await apiRequest<{ data: AttendanceLog[] } | AttendanceLog[]>("/attendance/logs");
+      return Array.isArray(res) ? res : res.data ?? [];
+    }
+  });
 
   return (
     <AttendanceTracker
