@@ -145,6 +145,71 @@ export default function PayrollEngine({
     setShowAiAuditReport(false);
   };
 
+  // Download single payslip PDF
+  const handleDownloadPayslip = async (employeeId: string) => {
+    if (!activeRunId) return;
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${baseUrl}/api/v1/payroll/runs/${activeRunId}/payslips/${employeeId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payslip-${employeeId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Download Error', 'Failed to download payslip PDF.');
+    }
+  };
+
+  // Download all payslips as ZIP
+  const handleBulkDownload = async () => {
+    if (!activeRunId) return;
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${baseUrl}/api/v1/payroll/runs/${activeRunId}/payslips-bulk`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Bulk download failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payslips-${activeRunId}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Download Error', 'Failed to download payslips ZIP.');
+    }
+  };
+
+  // Download ERCA monthly report
+  const handleErcaReport = async () => {
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${baseUrl}/api/v1/payroll/reports/erca-monthly/${year}/${month}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('ERCA report failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `erca-report-${year}-${month}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('ERCA Report Error', 'Failed to generate ERCA report.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-slide-up select-none">
       
@@ -184,6 +249,25 @@ export default function PayrollEngine({
           </div>
         </div>
       </div>
+      {/* Bulk Actions Bar — when a payroll run is active */}
+      {activeRunId && payrollStatus !== "DRAFT" && (
+        <div className="flex flex-wrap gap-2 bg-white dark:bg-[#0c1424] p-4 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/60 shadow-sm">
+          <button
+            onClick={handleBulkDownload}
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold cursor-pointer active:scale-95 flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Download All Payslips (ZIP)
+          </button>
+          <button
+            onClick={handleErcaReport}
+            className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border border-amber-500/20 rounded-xl text-[10px] font-bold cursor-pointer active:scale-95 flex items-center gap-1.5"
+          >
+            <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 text-[8px] font-extrabold">ERCA</span>
+            Monthly Report
+          </button>
+        </div>
+      )}
 
       {/* Calculations Summary Cards */}
 
@@ -403,7 +487,7 @@ export default function PayrollEngine({
                       <th className="py-4 px-4">Pension (7%)</th>
                       <th className="py-4 px-4">Income Tax</th>
                       <th className="py-4 px-4">Net Payout</th>
-                      <th className="py-4 px-4 text-right">Radar Breakdown</th>
+                      <th className="py-4 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-slate-700 dark:text-zinc-200">
@@ -431,15 +515,27 @@ export default function PayrollEngine({
                             {net.toLocaleString()}
                           </td>
                           <td className="py-4 px-4 text-right">
-                            <button
-                              className={`px-2 py-1 text-[9px] font-bold rounded-lg ${
-                                selectedBreakdownEmp?.id === emp.id
-                                  ? "bg-emerald-600 text-white"
-                                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300"
-                              }`}
-                            >
-                              Details
-                            </button>
+                            <div className="flex gap-1 justify-end">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedBreakdownEmp(emp); }}
+                                className={`px-2 py-1 text-[9px] font-bold rounded-lg ${
+                                  selectedBreakdownEmp?.id === emp.id
+                                    ? "bg-emerald-600 text-white"
+                                    : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300"
+                                }`}
+                              >
+                                Details
+                              </button>
+                              {activeRunId && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDownloadPayslip(emp.id); }}
+                                  className="px-2 py-1 text-[9px] font-bold rounded-lg bg-sky-500/10 text-sky-600 border border-sky-500/20 hover:bg-sky-500/20 cursor-pointer"
+                                  title="Download Payslip PDF"
+                                >
+                                  PDF
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

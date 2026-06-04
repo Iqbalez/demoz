@@ -13,10 +13,16 @@ import { PrismaService } from '../prisma.service';
 import { tenantStorage } from '../tenant-context';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { ErcaReportService } from './reports/erca-report.service';
+import { PoessaReportService } from './reports/poessa-report.service';
 
 @Controller('payroll/reports')
 export class ReportsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ercaService: ErcaReportService,
+    private readonly poessaService: PoessaReportService,
+  ) {}
 
   private requireTenantId(): string {
     const tenantId = tenantStorage.getStore();
@@ -390,65 +396,58 @@ export class ReportsController {
   }
 
   /**
-   * Generates Ethiopian Revenue and Customs Authority (ERCA) monthly CSV tax report.
-   * Format matches SIGTAS e-filing bulk upload template (per tax_reporting_payslip_standards.md).
+   * Generates Ethiopian Revenue and Customs Authority (ERCA) monthly Excel tax report.
    */
   @Get('erca/:runId')
   @Roles(UserRole.HR, UserRole.OWNER)
   async exportErcaSheet(@Param('runId') runId: string, @Res() res: express.Response) {
-    const { run, items } = await this.getRunWithLineItems(runId);
-    const period = new Date(run.periodStart).toISOString().slice(0, 7);
+    const tenantId = this.requireTenantId();
+    const run = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
+    if (!run) throw new NotFoundException('Run not found');
 
-    const headers =
-      'No,Employee ID,Full Name,TIN,Basic Salary,Transport Allowance,Taxable Allowances,Gross Salary,Employee Pension (7%),Taxable Income,Income Tax,Net Pay,Status,Payment Channel\n';
-    const rows = items.map((item, index) => {
-      const fullname = `"${item.employee.firstName} ${item.employee.lastName}"`;
-      const grossSalary = Number(item.grossSalary || item.baseSalary);
-      const pension = Number(item.pensionDeduction);
-      const transportExempt = Number(item.transportAllowanceExempt || 0);
-      const taxableIncome = grossSalary - pension - transportExempt;
-      return `${index + 1},${item.employee.employeeIdNumber},${fullname},${item.employee.tin || 'MISSING'},${item.baseSalary},${item.transportAllowance || 0},${item.taxableAllowances},${item.grossSalary || item.baseSalary},${item.pensionDeduction},${taxableIncome.toFixed(2)},${item.incomeTax},${item.netPay},${item.employee.status},${item.employee.paymentMethod}`;
-    }).join('\n');
+    const date = new Date(run.periodStart);
+    const buffer = await this.ercaService.generateERCAMonthlyReport(tenantId, date.getUTCFullYear(), date.getUTCMonth() + 1);
 
-    const csvContent = headers + rows;
-    
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=erca-schedule-a-${period}-${runId.slice(0, 8)}.csv`,
-    );
-    res.status(HttpStatus.OK).send(csvContent);
+    await this.prisma.reportDownloadLog.create({
+      data: {
+        tenantId,
+        reportType: 'ERCA',
+        periodYear: date.getUTCFullYear(),
+        periodMonth: date.getUTCMonth() + 1,
+        downloadedBy: tenantId, // placeholder for user ID if available, using tenantId for now
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=ERCA_Report_${date.getUTCFullYear()}_${date.getUTCMonth() + 1}.xlsx`);
+    res.status(HttpStatus.OK).send(buffer);
   }
 
   /**
-   * POESSA (Private Org Employees Social Security) monthly pension CSV.
+   * POESSA (Private Org Employees Social Security) monthly pension Excel.
    */
   @Get('psssa/:runId')
   @Roles(UserRole.HR, UserRole.OWNER)
   async exportPsssaSheet(@Param('runId') runId: string, @Res() res: express.Response) {
-    const { run, items } = await this.getRunWithLineItems(runId);
-    const period = new Date(run.periodStart).toISOString().slice(0, 7);
+    const tenantId = this.requireTenantId();
+    const run = await this.prisma.payrollRun.findUnique({ where: { id: runId } });
+    if (!run) throw new NotFoundException('Run not found');
 
-    const headers =
-      'No,Employee ID,Full Name,Pension ID,TIN,Basic Salary,Pension Base (Capped 15k),Employee 7%,Employer 11%,Total 18%,Bank Name,Account Number\n';
-    const rows = items.map((item, index) => {
-      const fullname = `"${item.employee.firstName} ${item.employee.lastName}"`;
-      const base = Number(item.baseSalary);
-      const pensionBase = Math.min(base, 15000);
-      const employeePart = Number(item.pensionDeduction);
-      const employerPart = Number(item.employerPensionContribution || pensionBase * 0.11);
-      const totalPart = employeePart + employerPart;
+    const date = new Date(run.periodStart);
+    const buffer = await this.poessaService.generatePOESSAReport(tenantId, date.getUTCFullYear(), date.getUTCMonth() + 1);
 
-      return `${index + 1},${item.employee.employeeIdNumber},${fullname},${item.employee.pensionId || 'MISSING'},${item.employee.tin || 'MISSING'},${base},${pensionBase},${employeePart.toFixed(2)},${employerPart.toFixed(2)},${totalPart.toFixed(2)},"${item.employee.bankName || 'N/A'}","${item.employee.bankAccount || 'N/A'}"`;
-    }).join('\n');
+    await this.prisma.reportDownloadLog.create({
+      data: {
+        tenantId,
+        reportType: 'POESSA',
+        periodYear: date.getUTCFullYear(),
+        periodMonth: date.getUTCMonth() + 1,
+        downloadedBy: tenantId,
+      }
+    });
 
-    const csvContent = headers + rows;
-
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=poessa-pension-${period}-${runId.slice(0, 8)}.csv`,
-    );
-    res.status(HttpStatus.OK).send(csvContent);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=POESSA_Report_${date.getUTCFullYear()}_${date.getUTCMonth() + 1}.xlsx`);
+    res.status(HttpStatus.OK).send(buffer);
   }
 }

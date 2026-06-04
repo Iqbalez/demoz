@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useAuthStore } from "../../store/authStore";
 import apiClient from "../../utils/api";
+import { useTranslation } from "react-i18next";
 
 interface LeaveRequest {
   id: string;
@@ -40,6 +41,7 @@ interface LeaveBalance {
 
 export default function LeaveScreen() {
   const { token, employeeDetails } = useAuthStore();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -136,7 +138,7 @@ export default function LeaveScreen() {
 
   const handleSubmitLeave = async () => {
     if (!startDate || !endDate || !reason) {
-      Alert.alert("Missing Fields", "Please populate all request parameters.");
+      Alert.alert(t("missingFields"), t("fillAllFields"));
       return;
     }
 
@@ -144,11 +146,11 @@ export default function LeaveScreen() {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      Alert.alert("Invalid Dates", "Please use standard YYYY-MM-DD formatting.");
+      Alert.alert(t("invalidDates"), t("useDateFormat"));
       return;
     }
     if (start > end) {
-      Alert.alert("Validation Error", "Start date cannot exceed end date.");
+      Alert.alert(t("validationError"), t("startBeforeEnd"));
       return;
     }
 
@@ -180,7 +182,7 @@ export default function LeaveScreen() {
         const res = await apiClient.post('/leave/requests', payload);
 
         if (res.data) {
-          Alert.alert("Success", "Your leave request has been submitted for approval.");
+          Alert.alert(t("success"), t("leaveSubmitted"));
           setModalVisible(false);
           fetchRequests();
           clearForm();
@@ -188,7 +190,7 @@ export default function LeaveScreen() {
         }
       } catch (err: any) {
         const errMsg = err.response?.data?.message || err.message || "Overlap or other error detected.";
-        Alert.alert("Submission Rejected", errMsg);
+        Alert.alert(t("submissionRejected"), errMsg);
       } finally {
         setLoading(false);
       }
@@ -229,7 +231,7 @@ export default function LeaveScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Balances Section Header */}
-        <Text style={styles.sectionHeader}>LEAVE ENTITLEMENT BALANCES</Text>
+        <Text style={styles.sectionHeader}>{t("leaveBalances")}</Text>
         <View style={styles.balanceGrid}>
           {balances.map((b) => (
             <View key={b.code} style={styles.balanceCard}>
@@ -249,17 +251,17 @@ export default function LeaveScreen() {
           onPress={() => setModalVisible(true)}
           activeOpacity={0.8}
         >
-          <Text style={styles.requestBtnText}>➕ REQUEST NEW LEAVE</Text>
+          <Text style={styles.requestBtnText}>{t("requestNewLeave")}</Text>
         </TouchableOpacity>
 
         {/* History Header */}
-        <Text style={styles.sectionHeader}>MY ABSENCE JOURNAL</Text>
+        <Text style={styles.sectionHeader}>{t("myAbsenceJournal")}</Text>
 
         {loading ? (
           <ActivityIndicator color="#10b981" size="large" style={{ marginTop: 24 }} />
         ) : requests.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No registered leave history logs found.</Text>
+            <Text style={styles.emptyText}>{t("noLeaveHistory")}</Text>
           </View>
         ) : (
           requests.map((item) => (
@@ -308,10 +310,10 @@ export default function LeaveScreen() {
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>SUBMIT LEAVE PETITION</Text>
+            <Text style={styles.modalTitle}>{t("submitLeavePetition")}</Text>
 
             {/* Category selection */}
-            <Text style={styles.inputLabel}>CATEGORY CODE</Text>
+            <Text style={styles.inputLabel}>{t("categoryCode")}</Text>
             <View style={styles.categoryPickerRow}>
               {balances.map((b) => (
                 <TouchableOpacity
@@ -330,7 +332,7 @@ export default function LeaveScreen() {
             </View>
 
             {/* Inputs */}
-            <Text style={styles.inputLabel}>START DATE (YYYY-MM-DD)</Text>
+            <Text style={styles.inputLabel}>{t("startDate")}</Text>
             <TextInput
               value={startDate}
               onChangeText={setStartDate}
@@ -339,7 +341,7 @@ export default function LeaveScreen() {
               style={styles.textInput}
             />
 
-            <Text style={styles.inputLabel}>END DATE (YYYY-MM-DD)</Text>
+            <Text style={styles.inputLabel}>{t("endDate")}</Text>
             <TextInput
               value={endDate}
               onChangeText={setEndDate}
@@ -348,7 +350,7 @@ export default function LeaveScreen() {
               style={styles.textInput}
             />
 
-            <Text style={styles.inputLabel}>REASON / JUSTIFICATION</Text>
+            <Text style={styles.inputLabel}>{t("reasonJustification")}</Text>
             <TextInput
               value={reason}
               onChangeText={setReason}
@@ -365,14 +367,14 @@ export default function LeaveScreen() {
                 style={[styles.modalActionBtn, styles.cancelBtn]}
                 onPress={() => setModalVisible(false)}
               >
-                <Text style={styles.cancelBtnText}>CANCEL</Text>
+                <Text style={styles.cancelBtnText}>{t("cancel")}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.modalActionBtn, styles.submitBtn]}
                 onPress={handleSubmitLeave}
               >
-                <Text style={styles.submitBtnText}>SUBMIT</Text>
+                <Text style={styles.submitBtnText}>{t("submit")}</Text>
               </TouchableOpacity>
             </View>
           </View>

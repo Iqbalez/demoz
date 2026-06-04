@@ -43,8 +43,8 @@ interface AuthContextProps {
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   loading: true,
-  refreshUser: async () => {},
-  logout: async () => {},
+  refreshUser: async () => { },
+  logout: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {

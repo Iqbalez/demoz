@@ -1,4 +1,4 @@
-import React, { useState, memo } from "react";
+import React, { useState, useEffect, memo, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,16 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import { useAuthStore } from "../../store/authStore";
+import { useTranslation } from "react-i18next";
 
 interface PayslipData {
   id: string;
+  payrollRunId: string;
   month: string;
+  monthEC: string;
   gross: number;
   pension: number;
   tax: number;
@@ -33,20 +39,21 @@ const PayslipRow = memo(
     isDownloading,
   }: {
     slip: PayslipData;
-    onDownload: (id: string, month: string) => void;
+    onDownload: (slip: PayslipData) => void;
     isDownloading: boolean;
   }) => {
     return (
       <View style={styles.slipCard}>
         <View style={styles.slipInfoContainer}>
-          <Text style={styles.slipMonth}>{slip.month}</Text>
+          <Text style={styles.slipMonth}>{slip.monthEC || slip.month}</Text>
+          <Text style={styles.slipMonthGC}>{slip.month}</Text>
           <Text style={styles.slipNet}>Disbursed: {slip.net.toLocaleString()} ETB</Text>
           <Text style={styles.slipRef}>{slip.reference}</Text>
         </View>
 
         <TouchableOpacity
           style={styles.downloadBtn}
-          onPress={() => onDownload(slip.id, slip.month)}
+          onPress={() => onDownload(slip)}
           disabled={isDownloading}
           activeOpacity={0.7}
         >
@@ -78,90 +85,173 @@ LedgerRow.displayName = "LedgerRow";
 
 export default function WalletScreen() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [payslips, setPayslips] = useState<PayslipData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { token } = useAuthStore();
+  const { t } = useTranslation();
 
-  const payslips: PayslipData[] = [
-    {
-      id: "pay-1",
-      month: "May 2026",
-      gross: 16000,
-      pension: 1120,
-      tax: 2600,
-      net: 12280,
-      reference: "CHP-TX-92837",
-    },
-    {
-      id: "pay-2",
-      month: "April 2026",
-      gross: 16000,
-      pension: 1120,
-      tax: 2600,
-      net: 12280,
-      reference: "CHP-TX-81928",
-    },
-  ];
+  // Fetch payroll history from backend
+  useEffect(() => {
+    const fetchPayslips = async () => {
+      try {
+        const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+        const res = await fetch(`${baseUrl}/api/v1/payroll/runs`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-  const ledgerEntries: LedgerData[] = [
-    { title: "Telebirr Payout Success", time: "May 01, 2026 • 10:15 AM", amount: 12280 },
-    { title: "Telebirr Payout Success", time: "Apr 01, 2026 • 09:30 AM", amount: 12280 },
-  ];
+        if (res.ok) {
+          const runs = await res.json();
+          const slips: PayslipData[] = runs.flatMap((run: any) =>
+            (run.payrollLineItems || []).map((item: any) => ({
+              id: item.id,
+              payrollRunId: run.id,
+              month: `${new Date(run.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`,
+              monthEC: run.periodLabelEC || "",
+              gross: Number(item.grossSalary),
+              pension: Number(item.pensionDeduction),
+              tax: Number(item.incomeTax),
+              net: Number(item.netPay),
+              reference: item.chapaReference || `REF-${item.id.slice(0, 8)}`,
+            }))
+          );
+          setPayslips(slips);
+        }
+      } catch {
+        // Fallback to empty state — offline
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleDownloadPayslip = React.useCallback((id: string, month: string) => {
-    setDownloadingId(id);
-    setTimeout(() => {
-      setDownloadingId(null);
+    fetchPayslips();
+  }, [token]);
+
+  const handleDownloadPayslip = useCallback(async (slip: PayslipData) => {
+    setDownloadingId(slip.id);
+
+    try {
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+      const url = `${baseUrl}/api/v1/payroll/runs/${slip.payrollRunId}/payslips/${slip.id}`;
+
+      // Download to local filesystem
+      const fileUri = `${FileSystem.documentDirectory}payslip-${slip.id}.pdf`;
+      const download = await FileSystem.downloadAsync(url, fileUri, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (download.status === 200) {
+        // Share/open the PDF
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(download.uri, {
+            mimeType: "application/pdf",
+            dialogTitle: `Payslip - ${slip.monthEC || slip.month}`,
+          });
+        } else {
+          Alert.alert(
+            "PDF Downloaded",
+            `Payslip for ${slip.monthEC || slip.month} saved to device.`
+          );
+        }
+      } else {
+        Alert.alert("Download Failed", "Could not download payslip. Please try again.");
+      }
+    } catch (err) {
       Alert.alert(
-        "PDF Synchronized",
-        `Payslip for ${month} successfully downloaded to your device storage. (Ref: verified tax compliant)`
+        "ኔትወርክ ሲኖር ያያሉ",
+        "Payslip will be available when connected. / ኔትወርክ ሲኖር ያያሉ"
       );
-    }, 1500);
-  }, []);
+    } finally {
+      setDownloadingId(null);
+    }
+  }, [token]);
+
+  // Compute latest payslip summary
+  const latestSlip = payslips[0];
+
+  const ledgerEntries: LedgerData[] = payslips.slice(0, 3).map((s) => ({
+    title: "Chapa Payout Success",
+    time: s.month,
+    amount: s.net,
+  }));
 
   return (
     <ScrollView contentContainerStyle={styles.container} removeClippedSubviews={true}>
       {/* Earnings Overview */}
       <View style={styles.earningCard}>
-        <Text style={styles.earningLabel}>NET MONTHLY EARNINGS</Text>
-        <Text style={styles.earningVal}>12,280.00 ETB</Text>
+        <Text style={styles.earningLabel}>NET MONTHLY EARNINGS / ወርሃዊ ገቢ</Text>
+        <Text style={styles.earningVal}>
+          {latestSlip ? `${latestSlip.net.toLocaleString()} ETB` : "— ETB"}
+        </Text>
+        {latestSlip?.monthEC ? (
+          <Text style={styles.ecPeriodLabel}>{latestSlip.monthEC}</Text>
+        ) : null}
         <View style={styles.divider} />
         <View style={styles.statsRow}>
           <View>
-            <Text style={styles.statLabel}>Gross Base</Text>
-            <Text style={styles.statVal}>16,000 ETB</Text>
+            <Text style={styles.statLabel}>{t("grossSalary")}</Text>
+            <Text style={styles.statVal}>
+              {latestSlip ? `${latestSlip.gross.toLocaleString()} ETB` : "—"}
+            </Text>
           </View>
           <View>
-            <Text style={styles.statLabel}>Pension (7%)</Text>
-            <Text style={styles.statVal}>-1,120 ETB</Text>
+            <Text style={styles.statLabel}>{t("pension")} (7%)</Text>
+            <Text style={styles.statVal}>
+              {latestSlip ? `-${latestSlip.pension.toLocaleString()} ETB` : "—"}
+            </Text>
           </View>
           <View>
-            <Text style={styles.statLabel}>Federal Tax</Text>
-            <Text style={styles.statVal}>-2,600 ETB</Text>
+            <Text style={styles.statLabel}>{t("incomeTax")}</Text>
+            <Text style={styles.statVal}>
+              {latestSlip ? `-${latestSlip.tax.toLocaleString()} ETB` : "—"}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* PDF Payslips Section */}
-      <Text style={styles.sectionHeader}>PDF PAYSLIP DEPOSITORY</Text>
+      <Text style={styles.sectionHeader}>PDF PAYSLIP DEPOSITORY / የደሞዝ ሰነዶች</Text>
 
-      {payslips.map((slip) => (
-        <PayslipRow
-          key={slip.id}
-          slip={slip}
-          onDownload={handleDownloadPayslip}
-          isDownloading={downloadingId === slip.id}
-        />
-      ))}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color="#10b981" size="large" />
+          <Text style={styles.loadingText}>Loading payslips...</Text>
+        </View>
+      ) : payslips.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>{t("noPayslips")}</Text>
+          <Text style={styles.emptySubtext}>{t("payslipsAppear")}</Text>
+        </View>
+      ) : (
+        payslips.map((slip) => (
+          <PayslipRow
+            key={slip.id}
+            slip={slip}
+            onDownload={handleDownloadPayslip}
+            isDownloading={downloadingId === slip.id}
+          />
+        ))
+      )}
 
       {/* Chapa Transaction Ledger */}
-      <Text style={styles.sectionHeader}>CHAPA DISBURSEMENT LEDGER</Text>
-
-      <View style={styles.ledgerCard}>
-        {ledgerEntries.map((entry, idx) => (
-          <React.Fragment key={idx}>
-            <LedgerRow item={entry} />
-            {idx < ledgerEntries.length - 1 && <View style={styles.ledgerDivider} />}
-          </React.Fragment>
-        ))}
-      </View>
+      {ledgerEntries.length > 0 && (
+        <>
+          <Text style={styles.sectionHeader}>CHAPA DISBURSEMENT LEDGER</Text>
+          <View style={styles.ledgerCard}>
+            {ledgerEntries.map((entry, idx) => (
+              <React.Fragment key={idx}>
+                <LedgerRow item={entry} />
+                {idx < ledgerEntries.length - 1 && <View style={styles.ledgerDivider} />}
+              </React.Fragment>
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Security note */}
       <Text style={styles.securityLabel}>🔒 verified and processed via Chapa payment gateway</Text>
@@ -172,7 +262,7 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "#070b13", // Slate navy background
+    backgroundColor: "#070b13",
     padding: 24,
     paddingBottom: 40,
   },
@@ -195,6 +285,13 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#f8fafc",
     marginTop: 8,
+  },
+  ecPeriodLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#10b981",
+    marginTop: 4,
+    opacity: 0.8,
   },
   divider: {
     height: 1,
@@ -243,6 +340,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     color: "#f8fafc",
+  },
+  slipMonthGC: {
+    fontSize: 10,
+    color: "#475569",
+    fontWeight: "600",
+    marginTop: 1,
   },
   slipNet: {
     fontSize: 11,
@@ -312,5 +415,29 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 11,
+    color: "#475569",
+    marginTop: 10,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748b",
+  },
+  emptySubtext: {
+    fontSize: 10,
+    color: "#475569",
+    marginTop: 6,
+    textAlign: "center",
   },
 });

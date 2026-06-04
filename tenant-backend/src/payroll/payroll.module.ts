@@ -10,7 +10,11 @@ import { PayrollCalculationService } from './services/payroll-calculation.servic
 import { DashboardService } from '../dashboard/dashboard.service';
 import { PayrollDisburseService } from './payroll-disburse.service';
 import { PayrollDisburseProcessor } from './payroll-disburse.processor';
+import { PayslipService } from './payslip.service';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { ErcaReportService } from './reports/erca-report.service';
+import { PoessaReportService } from './reports/poessa-report.service';
+import { EthiopianCalendarService } from '../shared/ethiopian-calendar/ethiopian-calendar.service';
 
 @Module({
   imports: [
@@ -32,8 +36,11 @@ import { RealtimeModule } from '../realtime/realtime.module';
     DashboardService,
     PayrollCalculationService,
     PayrollDisburseService,
+    PayslipService,
+    ErcaReportService,
+    PoessaReportService,
+    EthiopianCalendarService,
   ],
-  exports: [AiAuditService, OvertimeService, PayrollCalculationService, PayrollDisburseService],
+  exports: [AiAuditService, OvertimeService, PayrollCalculationService, PayrollDisburseService, PayslipService],
 })
 export class PayrollModule {}
-

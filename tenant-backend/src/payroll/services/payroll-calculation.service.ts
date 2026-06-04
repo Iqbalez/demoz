@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma.service';
 import { DashboardService } from '../../dashboard/dashboard.service';
 import { PayrollStatus, Prisma } from '@prisma/client';
 import { calculateNetSalary } from '../calculators/tax.calculator';
+import { EthiopianCalendarService } from '../../shared/ethiopian-calendar/ethiopian-calendar.service';
 
 @Injectable()
 export class PayrollCalculationService {
@@ -18,6 +19,7 @@ export class PayrollCalculationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dashboardService: DashboardService,
+    private readonly ethiopianCalendarService: EthiopianCalendarService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -165,6 +167,10 @@ export class PayrollCalculationService {
     // 6. Strip _meta and build clean createMany payload
     const createManyData = linesData.map(({ _meta: _ignored, ...rest }) => rest);
 
+    // Calculate Ethiopian labels
+    const ethDate = this.ethiopianCalendarService.toEthiopian(periodStart);
+    const [year, month] = period.split('-');
+
     // 7. Single atomic transaction — PayrollRun + all PayrollLineItems
     try {
       const payrollRun = await this.prisma.payrollRun.create({
@@ -176,6 +182,8 @@ export class PayrollCalculationService {
           totalGross: grossTotal,
           totalTax:   taxTotal,
           totalNet:   netTotal,
+          periodLabelEC: `${ethDate.monthName} ${ethDate.year}`,
+          periodLabelGC: `${month}/${year}`,
           payrollLineItems: {
             createMany: { data: createManyData },
           },

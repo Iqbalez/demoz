@@ -1,24 +1,48 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { AttendanceSource, AttendanceType } from '@prisma/client';
+import { USSD_MESSAGES, formatMessage } from './ussd.messages';
+
+type UssdSessionState = 
+  | 'WELCOME'
+  | 'AWAITING_PIN'
+  | 'AUTHENTICATED'
+  | 'CLOCK_ACTION_CONFIRM'
+  | 'COMPLETE';
+
+interface UssdSession {
+  state: UssdSessionState;
+  employeeId?: string;
+  phoneNumber: string;
+  startedAt: string;
+  lastAction?: 'CLOCK_IN' | 'CLOCK_OUT';
+}
 
 @Injectable()
-export class UssdService {
+export class UssdService implements OnModuleInit {
   private readonly logger = new Logger(UssdService.name);
   private redisClient: any = null;
-  private memoryCache = new Map<string, { value: any; expires: number }>();
 
   constructor(private readonly prisma: PrismaService) {
     this.initRedis();
   }
 
-  /**
-   * Initializes high-speed cache connection with automatic fault-tolerant failover
-   */
+  async onModuleInit() {
+    if (!this.redisClient) {
+      throw new Error('[FATAL] USSD service cannot connect to Redis. USSD sessions require Redis — refusing to start.');
+    }
+    try {
+      await this.redisClient.ping();
+    } catch (err) {
+      throw new Error(
+        '[FATAL] USSD service cannot connect to Redis. USSD sessions require Redis — refusing to start.'
+      );
+    }
+  }
+
   private async initRedis() {
     try {
-      // Dynamic import to prevent startup failures if ioredis isn't installed
       const Redis = require('ioredis');
       const upstashUrl = process.env.UPSTASH_REDIS_URL;
 
@@ -28,7 +52,6 @@ export class UssdService {
             host: process.env.REDIS_HOST || 'localhost',
             port: parseInt(process.env.REDIS_PORT || '6379', 10),
             password: process.env.REDIS_PASSWORD || undefined,
-            // Support secure SSL/TLS for Upstash Redis
             tls:
               process.env.REDIS_TLS === 'true' ||
               process.env.REDIS_HOST?.includes('upstash.io')
@@ -43,70 +66,47 @@ export class UssdService {
       });
 
       this.redisClient.on('error', (err: any) => {
-        this.logger.warn(`Redis connection failed. Falling back to local high-speed memory cache: ${err.message}`);
-        this.redisClient = null;
+        this.logger.error(`Redis connection error: ${err.message}`);
       });
     } catch (e) {
-      this.logger.warn('ioredis package not found. Enforcing standalone local memory cache.');
+      this.logger.error('ioredis package not found. USSD service will fail.');
     }
   }
 
-  /**
-   * Reads from Cache Layer with local Map fallback
-   */
+  async setSession(sessionId: string, session: UssdSession): Promise<void> {
+    await this.redisClient.setex(`ussd:session:${sessionId}`, 90, JSON.stringify(session));
+  }
+
+  async getSession(sessionId: string): Promise<UssdSession | null> {
+    const raw = await this.redisClient.get(`ussd:session:${sessionId}`);
+    return raw ? JSON.parse(raw) : null;
+  }
+
   private async getCache(key: string): Promise<any> {
-    if (this.redisClient) {
-      try {
-        const val = await this.redisClient.get(key);
-        return val ? JSON.parse(val) : null;
-      } catch (err) {
-        // Fallback silently to memory
-      }
-    }
-
-    const local = this.memoryCache.get(key);
-    if (local && local.expires > Date.now()) {
-      return local.value;
-    }
-    return null;
+    const val = await this.redisClient.get(key);
+    return val ? JSON.parse(val) : null;
   }
 
-  /**
-   * Writes to Cache Layer with 1-hour TTL (3600 seconds)
-   */
   private async setCache(key: string, value: any): Promise<void> {
-    const stringified = JSON.stringify(value);
-    if (this.redisClient) {
-      try {
-        await this.redisClient.set(key, stringified, 'EX', 3600);
-        return;
-      } catch (err) {
-        // Fallback silently to memory
-      }
-    }
-
-    this.memoryCache.set(key, {
-      value,
-      expires: Date.now() + 3600 * 1000,
-    });
+    await this.redisClient.set(key, JSON.stringify(value), 'EX', 3600);
   }
 
-  /**
-   * Calibrates current time to East Africa Time (UTC+3) formatted as HH:MM
-   */
   private getEthiopianTimeStr(): string {
     const utcDate = new Date();
-    const etOffset = 3 * 60 * 60 * 1000; // UTC+3
+    const etOffset = 3 * 60 * 60 * 1000;
     const etDate = new Date(utcDate.getTime() + etOffset);
-    const hours = etDate.getUTCHours().toString().padStart(2, '0');
-    const minutes = etDate.getUTCMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+    return `${etDate.getUTCHours().toString().padStart(2, '0')}:${etDate.getUTCMinutes().toString().padStart(2, '0')}`;
   }
 
-  /**
-   * Processes stateless telecom webhook sessions.
-   * Leverages Redis cache to complete checks within 150ms.
-   */
+  async checkDuplicateClockIn(employeeId: string): Promise<boolean> {
+    const recentKey = `ussd:clockin:${employeeId}`;
+    const recent = await this.redisClient.get(recentKey);
+    if (recent) return true;
+    
+    await this.redisClient.setex(recentKey, 300, '1');
+    return false;
+  }
+
   async processUssd(
     body: { sessionId: string; phoneNumber: string; text: string },
     telemetryStart: number,
@@ -114,16 +114,10 @@ export class UssdService {
     const { sessionId, phoneNumber, text } = body;
     const cleanPhone = phoneNumber ? phoneNumber.trim() : '';
 
-    // Parse accumulated USSD input segments
-    const parts = text ? text.split('*').map(p => p.trim()) : [];
-
-    // Step A. High-speed cache pre-auth lookup
     const cacheKey = `demoz:ussd:employee:${cleanPhone}`;
     let employee = await this.getCache(cacheKey);
 
     if (!employee) {
-      this.logger.log(`Cache miss: Fetching employee profile for ${cleanPhone} from PostgreSQL.`);
-      
       const dbEmployee = await this.prisma.employee.findUnique({
         where: { phoneNumber: cleanPhone },
         include: { tenant: { select: { status: true } } },
@@ -135,7 +129,6 @@ export class UssdService {
           firstName: dbEmployee.firstName,
           lastName: dbEmployee.lastName,
           status: dbEmployee.status,
-          ussdPin: dbEmployee.ussdPin,
           ussdPinHash: dbEmployee.ussdPinHash,
           tenantId: dbEmployee.tenantId,
           tenantStatus: dbEmployee.tenant.status,
@@ -144,85 +137,82 @@ export class UssdService {
       }
     }
 
-    // Step 0: Initial Dial (no actions chosen yet)
-    if (parts.length === 0 || parts[0] === '') {
-      if (!employee || employee.status !== 'ACTIVE') {
-        return 'END Your phone number is not registered on Demoz. Please contact HR.';
-      }
-
-      if (employee.tenantStatus === 'SUSPENDED') {
-        return 'END System error: Service suspended for this business.';
-      }
-
-      return `CON Welcome ${employee.firstName} to Demoz.\n1. Clock In\n2. Clock Out`;
+    if (!employee || employee.status !== 'ACTIVE') {
+      return USSD_MESSAGES.unregistered;
+    }
+    if (employee.tenantStatus === 'SUSPENDED') {
+      return USSD_MESSAGES.suspended;
     }
 
-    const action = parts[0];
-    if (action !== '1' && action !== '2') {
-      return 'END Invalid option selected. Dial again.';
+    // Some gateways send cumulative strings (1*1234), others send incremental.
+    // To handle cumulative properly without breaking session state:
+    const parts = text ? text.split('*').map(p => p.trim()).filter(Boolean) : [];
+    const currentInput = parts.length > 0 ? parts[parts.length - 1] : '';
+
+    let session = await this.getSession(sessionId);
+
+    if (!session) {
+      // Check for replay
+      const recentSessionRaw = await this.redisClient.get(`ussd:recent:${cleanPhone}`);
+      if (recentSessionRaw && text !== '') {
+        const parsed = JSON.parse(recentSessionRaw);
+        if (parsed.state === 'AWAITING_PIN' || parsed.state === 'CLOCK_ACTION_CONFIRM') {
+          session = parsed;
+        }
+      }
     }
 
-    // Step 1: Option selected, prompt for secure PIN
-    if (parts.length === 1) {
-      return 'CON Enter your 4-digit PIN to confirm your log:';
+    // Initial Dial
+    if (!session || (!text && parts.length === 0)) {
+      session = {
+        state: 'WELCOME',
+        phoneNumber: cleanPhone,
+        employeeId: employee.id,
+        startedAt: new Date().toISOString(),
+      };
+      await this.setSession(sessionId, session);
+      return formatMessage(USSD_MESSAGES.clockInPrompt, { name: employee.firstName });
     }
 
-    // Step 2: PIN verification step (concatenated as "1*PIN" or "2*PIN")
-    if (parts.length === 2) {
-      const pin = parts[1];
+    // State routing
+    if (session.state === 'WELCOME') {
+      if (currentInput === '1' || currentInput === '2') {
+        session.state = 'AWAITING_PIN';
+        session.lastAction = currentInput === '1' ? 'CLOCK_IN' : 'CLOCK_OUT';
+        await this.setSession(sessionId, session);
+        await this.redisClient.setex(`ussd:recent:${cleanPhone}`, 300, JSON.stringify(session));
+        return USSD_MESSAGES.welcome; // Await PIN
+      } else if (currentInput === '0') {
+        return USSD_MESSAGES.cancelled;
+      }
+      return USSD_MESSAGES.invalidOption;
+    }
 
-      if (!employee || employee.status !== 'ACTIVE') {
-        return 'END Your phone number is not registered on Demoz. Please contact HR.';
+    if (session.state === 'AWAITING_PIN' || session.state === 'CLOCK_ACTION_CONFIRM') {
+      const pin = currentInput;
+      const isPinValid = employee.ussdPinHash ? await bcrypt.compare(pin, employee.ussdPinHash) : false;
+      
+      if (!isPinValid) {
+        return USSD_MESSAGES.invalidPin;
       }
 
-      if (employee.tenantStatus === 'SUSPENDED') {
-        return 'END System error: Service suspended for this business.';
-      }
-
-      // Authorize worker using self-healing ussdPinHash bcrypt validation
-      let isPinValid = false;
-      if (employee.ussdPinHash) {
-        isPinValid = await bcrypt.compare(pin, employee.ussdPinHash);
-      } else if (employee.ussdPin) {
-        // Plain text fallback upgrade path
-        if (employee.ussdPin === pin) {
-          isPinValid = true;
-          
-          // Secure plain PIN asynchronously
-          try {
-            const hash = await bcrypt.hash(pin, 10);
-            await this.prisma.employee.update({
-              where: { id: employee.id },
-              data: { ussdPinHash: hash },
-            });
-            // Update cache to use hash
-            employee.ussdPinHash = hash;
-            await this.setCache(cacheKey, employee);
-            this.logger.log(`Legacy PIN secured to hash for employee ${employee.id}`);
-          } catch (err) {
-            this.logger.error(`Failed to secure plain PIN:`, err);
-          }
+      if (session.lastAction === 'CLOCK_IN') {
+        const isDuplicate = await this.checkDuplicateClockIn(employee.id);
+        if (isDuplicate) {
+          return USSD_MESSAGES.duplicateRecord;
         }
       }
 
-      if (!isPinValid) {
-        return 'END Authentication failed. Invalid PIN.';
-      }
-
-      const attendanceType = action === '1' ? AttendanceType.CLOCK_IN : AttendanceType.CLOCK_OUT;
-      const requestDurationMs = Date.now() - telemetryStart;
-
-      // Log behavioral metadata into JSONB telemetry field to detect proxy clocking fraud
+      const attendanceType = session.lastAction === 'CLOCK_IN' ? AttendanceType.CLOCK_IN : AttendanceType.CLOCK_OUT;
+      
       const telemetryPayload = {
         sessionId,
-        requestDurationMs,
+        requestDurationMs: Date.now() - telemetryStart,
         cleanPhone,
         inputHistory: text,
-        sessionPace: parts.length,
         timestamp: new Date().toISOString(),
       };
 
-      // Dispatch attendance logging asynchronously to avoid blocking the USSD shortcode thread
       this.prisma.attendanceLog.create({
         data: {
           tenantId: employee.tenantId,
@@ -236,10 +226,15 @@ export class UssdService {
         this.logger.error(`Async USSD log write failed: ${err.message}`);
       });
 
-      const currentTime = this.getEthiopianTimeStr();
-      return `END Thank you. Your attendance has been logged successfully at ${currentTime}.`;
+      session.state = 'COMPLETE';
+      await this.setSession(sessionId, session);
+      
+      const time = this.getEthiopianTimeStr();
+      return session.lastAction === 'CLOCK_IN' 
+        ? formatMessage(USSD_MESSAGES.clockInSuccess, { time })
+        : formatMessage(USSD_MESSAGES.clockOutSuccess, { time });
     }
 
-    return 'END Invalid USSD state. Session terminated.';
+    return USSD_MESSAGES.sessionExpired;
   }
 }

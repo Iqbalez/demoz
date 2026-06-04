@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  ServiceUnavailableException,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -78,6 +79,22 @@ export class EmployeeController {
       result.data = result.data.map((emp) => formatEmployeeResponse(emp, req.user?.role));
     }
     return result;
+  }
+
+  @Get('org-structure')
+  @Roles(UserRole.EMPLOYEE, UserRole.HR, UserRole.OWNER)
+  async getOrgStructure() {
+    try {
+      const employees = await this.employeeService.getOrgStructure();
+      return { data: employees };
+    } catch (err: any) {
+      if (err?.code === 'P2022') {
+        throw new ServiceUnavailableException(
+          'Org structure is not available — database migration pending. Run: npx prisma db push'
+        );
+      }
+      throw err;
+    }
   }
 
   @Post()

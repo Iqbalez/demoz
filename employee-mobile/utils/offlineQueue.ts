@@ -1,7 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { v4 as uuid } from 'uuid';
+import * as SQLite from 'expo-sqlite';
 
-const QUEUE_KEY = 'DEMOZ_OFFLINE_QUEUE';
+const db = SQLite.openDatabaseSync('demoz_offline.db');
 
 export interface AttendanceEvent {
   type: 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_START' | 'BREAK_END';
@@ -15,74 +14,104 @@ export interface AttendanceEvent {
 }
 
 export interface QueuedEvent extends AttendanceEvent {
-  id: string;
+  id: number; // SQLite uses integer ID
   queuedAt: string;
   synced: boolean;
 }
 
-export const enqueueAttendanceEvent = async (event: AttendanceEvent) => {
+// Initialize tables on first load
+export function initOfflineDB() {
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action_type TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      retry_count INTEGER DEFAULT 0,
+      error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS attendance_cache (
+      employee_id TEXT PRIMARY KEY,
+      last_clock_in TEXT,
+      last_clock_out TEXT,
+      status TEXT,
+      updated_at TEXT
+    );
+  `);
+}
+
+// Enqueue an action (clock-in, clock-out) for later sync
+export async function enqueueAttendanceEvent(event: AttendanceEvent): Promise<{ queued: boolean, eventId: number | null }> {
   try {
-    const existing = await AsyncStorage.getItem(QUEUE_KEY);
-    const queue: QueuedEvent[] = existing ? JSON.parse(existing) : [];
-    const newEvent: QueuedEvent = {
-      ...event,
-      id: uuid(),
-      queuedAt: new Date().toISOString(),
-      synced: false,
-    };
-    queue.push(newEvent);
-    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-    return { queued: true, eventId: newEvent.id };
-  } catch (error: any) {
-    console.warn('[OfflineQueue] AsyncStorage error: ' + error.message);
+    const result = db.runSync(
+      `INSERT INTO sync_queue (action_type, payload, created_at) VALUES (?, ?, ?)`,
+      [event.type, JSON.stringify(event), new Date().toISOString()]
+    );
+    return { queued: true, eventId: result.lastInsertRowId };
+  } catch (err) {
+    console.warn('[OfflineQueue] SQLite error: ', err);
     return { queued: false, eventId: null };
   }
-};
+}
 
-export const getUnSyncedEvents = async (): Promise<QueuedEvent[]> => {
+// Get all pending items
+export async function getUnSyncedEvents(): Promise<QueuedEvent[]> {
   try {
-    const existing = await AsyncStorage.getItem(QUEUE_KEY);
-    if (!existing) return [];
-    const queue: QueuedEvent[] = JSON.parse(existing);
-    return queue.filter(e => e.synced === false);
-  } catch (error: any) {
-    console.warn('[OfflineQueue] AsyncStorage error: ' + error.message);
+    const rows = db.getAllSync(`SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC`);
+    return rows.map((row: any) => {
+      const payload = JSON.parse(row.payload);
+      return {
+        ...payload,
+        id: row.id,
+        queuedAt: row.created_at,
+        synced: row.status === 'synced',
+      };
+    });
+  } catch (err) {
+    console.warn('[OfflineQueue] SQLite error: ', err);
     return [];
   }
-};
+}
 
-export const markEventSynced = async (eventId: string) => {
+// Mark item as synced
+export async function markEventSynced(id: number): Promise<boolean> {
   try {
-    const existing = await AsyncStorage.getItem(QUEUE_KEY);
-    if (!existing) return false;
-    const queue: QueuedEvent[] = JSON.parse(existing);
-    const eventIndex = queue.findIndex(e => e.id === eventId);
-    if (eventIndex > -1) {
-      queue[eventIndex].synced = true;
-      await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-      return true;
-    }
-    return false;
-  } catch (error: any) {
-    console.warn('[OfflineQueue] AsyncStorage error: ' + error.message);
+    db.runSync(`UPDATE sync_queue SET status = 'synced' WHERE id = ?`, [id]);
+    return true;
+  } catch (err) {
+    console.warn('[OfflineQueue] SQLite error: ', err);
     return false;
   }
-};
+}
 
-export const clearQueue = async () => {
+// Mark item as failed with error
+export async function markFailed(id: number, error: string): Promise<void> {
   try {
-    await AsyncStorage.removeItem(QUEUE_KEY);
-  } catch (error: any) {
-    console.warn('[OfflineQueue] AsyncStorage error: ' + error.message);
+    db.runSync(
+      `UPDATE sync_queue SET status = 'failed', error = ?, retry_count = retry_count + 1 WHERE id = ?`,
+      [error, id]
+    );
+  } catch (err) {
+    console.warn('[OfflineQueue] SQLite error: ', err);
   }
-};
+}
 
-export const getQueueSize = async () => {
+// Clear old queue
+export async function clearQueue() {
   try {
-    const events = await getUnSyncedEvents();
-    return events.length;
-  } catch (error: any) {
-    console.warn('[OfflineQueue] AsyncStorage error: ' + error.message);
+    db.runSync(`DELETE FROM sync_queue WHERE status = 'synced' OR retry_count >= 10`);
+  } catch (err) {
+    console.warn('[OfflineQueue] SQLite error: ', err);
+  }
+}
+
+export async function getQueueSize(): Promise<number> {
+  try {
+    const row = db.getFirstSync<{ count: number }>(`SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pending'`);
+    return row?.count || 0;
+  } catch (err) {
+    console.warn('[OfflineQueue] SQLite error: ', err);
     return 0;
   }
-};
+}

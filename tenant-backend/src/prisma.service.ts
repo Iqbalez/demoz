@@ -8,10 +8,13 @@ import { createAuditLoggingExtension } from './prisma/audit-logging.extension';
 
 // Cryptographic helpers for custom field encryption (AES-256-GCM)
 function getEncryptionKeyBuffer(): Buffer {
-  const envKey = process.env.PRISMA_FIELD_ENCRYPTION_KEY;
-  const fallbackKey = 'k1.aesgcm256.G6yYVBg1xuWFChMTKwaDTUUyCD91PJIdc9UwnmUrPGw=';
-  const targetKey = envKey || fallbackKey;
-  const cleanKey = targetKey.replace(/['"]/g, '').trim();
+  const encryptionKey = process.env.PRISMA_FIELD_ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    throw new Error(
+      '[FATAL] PRISMA_FIELD_ENCRYPTION_KEY is not set. Refusing to start — encrypted PII fields (bankAccount, tin, faydaNumber) would be stored insecure.'
+    );
+  }
+  const cleanKey = encryptionKey.replace(/['"]/g, '').trim();
 
   // If it's a valid cloak base64 key
   if (cleanKey.startsWith('k1.aesgcm256.')) {
@@ -24,7 +27,7 @@ function getEncryptionKeyBuffer(): Buffer {
     return Buffer.from(cleanKey, 'hex');
   }
 
-  return Buffer.from(fallbackKey.substring('k1.aesgcm256.'.length), 'base64');
+  throw new Error('PRISMA_FIELD_ENCRYPTION_KEY must be a valid 256-bit key in hex or cloak base64 format.');
 }
 
 function encrypt(text: string): string {

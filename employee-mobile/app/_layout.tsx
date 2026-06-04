@@ -4,7 +4,12 @@ import { ThemeProvider, DarkTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { registerAttendanceSyncTask } from '../tasks/attendanceSyncTask';
+import { initOfflineDB } from '../utils/offlineQueue';
+import { registerBackgroundSync } from '../utils/backgroundSync';
+import '../i18n';
+
+// Initialize SQLite immediately on boot
+initOfflineDB();
 
 export default function RootLayout() {
   const router = useRouter();
@@ -12,9 +17,10 @@ export default function RootLayout() {
   
   const { token, isLoading, checkSavedAuth } = useAuthStore();
 
-  // 1. Hydrate authentication state from SecureStore on bootstrap
+  // 1. Hydrate authentication state from SecureStore on bootstrap and register background sync
   useEffect(() => {
     checkSavedAuth();
+    registerBackgroundSync();
   }, []);
 
   // 2. Routing Guards - redirects user based on token presence
@@ -31,9 +37,6 @@ export default function RootLayout() {
       } else if (token && (inAuthGroup || !segments[0])) {
         // Authenticated: Route directly into employee portal
         router.replace('/(tabs)');
-        
-        // Background sync requires the user to be logged in so tokens are available when the task wakes up.
-        registerAttendanceSyncTask();
       }
     }, 1);
 

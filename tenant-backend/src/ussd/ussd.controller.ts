@@ -5,6 +5,13 @@ import { UssdService } from './ussd.service';
 export class UssdController {
   constructor(private readonly ussdService: UssdService) {}
 
+  // IMPORTANT: This endpoint handles requests from Ethio Telecom's USSD gateway.
+  // Registered shortcode: confirm with Ethio Telecom — common prefixes are *384# or *985#
+  // Request format: POST with fields: sessionId, serviceCode, phoneNumber, text
+  // Response format: CON (continue session) or END (terminate session)
+  // Telecom timeout: 90 seconds — sessions MUST be resolved in under 90s
+  // Always test with actual Ethio Telecom SIM, not just Postman
+
   /**
    * Dedicated telecom gateway callback endpoint at /api/v1/attendance/ussd.
    * Secured using gateway x-api-key verification.
@@ -25,7 +32,11 @@ export class UssdController {
       throw new UnauthorizedException('Security Verification Failed: Spoofed telecom payload rejected.');
     }
 
-    return this.ussdService.processUssd(body, telemetryStart);
+    try {
+      return await this.ussdService.processUssd(body, telemetryStart);
+    } catch (error) {
+      return 'END አገልግሎቱ ለጊዜው አይገኝም። እባክዎ እንደገና ይደውሉ። / Service temporarily unavailable. Please redial.';
+    }
   }
 
   /**
@@ -38,6 +49,10 @@ export class UssdController {
     @Body() body: { sessionId: string; phoneNumber: string; text: string },
   ) {
     const telemetryStart = Date.now();
-    return this.ussdService.processUssd(body, telemetryStart);
+    try {
+      return await this.ussdService.processUssd(body, telemetryStart);
+    } catch (error) {
+      return 'END አገልግሎቱ ለጊዜው አይገኝም። እባክዎ እንደገና ይደውሉ። / Service temporarily unavailable. Please redial.';
+    }
   }
 }

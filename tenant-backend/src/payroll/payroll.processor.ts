@@ -8,6 +8,19 @@ import { tenantStorage } from '../tenant-context';
 
 import { DashboardService } from '../dashboard/dashboard.service';
 
+// IMPORTANT: verify these brackets annually. Source: ERCA / Proc. 1395/2025
+// Ethiopian Income Tax Schedule A — Proclamation No. 1395/2025
+// Monthly employment income brackets (ETB)
+export const ETHIOPIAN_INCOME_TAX_BRACKETS = [
+  { min: 0,      max: 600,    rate: 0.00, fixedDeduction: 0     },
+  { min: 601,    max: 1650,   rate: 0.10, fixedDeduction: 60    },
+  { min: 1651,   max: 3200,   rate: 0.15, fixedDeduction: 142.5 },
+  { min: 3201,   max: 5250,   rate: 0.20, fixedDeduction: 302.5 },
+  { min: 5251,   max: 7800,   rate: 0.25, fixedDeduction: 565   },
+  { min: 7801,   max: 10900,  rate: 0.30, fixedDeduction: 955   },
+  { min: 10901,  max: Infinity, rate: 0.35, fixedDeduction: 1500 },
+] as const;
+
 @Processor('payroll-queue')
 export class PayrollProcessor extends WorkerHost {
   private readonly logger = new Logger(PayrollProcessor.name);
@@ -123,30 +136,17 @@ export class PayrollProcessor extends WorkerHost {
             const taxableIncome = grossSalary.sub(pensionDeduction).sub(transportExempt);
 
             // --- Employment Income Tax (Proclamation 1395/2025 - Schedule A) ---
-            // Brackets verified against: report.md, ethiopia_compliance_research.md,
-            // ethiopian_compliance_report.md, compliance_guide_for_hr.md
+            // Formula: tax = (taxableIncome * rate) - fixedDeduction
             // Decimal‑only tax‑bracket evaluation
             let taxRate = new Prisma.Decimal(0);
             let taxDeductible = new Prisma.Decimal(0);
 
-            if (taxableIncome.lte(new Prisma.Decimal(2000))) {
-              taxRate = new Prisma.Decimal(0);
-              taxDeductible = new Prisma.Decimal(0);
-            } else if (taxableIncome.lte(new Prisma.Decimal(4000))) {
-              taxRate = new Prisma.Decimal(0.15);
-              taxDeductible = new Prisma.Decimal(300);
-            } else if (taxableIncome.lte(new Prisma.Decimal(7000))) {
-              taxRate = new Prisma.Decimal(0.20);
-              taxDeductible = new Prisma.Decimal(500);
-            } else if (taxableIncome.lte(new Prisma.Decimal(10000))) {
-              taxRate = new Prisma.Decimal(0.25);
-              taxDeductible = new Prisma.Decimal(850);
-            } else if (taxableIncome.lte(new Prisma.Decimal(14000))) {
-              taxRate = new Prisma.Decimal(0.30);
-              taxDeductible = new Prisma.Decimal(1350);
-            } else {
-              taxRate = new Prisma.Decimal(0.35);
-              taxDeductible = new Prisma.Decimal(2050);
+            for (const bracket of ETHIOPIAN_INCOME_TAX_BRACKETS) {
+              if (bracket.max === Infinity || taxableIncome.lte(new Prisma.Decimal(bracket.max))) {
+                taxRate = new Prisma.Decimal(bracket.rate);
+                taxDeductible = new Prisma.Decimal(bracket.fixedDeduction);
+                break;
+              }
             }
 
             const incomeTax = taxableIncome

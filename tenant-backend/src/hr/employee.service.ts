@@ -55,8 +55,7 @@ export class EmployeeService {
         skip,
         take: limit,
         include: { 
-          department: { select: { name: true, branchId: true } },
-          manager: { select: { id: true, firstName: true, lastName: true } }
+          department: { select: { name: true, branchId: true } }
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -74,6 +73,23 @@ export class EmployeeService {
         hasNextPage: page < totalPages,
       },
     };
+  }
+
+  /**
+   * Dedicated endpoint for fetching the organizational structure hierarchy
+   */
+  async getOrgStructure() {
+    return this.prisma.employee.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeIdNumber: true,
+        managerId: true,
+        department: { select: { name: true, branchId: true } },
+        manager: { select: { id: true, firstName: true, lastName: true } }
+      }
+    });
   }
 
   /**

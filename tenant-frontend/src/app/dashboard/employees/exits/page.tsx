@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { apiRequest } from "../../../../lib/api";
 
-interface ExitedEmployee {
+interface SuspendedEmployee {
   id: string;
   firstName: string;
   lastName: string;
@@ -11,17 +11,19 @@ interface ExitedEmployee {
   phoneNumber: string;
   status: string;
   hireDate: string;
+  suspensionDate?: string;
+  suspensionReason?: string;
   updatedAt?: string;
 }
 
-export default function ExitsPage() {
-  const [employees, setEmployees] = useState<ExitedEmployee[]>([]);
+export default function SuspensionsPage() {
+  const [employees, setEmployees] = useState<SuspendedEmployee[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const data = await apiRequest<{ data: ExitedEmployee[] }>("/employees?status=TERMINATED&limit=100");
+        const data = await apiRequest<{ data: SuspendedEmployee[] }>("/employees?status=SUSPENDED&limit=100");
         setEmployees(data?.data || []);
       } catch {
         setEmployees([]);
@@ -35,9 +37,9 @@ export default function ExitsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Employee Exits</h1>
+        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Suspended Employees</h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          View employees who have been terminated or exited the company.
+          View employees who have been suspended and removed from active directory.
         </p>
       </div>
 
@@ -52,9 +54,9 @@ export default function ExitsPage() {
           <svg className="mx-auto h-12 w-12 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
-          <h3 className="mt-4 text-base font-semibold text-[var(--text-primary)]">No Exited Employees</h3>
+          <h3 className="mt-4 text-base font-semibold text-[var(--text-primary)]">No Suspended Employees</h3>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            There are no terminated employees in the system. When an employee exits, they will appear here.
+            There are no suspended employees in the system. When an employee is suspended, they will appear here.
           </p>
         </div>
       ) : (
@@ -64,7 +66,8 @@ export default function ExitsPage() {
               <tr>
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Employee</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">ID</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Phone</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Reason</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Effective Date</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Status</th>
               </tr>
             </thead>
@@ -73,9 +76,15 @@ export default function ExitsPage() {
                 <tr key={emp.id}>
                   <td className="px-5 py-4 whitespace-nowrap">
                     <p className="text-sm font-medium text-[var(--text-primary)]">{emp.firstName} {emp.lastName}</p>
+                    <p className="text-xs text-[var(--text-secondary)] font-mono">{emp.phoneNumber}</p>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-[var(--text-secondary)]">{emp.employeeIdNumber}</td>
-                  <td className="px-5 py-4 whitespace-nowrap text-sm text-[var(--text-secondary)]">{emp.phoneNumber}</td>
+                  <td className="px-5 py-4 whitespace-nowrap text-sm text-[var(--text-secondary)]">
+                    {emp.suspensionReason || "N/A"}
+                  </td>
+                  <td className="px-5 py-4 whitespace-nowrap text-sm text-[var(--text-secondary)]">
+                    {emp.suspensionDate ? new Date(emp.suspensionDate).toLocaleDateString() : (emp.updatedAt ? new Date(emp.updatedAt).toLocaleDateString() : "N/A")}
+                  </td>
                   <td className="px-5 py-4 whitespace-nowrap">
                     <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
                       {emp.status}

@@ -1,22 +1,24 @@
 import React, { memo } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native";
 import { useAttendanceStore, MobileAttendanceLog } from "../../store/attendanceStore";
+import { useTranslation } from "react-i18next";
 
 // 1. Standalone memoized log item row to prevent unneeded item re-renders
 const LogItemRow = memo(({ item }: { item: MobileAttendanceLog }) => {
+  const { t } = useTranslation();
   const isClockIn = item.type === "CLOCK_IN";
 
   // Status badge colors
-  let statusText = "✓ COMPLIANT";
+  let statusText = t("compliant");
   let statusColor = "#10b981";
   let statusBg = "rgba(16, 185, 129, 0.08)";
 
   if (item.status === "INFRACTION") {
-    statusText = "⚠️ INFRACTION";
+    statusText = t("infraction");
     statusColor = "#ef4444";
     statusBg = "rgba(239, 68, 68, 0.08)";
   } else if (item.status === "PENDING_SYNC") {
-    statusText = "⏳ PENDING SYNC";
+    statusText = t("pendingSync");
     statusColor = "#fbbf24";
     statusBg = "rgba(245, 158, 11, 0.08)";
   }
@@ -60,7 +62,7 @@ const LogItemRow = memo(({ item }: { item: MobileAttendanceLog }) => {
         >
           <Text style={[styles.statusTextLabel, { color: statusColor }]}>{statusText}</Text>
         </View>
-        {item.isOffline && <Text style={styles.offlineTag}>Offline Log</Text>}
+        {item.isOffline && <Text style={styles.offlineTag}>{t("offlineLog")}</Text>}
       </View>
     </View>
   );
@@ -71,11 +73,12 @@ LogItemRow.displayName = "LogItemRow";
 
 export default function HistoryScreen() {
   const { historyLogs, clearHistory } = useAttendanceStore();
+  const { t } = useTranslation();
 
   const handleClearConfirm = () => {
-    Alert.alert("Reset Logs", "Are you sure you want to clear your local logs cache history?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Clear Logs", style: "destructive", onPress: clearHistory },
+    Alert.alert(t("resetLogs"), t("resetLogsConfirm"), [
+      { text: t("cancel"), style: "cancel" },
+      { text: t("clearLogs"), style: "destructive", onPress: clearHistory },
     ]);
   };
 
@@ -86,10 +89,10 @@ export default function HistoryScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.listHeader}>
-        <Text style={styles.headerLabel}>WEEKLY LEDGER RECORDINGS</Text>
+        <Text style={styles.headerLabel}>{t("weeklyLedger")}</Text>
         {historyLogs.length > 0 && (
           <TouchableOpacity onPress={handleClearConfirm} activeOpacity={0.7}>
-            <Text style={styles.clearText}>RESET CACHE</Text>
+            <Text style={styles.clearText}>{t("resetCache")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -113,9 +116,9 @@ export default function HistoryScreen() {
         ListEmptyComponent={
           <View style={styles.emptyView}>
             <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyText}>No attendance entries recorded this week.</Text>
+            <Text style={styles.emptyText}>{t("noAttendanceLogs")}</Text>
             <Text style={styles.emptySub}>
-              Your clock-in telemetry logs will stream here automatically.
+              {t("logsStreamHere")}
             </Text>
           </View>
         }

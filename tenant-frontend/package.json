@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
-    "@tanstack/react-query": "^5.100.14",
+    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-query-devtools": "^5.101.0",
+    "ethiopian-date": "^0.0.6",
     "framer-motion": "^12.40.0",
     "next": "16.2.6",
     "react": "19.2.4",

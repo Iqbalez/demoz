@@ -170,6 +170,8 @@ model Employee {
   suspensionDate     DateTime?       @db.Timestamptz(6)
   finalPayInfo       Json?           @db.JsonB
   managerId          String?         @db.Uuid
+  leaveBalanceUsed   Int             @default(0) @db.Integer
+  leaveYear          Int             @default(2024) @db.Integer
 
   // Relations
   tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -252,6 +254,7 @@ model AttendanceLog {
   accuracy      Float?           @db.DoublePrecision
   method        AttendanceMethod @default(GPS)
   syncedAt      DateTime?        @db.Timestamptz(6)
+  wasOfflineSync Boolean         @default(false)
   deviceId      String?          @db.VarChar(255)
   clientTime    DateTime?        @db.Timestamptz(6)
   branchId      String?          @db.Uuid
@@ -297,6 +300,8 @@ model PayrollRun {
   totalNet     Decimal       @default(0) @db.Decimal(12, 2)
   totalTax     Decimal       @default(0) @db.Decimal(12, 2)
   errorMessage String?       @db.Text
+  periodLabelEC String?      @db.VarChar(100)
+  periodLabelGC String?      @db.VarChar(100)
   createdAt    DateTime      @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime      @updatedAt @db.Timestamptz(6)
 
@@ -406,6 +411,7 @@ model PublicHoliday {
   ethiopicDate String?  @db.VarChar(50)  // Ethiopic calendar date string
   multiplier   Decimal  @default(2.5) @db.Decimal(3, 1) // Overtime multiplier per Labor Proclamation 1156/2019
   year         Int      @db.Integer
+  isRecurring  Boolean  @default(true) @db.Boolean
   createdAt    DateTime @default(now()) @db.Timestamptz(6)
 
   @@unique([date, year])
@@ -506,4 +512,17 @@ model Invitation {
   @@unique([tenantId, email])
   @@index([token])
   @@map("invitations")
+}
+
+model ReportDownloadLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  reportType   String   @db.VarChar(50) // 'ERCA' | 'POESSA' | 'LEAVE_LIABILITY'
+  periodYear   Int      @db.Integer
+  periodMonth  Int      @db.Integer
+  downloadedAt DateTime @default(now()) @db.Timestamptz(6)
+  downloadedBy String   @db.Uuid // userId
+
+  @@index([tenantId, reportType, periodYear, periodMonth], name: "idx_report_download")
+  @@map("report_download_logs")
 }

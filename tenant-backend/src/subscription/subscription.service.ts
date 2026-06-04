@@ -1,13 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
-import { TenantStatus, EmployeeStatus } from '@prisma/client';
+import { TenantStatus, EmployeeStatus, UserRole } from '@prisma/client';
 
 @Injectable()
 export class SubscriptionService {
   private readonly logger = new Logger(SubscriptionService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * 5th-of-the-month Compliance Reminder
+   * Reminds HR and Owners that ERCA and POESSA reports are due.
+   */
+  @Cron('0 0 5 * *')
+  async remindComplianceReports() {
+    this.logger.log('Executing 5th-of-month ERCA & POESSA compliance reminder...');
+    const tenants = await this.prisma.tenant.findMany({
+      where: { status: TenantStatus.ACTIVE },
+      include: {
+        users: {
+          where: { role: { in: [UserRole.OWNER, UserRole.HR] } },
+          select: { email: true },
+        },
+      },
+    });
+
+    for (const tenant of tenants) {
+      if (!tenant.users || tenant.users.length === 0) continue;
+      const emails = tenant.users.map((u) => u.email).join(', ');
+      this.logger.log(`[Email Mock] To: ${emails} | Subject: Compliance Reports Due | Body: Your ERCA and POESSA monthly reports are due. Please download them from the dashboard and submit.`);
+    }
+  }
 
   /**
    * Automated Nightly Billing Engine

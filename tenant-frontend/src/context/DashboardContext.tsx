@@ -16,8 +16,6 @@ export interface AuditLog {
 }
 
 interface DashboardContextProps {
-  employees: Employee[];
-  logs: AttendanceLog[];
   branches: Branch[];
   auditLogs: AuditLog[];
   stats: {
@@ -57,8 +55,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     companyName: "Your Company",
   });
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
@@ -104,38 +100,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiRequest("/workspace/bootstrap").catch(() => undefined);
 
-      const [empRes, brnRes, attRes, auditRes] = await Promise.allSettled([
-        apiRequest<{ data: Employee[] } | Employee[]>("/employees?page=1&limit=500"),
+      const [brnRes, auditRes] = await Promise.allSettled([
         apiRequest<Branch[]>("/branches"),
-        apiRequest<AttendanceLog[]>("/api/v1/attendance/logs"),
         apiRequest<AuditLog[]>("/dashboard/audit-logs"),
       ]);
 
-      if (empRes.status === "fulfilled") {
-        const emp = Array.isArray(empRes.value) ? empRes.value : empRes.value.data ?? [];
-        setEmployees(emp);
-        const totalSalary = emp.reduce((sum: number, e: Employee) => sum + (e.baseSalary ?? 0), 0);
-        setStats((prev) => ({
-          ...prev,
-          totalEmployees: emp.length,
-          monthlyPayroll: totalSalary,
-        }));
-      }
-
       if (brnRes.status === "fulfilled") {
         setBranches(brnRes.value);
-      }
-
-      if (attRes.status === "fulfilled") {
-        const att = attRes.value;
-        setLogs(att);
-        setStats((prev) => ({
-          ...prev,
-          attendanceRate:
-            prev.totalEmployees > 0
-              ? Math.min(100, Math.round((att.length / (prev.totalEmployees * 30)) * 100))
-              : 0,
-        }));
       }
 
       if (auditRes.status === "fulfilled") {
@@ -143,9 +114,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (
-        empRes.status === "fulfilled" ||
         brnRes.status === "fulfilled" ||
-        attRes.status === "fulfilled" ||
         auditRes.status === "fulfilled"
       ) {
         setBackendStatus("CONNECTED");
@@ -187,33 +156,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const normalized: Employee = {
-        ...created,
-        departmentName: created.departmentName || newEmp.departmentName || "General",
-        baseSalary: created.baseSalary ?? newEmp.baseSalary,
-        faydaNumber: created.faydaNumber ?? newEmp.faydaNumber,
-        faydaVerified: /^\d{12}$/.test(String(created.faydaNumber ?? newEmp.faydaNumber ?? "").trim()),
-      };
-      setEmployees(prev => [...prev, normalized]);
-      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (normalized.baseSalary ?? 0) }));
+      
+      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
       const pinMsg = created.mobileAppPin
         ? ` Mobile app PIN: ${created.mobileAppPin} (share with employee; also sent by SMS if configured).`
         : "";
-      return { success: true, message: `Employee added.${pinMsg}`, mobileAppPin: created.mobileAppPin };
+      return { success: true, message: "Employee registered." + pinMsg, mobileAppPin: created.mobileAppPin };
     } catch (e: any) {
-      return { success: false, message: e.message || "Failed to onboard employee." };
+      return { success: false, message: e.message || "Failed to add employee" };
     }
   };
 
   const handleUpdateEmployee = async (id: string, updates: Partial<Employee>): Promise<{ success: boolean; message: string }> => {
     try {
-      const updated = await apiRequest<Employee>(`/employees/${id}`, { method: "PATCH", body: JSON.stringify(updates) });
-      setEmployees(prev => prev.map(e => (e.id === id ? updated : e)));
-        if (updates.baseSalary !== undefined) {
-          const original = employees.find(e => e.id === id)?.baseSalary ?? 0;
-          const newSalary = updates.baseSalary;
-          setStats(prev => ({ ...prev, monthlyPayroll: prev.monthlyPayroll - original + newSalary }));
-        }
+      const payload: any = { ...updates };
+      if (updates.faydaNumber) payload.faydaNumber = updates.faydaNumber;
+      await apiRequest<Employee>(`/employees/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
       return { success: true, message: "Employee updated." };
     } catch (e: any) {
       return { success: false, message: e.message || "Failed to update employee." };
@@ -260,20 +221,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handleSimulateLog = (newLog: Partial<AttendanceLog> & Pick<AttendanceLog, "employeeName" | "type" | "source">): void => {
-    const logId = `log-${Date.now()}`;
-    const added: AttendanceLog = {
-      id: logId,
-      timestamp: new Date().toISOString(),
-      phoneNumber: newLog.phoneNumber ?? "",
-      latitude: newLog.latitude ?? null,
-      longitude: newLog.longitude ?? null,
-      isAnomaly: newLog.isAnomaly ?? false,
-      anomalyReason: newLog.anomalyReason ?? null,
-      ...newLog,
-    };
-    setLogs(prev => [added, ...prev]);
-    if (newLog.type === "CLOCK_IN") setStats(prev => ({ ...prev, attendanceRate: Math.min(prev.attendanceRate + 2, 100) }));
+  const handleSimulateLog = (newLog: any): void => {
+    // Logs are now managed by react-query in individual pages, not context.
+    // This is kept as a no-op for interface compatibility.
+    console.log('[DashboardContext] handleSimulateLog called — logs moved to react-query', newLog);
   };
 
   const handleTriggerDisbursement = async (runId: string, totpCode: string) => {
@@ -292,8 +243,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <DashboardContext.Provider value={{
-      employees,
-      logs,
       branches,
       auditLogs,
       stats,

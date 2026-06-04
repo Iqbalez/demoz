@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Scr
 import { useAuthStore } from "../../store/authStore";
 import { useLocationTracker } from "../../hooks/useLocationTracker";
 import { useAttendance } from "../../hooks/useAttendance";
+import { useTranslation } from "react-i18next";
 
 export default function ClockScreen() {
   const { token, logout, employeeDetails } = useAuthStore();
@@ -16,6 +17,8 @@ export default function ClockScreen() {
     manualClockIn,
     syncNow,
   } = useAttendance();
+
+  const { t } = useTranslation();
 
   const { getCurrentLocation, permissionStatus } = useLocationTracker();
   const [locationLoading, setLocationLoading] = useState(false);
@@ -76,15 +79,15 @@ export default function ClockScreen() {
 
   const handleManualClockIn = async () => {
     Alert.alert(
-      "Manual Clock In",
-      "This will record a manual entry without GPS verification. Continue?",
+      t("manualClockIn"),
+      t("manualPrompt"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         { 
-          text: "Confirm", 
+          text: t("confirm"), 
           onPress: async () => {
             const res = await manualClockIn(branchId);
-            Alert.alert("Manual Entry", res.message);
+            Alert.alert(t("manualClockIn"), res.message);
             setIsClockedIn(true);
           }
         }
@@ -94,14 +97,14 @@ export default function ClockScreen() {
 
   const handleSyncNow = async () => {
     const res = await syncNow();
-    Alert.alert("Sync Complete", `Synced: ${res.synced}, Failed: ${res.failed}`);
+    Alert.alert(t("syncNow"), `${t("synced")}: ${res.synced}`);
   };
 
-  return (
+    return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.welcomeText}>Hello, {employeeDetails?.name || "Worker"}</Text>
+          <Text style={styles.welcomeText}>{t("welcome")}, {employeeDetails?.name || "Worker"}</Text>
           <Text style={styles.deptText}>{employeeDetails?.department || "Operations"}</Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.7}>
@@ -120,21 +123,21 @@ export default function ClockScreen() {
             <ActivityIndicator color="#ffffff" size="large" />
           ) : (
             <View style={styles.innerButtonTextContainer}>
-              <Text style={styles.actionLabel}>{isClockedIn ? "CLOCK OUT" : "CLOCK IN"}</Text>
+              <Text style={styles.actionLabel}>{isClockedIn ? t("clockOut") : t("clockIn")}</Text>
             </View>
           )}
         </TouchableOpacity>
         
         {permissionStatus === "denied" && !isClockedIn && (
           <TouchableOpacity style={styles.manualBtn} onPress={handleManualClockIn}>
-            <Text style={styles.manualBtnText}>MANUAL CLOCK IN</Text>
+            <Text style={styles.manualBtnText}>{t("manualClockIn")}</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {permissionStatus === "denied" && (
         <View style={styles.permissionWarningCard}>
-          <Text style={styles.permissionWarningTitle}>⚠️ GPS Permission Denied</Text>
+          <Text style={styles.permissionWarningTitle}>⚠️ {t("clockVerifyFailed")}</Text>
           <Text style={styles.permissionWarningText}>
             Demoz requires precise GPS to verify your factory attendance. Please enable location access in system settings.
           </Text>
@@ -149,10 +152,10 @@ export default function ClockScreen() {
         
         {unSyncedCount > 0 && (
           <View style={styles.syncContainer}>
-            <Text style={styles.unSyncedText}>{unSyncedCount} events waiting to sync</Text>
+            <Text style={styles.unSyncedText}>{t('offlinePending').replace('{count}', unSyncedCount.toString())}</Text>
             {!isOnline && (
               <TouchableOpacity style={styles.syncBtn} onPress={handleSyncNow} disabled={isSyncing}>
-                <Text style={styles.syncBtnText}>{isSyncing ? "SYNCING..." : "SYNC NOW"}</Text>
+                <Text style={styles.syncBtnText}>{isSyncing ? t('syncing') : t('syncNow')}</Text>
               </TouchableOpacity>
             )}
           </View>

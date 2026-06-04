@@ -16,7 +16,7 @@ const NAV_GROUPS = [
     subItems: [
       { path: "/dashboard/employees/onboarding", label: "Onboarding" },
       { path: "/dashboard/employees", label: "Directory" },
-      { path: "/dashboard/employees/exits", label: "Exits" },
+      { path: "/dashboard/employees/exits", label: "Suspended Employees" },
     ],
   },
   {
@@ -30,8 +30,8 @@ const NAV_GROUPS = [
     label: "Leave",
     icon: "leave",
     subItems: [
-      { path: "/dashboard/leave/requests", label: "Leave Requests" },
       { path: "/dashboard/leave", label: "Leave Overview" },
+      { path: "/dashboard/leave/new", label: "Submit Request" },
     ],
   },
   { path: "/dashboard/reports", label: "Reports", icon: "chart" },
@@ -39,7 +39,7 @@ const NAV_GROUPS = [
     label: "Time & Attendance",
     icon: "clock",
     subItems: [
-      { path: "/dashboard/attendance", label: "Analytics" },
+      { path: "/dashboard/attendance", label: "Geofence Setup" },
       { path: "/dashboard/attendance/logs", label: "Raw Logs" },
     ],
   },

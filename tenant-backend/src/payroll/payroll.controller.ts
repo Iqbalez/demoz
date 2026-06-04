@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, BadRequestException, HttpCode, HttpStatus, ConflictException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Res, BadRequestException, HttpCode, HttpStatus, ConflictException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma.service';
@@ -8,6 +8,9 @@ import { DashboardService } from '../dashboard/dashboard.service';
 import { PayrollCalculationService } from './services/payroll-calculation.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
 import { PayrollDisburseService } from './payroll-disburse.service';
+import { PayslipService } from './payslip.service';
+import type { Response } from 'express';
+import archiver = require('archiver');
 
 @Controller('api/v1/payroll')
 export class PayrollController {
@@ -17,6 +20,7 @@ export class PayrollController {
     private readonly dashboardService: DashboardService,
     private readonly payrollCalcService: PayrollCalculationService,
     private readonly payrollDisburseService: PayrollDisburseService,
+    private readonly payslipService: PayslipService,
   ) {}
 
   /**
@@ -180,5 +184,132 @@ export class PayrollController {
   @HttpCode(HttpStatus.ACCEPTED)
   async disbursePayrollRun(@Param('runId') runId: string) {
     return this.payrollDisburseService.enqueueDisbursement(runId);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PAYSLIP ENDPOINTS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Download a single payslip PDF for one employee in a payroll run.
+   */
+  @Get('runs/:payrollRunId/payslips/:employeeId')
+  async downloadPayslip(
+    @Param('payrollRunId') payrollRunId: string,
+    @Param('employeeId') employeeId: string,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.payslipService.generatePayslipPDF(payrollRunId, employeeId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="payslip-${employeeId}-${Date.now()}.pdf"`);
+    res.send(pdf);
+  }
+
+  /**
+   * Bulk download all payslips for a payroll run as a ZIP archive.
+   */
+  @Get('runs/:payrollRunId/payslips-bulk')
+  async downloadAllPayslips(
+    @Param('payrollRunId') payrollRunId: string,
+    @Res() res: Response,
+  ) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      throw new BadRequestException('Active tenant context is missing.');
+    }
+
+    // Get all line items for this payroll run
+    const lineItems = await this.prisma.payrollLineItem.findMany({
+      where: { payrollRunId },
+      select: {
+        employeeId: true,
+        employee: { select: { firstName: true, lastName: true, employeeIdNumber: true } },
+      },
+    });
+
+    if (!lineItems.length) {
+      throw new BadRequestException('No employees found in this payroll run.');
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="payslips-${payrollRunId}-${Date.now()}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 5 } });
+    archive.pipe(res);
+
+    for (const item of lineItems) {
+      try {
+        const pdf = await this.payslipService.generatePayslipPDF(payrollRunId, item.employeeId);
+        const filename = `payslip-${item.employee.employeeIdNumber}-${item.employee.firstName}-${item.employee.lastName}.pdf`;
+        archive.append(pdf, { name: filename });
+      } catch (err) {
+        // Skip failed individual payslips, log and continue
+        console.error(`Failed to generate payslip for employee ${item.employeeId}:`, err);
+      }
+    }
+
+    await archive.finalize();
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ERCA MONTHLY REPORT ENDPOINT
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Download the ERCA Monthly Summary Report PDF for a given year and month.
+   */
+  @Get('reports/erca-monthly/:year/:month')
+  async ercaMonthlyReport(
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Res() res: Response,
+  ) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      throw new BadRequestException('Active tenant context is missing.');
+    }
+
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) {
+      throw new BadRequestException('Invalid year or month parameter.');
+    }
+
+    const pdf = await this.payslipService.generateErcaMonthlyReport(tenantId, y, m);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="erca-report-${year}-${month}.pdf"`);
+    res.send(pdf);
+  }
+
+  /**
+   * List all payroll runs (for the payslip history view).
+   */
+  @Get('runs')
+  async listPayrollRuns() {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      throw new BadRequestException('Active tenant context is missing.');
+    }
+
+    return this.prisma.payrollRun.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        payrollLineItems: {
+          select: {
+            id: true,
+            employeeId: true,
+            grossSalary: true,
+            netPay: true,
+            incomeTax: true,
+            pensionDeduction: true,
+            employee: {
+              select: { firstName: true, lastName: true, employeeIdNumber: true },
+            },
+          },
+        },
+      },
+    });
   }
 }

@@ -71,6 +71,12 @@ export default function HRDirectory({
     mobileAppPin: string;
   } | null>(null);
 
+  // Suspension Modal State
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [suspendDate, setSuspendDate] = useState(new Date().toISOString().slice(0, 10));
+  const [finalPayOwed, setFinalPayOwed] = useState("");
+
   // Local URL filter inputs
   const currentSearch = searchParams.get("search") || "";
   const currentStatus = searchParams.get("status") || "ALL";
@@ -130,57 +136,54 @@ export default function HRDirectory({
       );
       return;
     }
-    setFirstName("");
-    setLastName("");
-    setEmpId(`EMP-${Math.floor(1000 + Math.random() * 9000)}`);
-    setPhone("09");
-    setSalary("15000");
-    setFayda("");
-    setWizardStep(1);
-    setShowAddModal(true);
+    router.push("/dashboard/employees/onboarding");
   };
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
+  const handleOpenSuspendModal = (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setSuspendReason("");
+    setSuspendDate(new Date().toISOString().slice(0, 10));
+    setFinalPayOwed("");
+    setShowSuspendModal(true);
+  };
+
+  const handleSuspendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedEmployee) return;
+
+    if (!suspendReason || !suspendDate) {
+      toast.warning("Incomplete Fields", "Please provide a reason and effective date for the suspension.");
+      return;
+    }
+
+    const previousEmployees = [...localEmployees];
+
+    const updatedEmployee: Employee = {
+      ...selectedEmployee,
+      status: "SUSPENDED",
+    };
+
+    setLocalEmployees((prev) =>
+      prev.map((emp) => (emp.id === selectedEmployee.id ? updatedEmployee : emp))
+    );
+    setShowSuspendModal(false);
+
     try {
-      if (!firstName || !lastName || !empId || !phone || !salary) {
-        toast.warning("Incomplete Fields", "Please populate all mandatory fields.");
-        return;
-      }
-
-      const fin = fayda.trim();
-      if (fin && !/^\d{12}$/.test(fin)) {
-        toast.warning("Invalid Fayda FIN", "National ID must be exactly 12 digits (no FYD- prefix).");
-        return;
-      }
-
-      const result = await onAddEmployee({
-        firstName,
-        lastName,
-        employeeIdNumber: empId,
-        phoneNumber: phone,
-        departmentName: department,
-        baseSalary: parseFloat(salary),
-        ...(fin ? { faydaNumber: fin } : {}),
-        status: "ACTIVE",
+      const result = await onUpdateEmployee(selectedEmployee.id, {
+        status: "SUSPENDED",
+        // Pass extra metadata if the backend DTO supports it
+        ...( { suspensionReason: suspendReason, suspensionDate: suspendDate, finalPayInfo: { owed: finalPayOwed } } as any )
       });
 
-      if (result.success) {
-        if (result.mobileAppPin) {
-          setMobilePinCredentials({
-            employeeName: `${firstName} ${lastName}`,
-            phoneNumber: phone,
-            mobileAppPin: result.mobileAppPin,
-          });
-        } else {
-          toast.success("Onboarding Completed", `${firstName} ${lastName} is now active.`);
-        }
-        setShowAddModal(false);
+      if (!result.success) {
+        setLocalEmployees(previousEmployees);
+        toast.error("Registry Sync Failed", `${result.message || "A constraint breach was detected."}. Rollback performed.`);
       } else {
-        toast.error("Registry Failed", result.message);
+        toast.success("Employee Suspended", `${selectedEmployee.firstName} has been officially suspended.`);
       }
     } catch (err: any) {
-      toast.error("Internal Form Error", err.message || "An exception occurred.");
+      setLocalEmployees(previousEmployees);
+      toast.error("Sync Network Error", `Synchronization failed. Registry state rolled back.`);
     }
   };
 
@@ -420,12 +423,22 @@ export default function HRDirectory({
                     </td>
                     {/* Actions */}
                     <td className="py-4 px-6 text-right">
-                      <button
-                        onClick={() => handleOpenEditModal(emp)}
-                        className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-600 dark:hover:text-white text-slate-600 dark:text-zinc-300 rounded-lg text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-[0.96] cursor-pointer shadow-sm border border-zinc-200/30 dark:border-zinc-800/40"
-                      >
-                        Settings
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleOpenEditModal(emp)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-600 dark:hover:text-white text-slate-600 dark:text-zinc-300 rounded-lg text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-[0.96] cursor-pointer shadow-sm border border-zinc-200/30 dark:border-zinc-800/40"
+                        >
+                          Settings
+                        </button>
+                        {emp.status === "ACTIVE" && (
+                          <button
+                            onClick={() => handleOpenSuspendModal(emp)}
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-600 hover:text-white dark:bg-red-900/20 dark:hover:bg-red-600 dark:hover:text-white text-red-600 dark:text-red-400 rounded-lg text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-[0.96] cursor-pointer shadow-sm border border-red-200/30 dark:border-red-900/40"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -460,222 +473,7 @@ export default function HRDirectory({
         )}
       </div>
 
-      {/* 3-STEP BIOMETRIC ONBOARDING WIZARD MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
-            
-            {/* Modal Wizard Header */}
-            <div className="p-5 border-b border-slate-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950/20">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-50 font-outfit">Biometric Worker Onboarding</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Wizard Step {wizardStep} of 3</p>
-              </div>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-zinc-100 cursor-pointer">✕</button>
-            </div>
 
-            {/* Stepper Progress Bar */}
-            <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1">
-              <div
-                className="h-full bg-emerald-500 transition-all duration-300"
-                style={{ width: `${(wizardStep / 3) * 100}%` }}
-              />
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="p-5 space-y-4">
-              
-              {/* Wizard Step 1: Personal Details */}
-              {wizardStep === 1 && (
-                <div className="space-y-4">
-                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase">Step 1: Personal Identity</span>
-                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">Gather essential biographical information and department assignments.</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">First Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs dark:text-zinc-100 focus:outline-none focus:border-emerald-500"
-                        placeholder="Abebe"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Last Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs dark:text-zinc-100 focus:outline-none focus:border-emerald-500"
-                        placeholder="Kebede"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Employee ID (Generated)</label>
-                      <input
-                        type="text"
-                        readOnly
-                        value={empId}
-                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono font-semibold focus:outline-none select-none text-slate-400"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Phone</label>
-                      <input
-                        type="text"
-                        required
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none text-mono"
-                        placeholder="0911000000"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Department Allocation</label>
-                    <select
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none cursor-pointer font-medium"
-                    >
-                      <option value="Operations">Operations</option>
-                      <option value="Tech / Engineering">Tech & Engineering</option>
-                      <option value="Finance">Finance</option>
-                      <option value="HR / Admin">HR / Admin</option>
-                    </select>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep(2)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
-                    >
-                      Next: Financial Package →
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Wizard Step 2: Financial Details */}
-              {wizardStep === 2 && (
-                <div className="space-y-4">
-                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase">Step 2: Financial Package</span>
-                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">Determine compensation metrics for compliant Ethiopian tax computation.</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Base Salary (ETB)</label>
-                    <input
-                      type="number"
-                      required
-                      value={salary}
-                      onChange={(e) => setSalary(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 font-semibold"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Payment Method</label>
-                      <select className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none font-medium">
-                        <option value="BANK">Bank Transfer</option>
-                        <option value="CHAPA_WALLET">Chapa Wallet</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Bank Name Code</label>
-                      <input
-                        type="text"
-                        defaultValue="961"
-                        className="w-full px-3 py-1.5 bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none text-slate-400 select-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep(1)}
-                      className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep(3)}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
-                    >
-                      Next: Biometrics & Review →
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Wizard Step 3: Biometrics & Review */}
-              {wizardStep === 3 && (
-                <div className="space-y-4">
-                  <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
-                    <span className="text-[9px] text-purple-600 dark:text-purple-400 font-extrabold uppercase">Step 3: Biometric Credentials</span>
-                    <p className="text-[10px] text-slate-400 leading-relaxed mt-0.5">
-                      Optional: enter the 12-digit Fayda FIN from the national ID card. eSignet OIDC verification can be enabled when FAYDA_CLIENT_ID is configured on the server.
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda FIN (12 digits)</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={12}
-                      value={fayda}
-                      onChange={(e) => setFayda(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono focus:outline-none dark:text-zinc-100 focus:border-emerald-500"
-                      placeholder="109283746501"
-                    />
-                  </div>
-
-                  <div className="p-4 bg-slate-50 dark:bg-zinc-950/20 border border-slate-100 dark:border-zinc-800 rounded-2xl text-[10px] space-y-2 select-none">
-                    <div className="font-bold text-slate-800 dark:text-zinc-300 font-outfit border-b pb-1 dark:border-zinc-800/80">Worker Summary Review:</div>
-                    <div className="grid grid-cols-2 gap-1 text-slate-400 font-semibold">
-                      <div>Name: <span className="text-slate-700 dark:text-zinc-200 font-bold">{firstName} {lastName}</span></div>
-                      <div>Phone: <span className="text-slate-700 dark:text-zinc-200 font-mono font-bold">{phone}</span></div>
-                      <div>Gross: <span className="text-emerald-500 font-bold">{parseFloat(salary || "0").toLocaleString()} ETB</span></div>
-                      <div>Dept: <span className="text-slate-700 dark:text-zinc-200 font-bold">{department}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep(2)}
-                      className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
-                    >
-                      ✓ Finalize Onboard
-                    </button>
-                  </div>
-                </div>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* EDIT PROFILE MODAL */}
       {showEditModal && selectedEmployee && (
@@ -785,6 +583,77 @@ export default function HRDirectory({
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
                 >
                   Save Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* SUSPEND EMPLOYEE MODAL */}
+      {showSuspendModal && selectedEmployee && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-[#0c1424] border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
+            <div className="p-5 border-b border-red-100 dark:border-red-900/30 flex justify-between items-center bg-red-50 dark:bg-red-950/20">
+              <h3 className="text-sm font-bold text-red-800 dark:text-red-400 font-outfit">Suspend Employee</h3>
+              <button onClick={() => setShowSuspendModal(false)} className="text-red-400 hover:text-red-600 cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleSuspendSubmit} className="p-5 space-y-4">
+              <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-2xl">
+                <p className="text-[10px] text-red-600 dark:text-red-400 leading-relaxed font-semibold">
+                  You are about to suspend <span className="font-bold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>.
+                  This will remove them from active payroll and directory views.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Suspension Reason</label>
+                <input
+                  type="text"
+                  required
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                  placeholder="e.g., Extended unpaid leave, Disciplinary, Resignation..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 focus:border-red-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Effective Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={suspendDate}
+                    onChange={(e) => setSuspendDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 focus:border-red-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Final Pay / Owed (ETB)</label>
+                  <input
+                    type="number"
+                    value={finalPayOwed}
+                    onChange={(e) => setFinalPayOwed(e.target.value)}
+                    placeholder="0"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none dark:text-zinc-100 focus:border-red-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowSuspendModal(false)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs cursor-pointer shadow-md active:scale-95"
+                >
+                  Confirm Suspension
                 </button>
               </div>
             </form>

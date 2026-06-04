@@ -82,7 +82,10 @@ export default function OnboardingPage() {
             Mobile App PIN: <span className="font-mono font-bold text-lg tracking-widest">{result.mobileAppPin}</span>
           </p>
           <p className="text-xs text-green-600">Share this PIN securely with the employee. It will not be shown again.</p>
-          <button onClick={() => setResult(null)} className="mt-2 text-xs underline text-green-700 hover:text-green-900">Dismiss</button>
+          <div className="pt-2 flex gap-3">
+            <button onClick={() => setResult(null)} className="text-xs font-semibold px-3 py-1.5 bg-white text-green-700 hover:bg-green-100 rounded-md border border-green-200 transition-colors">Dismiss</button>
+            <a href="/dashboard/employees" className="text-xs font-semibold px-3 py-1.5 bg-green-600 text-white hover:bg-green-500 rounded-md transition-colors">Return to Directory</a>
+          </div>
         </div>
       )}
 

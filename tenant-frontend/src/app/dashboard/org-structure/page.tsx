@@ -19,14 +19,19 @@ export default function OrgStructurePage() {
   const [employees, setEmployees] = useState<EmployeeNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSettingUp, setIsSettingUp] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await apiRequest<{ data: EmployeeNode[] }>('/employees?page=1&limit=1000');
+        const res = await apiRequest<{ data: EmployeeNode[] }>('/employees/org-structure');
         setEmployees(res.data || []);
       } catch (err: any) {
-        setError(err.message || 'Failed to load employees');
+        if (err?.message?.includes('Org structure is not available') || err?.status === 503) {
+          setIsSettingUp(true);
+        } else {
+          setError(err.message || 'Failed to load employees');
+        }
       } finally {
         setLoading(false);
       }
@@ -121,6 +126,15 @@ export default function OrgStructurePage() {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--brand-primary)] border-r-transparent" />
           <p className="text-sm text-[var(--text-muted)]">Loading organizational structure...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (isSettingUp) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <p className="text-lg font-medium text-gray-700">Org structure is being set up</p>
+        <p className="text-sm text-gray-400 mt-2">This feature will be available shortly.</p>
       </div>
     );
   }

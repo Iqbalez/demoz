@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../../../../lib/api";
 
 interface AttendanceLogEntry {
@@ -11,25 +12,17 @@ interface AttendanceLogEntry {
   source: "USSD" | "WEB_PWA";
   isAnomaly: boolean;
   anomalyReason: string | null;
+  wasOfflineSync: boolean;
 }
 
 export default function AttendanceLogsPage() {
-  const [logs, setLogs] = useState<AttendanceLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await apiRequest<AttendanceLogEntry[]>("/api/v1/attendance/logs?limit=50");
-        setLogs(Array.isArray(data) ? data : []);
-      } catch {
-        setLogs([]);
-      } finally {
-        setLoading(false);
-      }
+  const { data: logs = [], isLoading: loading } = useQuery({
+    queryKey: ['attendanceLogs'],
+    queryFn: async () => {
+      const data = await apiRequest<AttendanceLogEntry[]>("/api/v1/attendance/logs?limit=50");
+      return Array.isArray(data) ? data : [];
     }
-    load();
-  }, []);
+  });
 
   return (
     <div className="space-y-6">
@@ -65,6 +58,7 @@ export default function AttendanceLogsPage() {
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Time</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Type</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Source</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Status</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Anomaly</th>
               </tr>
             </thead>
@@ -85,6 +79,23 @@ export default function AttendanceLogsPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm text-[var(--text-secondary)]">{log.source}</td>
+                  <td className="px-5 py-4 whitespace-nowrap text-sm">
+                    {log.wasOfflineSync ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Offline Sync
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Live
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-4 whitespace-nowrap text-sm">
                     {log.isAnomaly ? (
                       <span className="text-red-600 font-medium">{log.anomalyReason || "Flagged"}</span>
