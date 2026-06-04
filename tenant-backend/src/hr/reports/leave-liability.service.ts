@@ -55,7 +55,17 @@ export class LeaveLiabilityService {
     let totalLiability = 0;
 
     for (const emp of employees) {
-      const entitlement = await this.leaveService.calculateAnnualLeaveEntitlement(emp.hireDate);
+      const hireDate = new Date(emp.hireDate);
+      const now = new Date();
+      let yearsOfService = now.getFullYear() - hireDate.getFullYear();
+      if (
+        now.getMonth() < hireDate.getMonth() ||
+        (now.getMonth() === hireDate.getMonth() && now.getDate() < hireDate.getDate())
+      ) {
+        yearsOfService--;
+      }
+      
+      const entitlement = this.leaveService.getAnnualLeaveEntitlement(yearsOfService);
       const remaining = entitlement - emp.leaveBalanceUsed;
       // standard Ethiopian working days per month is 26
       const dailyRate = Number(emp.baseSalary) / 26;
