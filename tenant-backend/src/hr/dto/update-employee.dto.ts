@@ -74,4 +74,15 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsDateString()
   hireDate?: string;
+
+  @IsOptional()
+  @IsString()
+  suspensionReason?: string;
+
+  @IsOptional()
+  @IsDateString()
+  suspensionDate?: string;
+
+  @IsOptional()
+  finalPayInfo?: any;
 }

@@ -166,6 +166,9 @@ model Employee {
   hireDate           DateTime        @db.Timestamptz(6)
   createdAt          DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt          DateTime        @updatedAt @db.Timestamptz(6)
+  suspensionReason   String?         @db.Text
+  suspensionDate     DateTime?       @db.Timestamptz(6)
+  finalPayInfo       Json?           @db.JsonB
   managerId          String?         @db.Uuid
 
   // Relations
