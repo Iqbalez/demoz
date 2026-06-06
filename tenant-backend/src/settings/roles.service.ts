@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException, ConflictException, Inject } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DEFAULT_ROLE_PERMISSIONS, Permission } from '../common/permissions/permissions';
 import Redis from 'ioredis';
@@ -189,7 +190,7 @@ export class RolesService {
       const toAdd = data.permissions.filter(p => !existingMap.has(p));
       const toRemoveIds = existingPerms.filter(p => !incomingSet.has(p.permission)).map(p => p.id);
 
-      const ops = [];
+      const ops: Prisma.PrismaPromise<unknown>[] = [];
       if (toRemoveIds.length > 0) {
         ops.push(this.prisma.rolePermission.deleteMany({ where: { id: { in: toRemoveIds } } }));
       }

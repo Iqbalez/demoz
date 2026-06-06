@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   // Leave
   VIEW_LEAVES: 'view_leaves',
   MANAGE_LEAVES: 'manage_leaves',
+  EDIT_LEAVE_POLICY: 'edit_leave_policy',
   
   // Attendance
   VIEW_ATTENDANCE: 'view_attendance',
@@ -24,6 +25,7 @@ export const PERMISSIONS = {
   MANAGE_SETTINGS: 'manage_settings',
   MANAGE_ROLES: 'manage_roles',
   MANAGE_BILLING: 'manage_billing',
+  VIEW_AUDIT_LOG: 'view_audit_log',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -43,6 +45,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.VIEW_ATTENDANCE,
     PERMISSIONS.MANAGE_ATTENDANCE,
     PERMISSIONS.MANAGE_SETTINGS,
+    PERMISSIONS.EDIT_LEAVE_POLICY,
+    PERMISSIONS.VIEW_AUDIT_LOG,
   ],
   EMPLOYEE: [
     PERMISSIONS.VIEW_DIRECTORY,
@@ -77,6 +81,7 @@ export const PERMISSION_GROUPS = [
       { id: PERMISSIONS.MANAGE_ATTENDANCE, label: 'Manage Attendance', desc: 'Can correct logs and change configs' },
       { id: PERMISSIONS.VIEW_LEAVES, label: 'View Leaves', desc: 'Can view company-wide leave requests' },
       { id: PERMISSIONS.MANAGE_LEAVES, label: 'Manage Leaves', desc: 'Can approve/reject leave requests' },
+      { id: PERMISSIONS.EDIT_LEAVE_POLICY, label: 'Edit Leave Policies', desc: 'Can create and modify leave policy rules' },
     ]
   },
   {
@@ -86,6 +91,7 @@ export const PERMISSION_GROUPS = [
       { id: PERMISSIONS.MANAGE_SETTINGS, label: 'Manage Settings', desc: 'Can modify company profile and policies' },
       { id: PERMISSIONS.MANAGE_ROLES, label: 'Manage Roles', desc: 'Can create and assign custom roles' },
       { id: PERMISSIONS.MANAGE_BILLING, label: 'Manage Billing', desc: 'Can view invoices and change subscription' },
+      { id: PERMISSIONS.VIEW_AUDIT_LOG, label: 'View Audit Log', desc: 'Can view system audit trail' },
     ]
   }
 ];

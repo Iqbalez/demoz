@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { withoutTenantIsolation } from '../tenant-context';
 
@@ -36,7 +37,7 @@ export class AuditService {
             tenantId,
             userId,
             action,
-            metadata,
+            metadata: metadata as Prisma.InputJsonValue,
           },
         }),
       );
