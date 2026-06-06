@@ -23,6 +23,7 @@ export interface UserPayload {
   workspaces?: WorkspaceInfo[];
   defaultTenantId?: string | null;
   subscription_status?: TenantStatus | null;
+  subscription_expires_at?: string | null;
   companyName?: string | null;
   planTier?: string | null;
   maxEmployees?: number | null;

@@ -22,7 +22,7 @@ export class SettingsService {
     // Upsert-on-read: guarantee config rows exist in DB before returning.
     // This prevents the phantom-defaults bug where in-memory defaults are
     // shown to the user but never persisted, causing silent data loss.
-    const [payrollConfig, attendanceConfig, securityConfig, notificationConfig] =
+    const [payrollConfig, attendanceConfig, securityConfig, notificationConfig, integrationConfig] =
       await Promise.all([
         this.prisma.payrollConfig.upsert({
           where: { tenantId },
@@ -284,13 +284,106 @@ export class SettingsService {
     };
   }
 
-  private getDefaultIntegrationConfig() {
+  private getDefaultUserNotificationPreferences() {
     return {
-      chapaConnected: false,
-      cbeAccountNumber: null,
-      awashAccountNumber: null,
-      ercaRegistrationNumber: null,
-      psssaRegistrationNumber: null,
+      payrollReminderDays: 3,
+      leaveApprovalAlert: true,
+      attendanceAnomalyAlert: true,
+      taxRemittanceAlert: true,
+      subscriptionRenewalAlert: true,
+      quietHoursEnabled: false,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+    };
+  }
+
+  async getNotificationSettings(tenantId: string, userId: string) {
+    const [company, preferences] = await Promise.all([
+      this.prisma.notificationConfig.upsert({
+        where: { tenantId },
+        create: { ...this.getDefaultNotificationConfig(), tenantId },
+        update: {},
+      }),
+      this.prisma.userNotificationPreference.upsert({
+        where: { tenantId_userId: { tenantId, userId } },
+        create: { ...this.getDefaultUserNotificationPreferences(), tenantId, userId },
+        update: {},
+      }),
+    ]);
+
+    return { company, preferences };
+  }
+
+  async updateUserNotificationPreferences(tenantId: string, userId: string, payload: any) {
+    const allowedFields = [
+      'payrollReminderDays',
+      'leaveApprovalAlert',
+      'attendanceAnomalyAlert',
+      'taxRemittanceAlert',
+      'subscriptionRenewalAlert',
+      'quietHoursEnabled',
+      'quietHoursStart',
+      'quietHoursEnd',
+    ];
+    const updateData: any = {};
+    for (const field of allowedFields) {
+      if (payload[field] !== undefined) {
+        updateData[field] = payload[field];
+      }
+    }
+
+    const result = await this.prisma.userNotificationPreference.upsert({
+      where: { tenantId_userId: { tenantId, userId } },
+      create: { ...this.getDefaultUserNotificationPreferences(), ...updateData, tenantId, userId },
+      update: updateData,
+    });
+
+    await this.audit.log(tenantId, userId, 'updated_user_notification_preferences', {
+      fields: Object.keys(updateData),
+    });
+
+    return result;
+  }
+
+  async exportCompanyData(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      include: {
+        users: { select: { id: true, email: true, role: true, phoneNumber: true } },
+        employees: true,
+        payrollConfig: true,
+        attendanceConfig: true,
+        notificationConfig: true,
+        integrationConfig: true,
+        leaveTypes: true,
+        departments: true,
+        branches: true,
+      },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException('Tenant not found');
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        planTier: tenant.planTier,
+        status: tenant.status,
+      },
+      users: tenant.users,
+      employees: tenant.employees,
+      settings: {
+        payroll: tenant.payrollConfig,
+        attendance: tenant.attendanceConfig,
+        notifications: tenant.notificationConfig,
+        integrations: tenant.integrationConfig,
+      },
+      leavePolicies: tenant.leaveTypes,
+      departments: tenant.departments,
+      branches: tenant.branches,
     };
   }
 
@@ -362,28 +455,45 @@ export class SettingsService {
   // --- Audit Logs ---
   // --- Audit Logs ---
   async getAuditLogs(tenantId: string, page: number = 1, limit: number = 50) {
-    const skip = (page - 1) * limit;
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const skip = (page - 1) * safeLimit;
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where: { tenantId },
-        orderBy: { timestamp: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip,
-        take: limit,
+        take: safeLimit,
         include: {
           user: {
-            select: { id: true, firstName: true, lastName: true, email: true },
+            select: { id: true, email: true },
           },
         },
       }),
       this.prisma.auditLog.count({ where: { tenantId } }),
     ]);
 
+    const data = rows.map((log) => {
+      const metadata = (log.metadata || {}) as Record<string, unknown>;
+      return {
+        id: log.id,
+        timestamp: log.createdAt,
+        userId: log.userId,
+        action: log.action,
+        entity: typeof metadata.module === 'string' ? metadata.module : typeof metadata.entity === 'string' ? metadata.entity : null,
+        entityId: typeof metadata.entityId === 'string' ? metadata.entityId : typeof metadata.policyId === 'string' ? metadata.policyId : null,
+        ipAddress: typeof metadata.ipAddress === 'string' ? metadata.ipAddress : null,
+        userAgent: typeof metadata.userAgent === 'string' ? metadata.userAgent : null,
+        changes: metadata,
+        user: log.user,
+      };
+    });
+
     return {
       data,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / safeLimit),
     };
   }
 }

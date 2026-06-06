@@ -2,11 +2,18 @@
 
 import React, { useState } from 'react';
 import { useSettings } from '@/context/SettingsContext';
+import { apiRequest } from '@/lib/api';
+import { toast } from '@/components/ui/toast';
 
 export default function BillingSubscriptionPage() {
   const { loading } = useSettings();
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelStep, setCancelStep] = useState(1);
   const [cancelText, setCancelText] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [upgrading, setUpgrading] = useState(false);
 
   if (loading) {
     return (
@@ -16,6 +23,74 @@ export default function BillingSubscriptionPage() {
       </div>
     );
   }
+
+  const resetCancelModal = () => {
+    setShowCancelModal(false);
+    setCancelStep(1);
+    setCancelText('');
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportProgress(0);
+
+    const progressTimer = setInterval(() => {
+      setExportProgress((p) => Math.min(p + 12, 90));
+    }, 400);
+
+    try {
+      const data = await apiRequest<Record<string, unknown>>('/settings/export');
+      setExportProgress(100);
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `demoz-export-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      toast.success('Export Complete', 'Your company data has been downloaded.');
+    } catch (err: any) {
+      toast.error('Export Failed', err.message || 'Could not export company data.');
+    } finally {
+      clearInterval(progressTimer);
+      setTimeout(() => {
+        setExporting(false);
+        setExportProgress(0);
+      }, 800);
+    }
+  };
+
+  const handleUpgrade = async (tier: 'GROWTH' | 'ENTERPRISE') => {
+    setUpgrading(true);
+    try {
+      const res = await apiRequest<{ checkoutUrl: string }>('/subscription/upgrade', {
+        method: 'POST',
+        body: JSON.stringify({ tier }),
+      });
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+      }
+    } catch (err: any) {
+      toast.error('Upgrade Failed', err.message || 'Could not start Chapa checkout.');
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    setCancelling(true);
+    try {
+      await apiRequest('/subscription/cancel', { method: 'POST' });
+      toast.success('Subscription Cancelled', 'Your subscription has been cancelled. Data will be retained for 30 days.');
+      resetCancelModal();
+    } catch (err: any) {
+      toast.error('Cancellation Failed', err.message || 'Could not cancel subscription.');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-4xl pb-10">
@@ -145,6 +220,14 @@ export default function BillingSubscriptionPage() {
                 <th className="px-6 py-4 font-bold text-[var(--text-primary)] w-1/3 border-x border-[var(--border)]">
                   Pro Plan
                   <div className="text-xs font-normal text-[var(--text-muted)] mt-1">9,500 ETB / year</div>
+                  <button
+                    type="button"
+                    disabled={upgrading}
+                    onClick={() => handleUpgrade('GROWTH')}
+                    className="mt-3 inline-flex items-center px-4 py-2 text-xs font-semibold text-white bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {upgrading ? 'Redirecting…' : 'Upgrade via Chapa'}
+                  </button>
                 </th>
                 <th className="px-6 py-4 font-bold text-[var(--brand-primary)] w-1/3">
                   Enterprise Plan
@@ -186,15 +269,34 @@ export default function BillingSubscriptionPage() {
         </div>
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1 pr-4">
               <h4 className="font-semibold text-[var(--text-primary)]">Export All Company Data</h4>
-              <p className="text-sm text-[var(--text-muted)] mt-1">Download a full JSON/CSV export of all employee profiles, payroll runs, and settings.</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Download a full JSON export of all employee profiles, payroll runs, and settings.</p>
+              {exporting && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex justify-between text-xs text-[var(--text-secondary)]">
+                    <span>Preparing export…</span>
+                    <span>{exportProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-[var(--brand-primary)] h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-            <button className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50 shrink-0"
+            >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Export Data
+              {exporting ? 'Exporting…' : 'Export Data'}
             </button>
           </div>
           
@@ -204,6 +306,7 @@ export default function BillingSubscriptionPage() {
               <p className="text-sm text-red-500 mt-1">Once you cancel your subscription, all employee access will be revoked immediately. Data will be retained for 30 days.</p>
             </div>
             <button 
+              type="button"
               onClick={() => setShowCancelModal(true)}
               className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm whitespace-nowrap ml-4"
             >
@@ -217,48 +320,82 @@ export default function BillingSubscriptionPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="p-5 border-b border-[var(--border)] bg-red-50 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-red-700">Cancel Subscription</h3>
-              <button onClick={() => setShowCancelModal(false)} className="text-red-500 hover:text-red-700">&times;</button>
+              <h3 className="text-lg font-bold text-red-700">
+                Cancel Subscription — Step {cancelStep} of 3
+              </h3>
+              <button type="button" onClick={resetCancelModal} className="text-red-500 hover:text-red-700">&times;</button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-red-50 text-red-800 text-sm p-4 rounded-lg border border-red-100">
-                <p className="font-bold mb-2">Warning: This action is permanent.</p>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li>All employee mobile app access will be immediately revoked.</li>
-                  <li>HR and Payroll admins will be locked out.</li>
-                  <li>Company data will be permanently deleted after 30 days.</li>
-                </ul>
+
+            {cancelStep === 1 && (
+              <div className="p-6 space-y-4">
+                <div className="bg-red-50 text-red-800 text-sm p-4 rounded-lg border border-red-100">
+                  <p className="font-bold mb-2">Warning: This action has serious consequences.</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>All employee mobile app access will be immediately revoked.</li>
+                    <li>HR and Payroll admins will be locked out.</li>
+                    <li>Company data will be permanently deleted after 30 days.</li>
+                  </ul>
+                </div>
+                <p className="text-sm text-[var(--text-secondary)]">Please review these consequences carefully before proceeding.</p>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Please type <strong>CANCEL</strong> to confirm:
-                </label>
-                <input 
-                  type="text" 
-                  value={cancelText}
-                  onChange={(e) => setCancelText(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
-                  placeholder="CANCEL"
-                />
+            )}
+
+            {cancelStep === 2 && (
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  To confirm you understand the impact, type <strong>CANCEL</strong> below.
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmation text
+                  </label>
+                  <input 
+                    type="text" 
+                    value={cancelText}
+                    onChange={(e) => setCancelText(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 focus:outline-none"
+                    placeholder="CANCEL"
+                  />
+                </div>
               </div>
-            </div>
+            )}
+
+            {cancelStep === 3 && (
+              <div className="p-6 space-y-4">
+                <div className="bg-red-100 text-red-900 text-sm p-4 rounded-lg border border-red-200">
+                  <p className="font-bold mb-1">Final confirmation</p>
+                  <p>You are about to permanently cancel your Demoz subscription. This cannot be undone from the dashboard.</p>
+                </div>
+              </div>
+            )}
+
             <div className="p-4 bg-gray-50 border-t border-[var(--border)] flex justify-end gap-3">
               <button 
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setCancelText('');
-                }} 
+                type="button"
+                onClick={resetCancelModal}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Keep Subscription
               </button>
-              <button 
-                disabled={cancelText !== 'CANCEL'}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Confirm Cancellation
-              </button>
+              {cancelStep < 3 ? (
+                <button
+                  type="button"
+                  onClick={() => setCancelStep((s) => s + 1)}
+                  disabled={cancelStep === 2 && cancelText !== 'CANCEL'}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  disabled={cancelling}
+                  onClick={handleConfirmCancel}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling…' : 'Confirm Cancellation'}
+                </button>
+              )}
             </div>
           </div>
         </div>

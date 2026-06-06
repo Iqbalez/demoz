@@ -206,6 +206,110 @@ export class SubscriptionController {
   }
 
   /**
+   * Initialize a Chapa checkout session for upgrading an existing tenant plan.
+   */
+  @Post('upgrade')
+  async upgradePlan(@Body() body: { tier: 'GROWTH' | 'ENTERPRISE' }, @Res() res: any) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      return res.status(HttpStatus.UNAUTHORIZED).json({ message: 'Missing tenant context.' });
+    }
+
+    const { tier } = body;
+    if (!tier || !['GROWTH', 'ENTERPRISE'].includes(tier)) {
+      return res.status(HttpStatus.BAD_REQUEST).json({ message: 'Invalid upgrade tier.' });
+    }
+
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) {
+      return res.status(HttpStatus.NOT_FOUND).json({ message: 'Tenant not found.' });
+    }
+
+    let amount = 5000;
+    let maxEmployees = 50;
+    if (tier === 'ENTERPRISE') {
+      amount = 10000;
+      maxEmployees = 1000;
+    }
+
+    const ownerUser = await this.prisma.user.findFirst({
+      where: { tenantId, role: 'OWNER' },
+    });
+
+    const txRef = `sub_upgrade_${tenantId}_${Date.now()}`;
+    const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST_KEY';
+    let checkoutUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/settings/billing?payment_success=true&ref=${txRef}`;
+
+    if (CHAPA_SECRET_KEY !== 'CHASECK_TEST_KEY') {
+      try {
+        const chapaRes = await fetch('https://api.chapa.co/v1/transaction/initialize', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${CHAPA_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({
+            amount: amount.toString(),
+            currency: 'ETB',
+            email: ownerUser?.email || 'admin@demoz.com',
+            first_name: tenant.name,
+            last_name: 'Workspace Owner',
+            phone: ownerUser?.phoneNumber || '0900000000',
+            tx_ref: txRef,
+            callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/subscription/webhook`,
+            return_url: checkoutUrl,
+          }),
+        });
+
+        const data = await chapaRes.json();
+        if (chapaRes.ok && data?.status === 'success') {
+          checkoutUrl = data.data.checkout_url;
+        }
+      } catch (err: any) {
+        this.logger.error(`Chapa upgrade initialization failed for tenant ${tenantId}: ${err.message}`);
+      }
+    }
+
+    await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { planTier: tier, maxEmployees },
+    });
+
+    return res.status(HttpStatus.OK).json({
+      success: true,
+      checkoutUrl,
+      tier,
+      amount,
+    });
+  }
+
+  /**
+   * Cancel the active subscription for the current tenant.
+   */
+  @Post('cancel')
+  async cancelSubscription(@Res() res: any) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) {
+      return res.status(HttpStatus.UNAUTHORIZED).json({ message: 'Missing tenant context.' });
+    }
+
+    const tenant = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        status: TenantStatus.SUSPENDED,
+        isActive: false,
+      },
+    });
+
+    return res.status(HttpStatus.OK).json({
+      success: true,
+      message: 'Subscription cancelled. Data will be retained for 30 days.',
+      tenant,
+    });
+  }
+
+  /**
    * Fetch invoice history and active renewals for the currently logged in tenant.
    */
   @Get('invoices')

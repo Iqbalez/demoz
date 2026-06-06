@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { toast } from '@/components/ui/toast';
-import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface LeavePolicy {
   id: string;
@@ -187,7 +186,9 @@ export default function LeavePoliciesPage() {
                 onClick={() => openModal()}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] rounded-lg transition-colors shadow-sm"
               >
-                <PlusIcon className="w-4 h-4" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
                 New Policy
               </button>
             )}
@@ -211,12 +212,16 @@ export default function LeavePoliciesPage() {
                   <div className="flex gap-2">
                     {canEdit && (
                       <button onClick={() => openModal(policy)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--brand-primary)] hover:bg-[var(--bg-subtle)] rounded-md transition-colors">
-                        <PencilIcon className="w-4 h-4" />
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
                       </button>
                     )}
                     {canEdit && !policy.isSystem && (
                       <button onClick={() => handleDeletePolicy(policy.id)} className="p-1.5 text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
-                        <TrashIcon className="w-4 h-4" />
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                       </button>
                     )}
                   </div>

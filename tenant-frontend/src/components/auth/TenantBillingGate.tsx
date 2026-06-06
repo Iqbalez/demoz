@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { getBillingGateState, isBillingRoute } from "@/lib/subscription-billing";
 
 /** Redirects tenant users with billing issues to /billing-locked */
 export function TenantBillingGate({ children }: { children: React.ReactNode }) {
@@ -14,15 +15,15 @@ export function TenantBillingGate({ children }: { children: React.ReactNode }) {
     if (loading || !user) return;
     if (user.role === "SUPER_ADMIN") return;
 
-    const status = user.subscription_status;
-    const onBillingPage = pathname === "/billing-locked" || pathname?.startsWith("/dashboard/billing");
+    const billing = getBillingGateState(user);
+    const onBillingPage = pathname === "/billing-locked" || isBillingRoute(pathname);
 
-    if (status === "SUSPENDED" && pathname !== "/billing-locked") {
+    if (billing.isSuspended && pathname !== "/billing-locked") {
       router.replace("/billing-locked?reason=suspended");
       return;
     }
 
-    if (status === "PAST_DUE" && !onBillingPage) {
+    if (billing.isPastDue && !onBillingPage) {
       router.replace("/billing-locked?reason=past_due");
     }
   }, [user, loading, pathname, router]);

@@ -59,6 +59,17 @@ export class SettingsController {
     return this.settingsService.updateSettings(tenantId, 'attendance', payload, req.user?.userId);
   }
 
+  @Get('notifications')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  @RequirePermissions(PERMISSIONS.VIEW_SETTINGS)
+  async getNotifications(@Req() req: any) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    const userId = req.user?.userId;
+    if (!userId) throw new BadRequestException('User context missing.');
+    return this.settingsService.getNotificationSettings(tenantId, userId);
+  }
+
   @Patch('notifications')
   @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   @RequirePermissions(PERMISSIONS.MANAGE_SETTINGS)
@@ -66,6 +77,25 @@ export class SettingsController {
     const tenantId = tenantStorage.getStore();
     if (!tenantId) throw new BadRequestException('Tenant context missing.');
     return this.settingsService.updateSettings(tenantId, 'notifications', payload, req.user?.userId);
+  }
+
+  @Patch('notifications/me')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  async updateMyNotifications(@Req() req: any, @Body() payload: any) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    const userId = req.user?.userId;
+    if (!userId) throw new BadRequestException('User context missing.');
+    return this.settingsService.updateUserNotificationPreferences(tenantId, userId, payload);
+  }
+
+  @Get('export')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  @RequirePermissions(PERMISSIONS.MANAGE_SETTINGS)
+  async exportCompanyData(@Req() req: any) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.settingsService.exportCompanyData(tenantId);
   }
 
   @Patch('integrations')

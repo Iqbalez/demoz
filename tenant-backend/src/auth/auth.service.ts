@@ -132,6 +132,8 @@ export class AuthService {
         companyName: user.tenant?.name || null,
         planTier: user.tenant?.planTier || null,
         maxEmployees: user.tenant?.maxEmployees || null,
+        subscription_status: user.tenant?.status ?? null,
+        subscription_expires_at: user.tenant?.subscriptionExpiresAt?.toISOString() ?? null,
       },
       ...tokens,
     };
@@ -272,6 +274,8 @@ export class AuthService {
       companyName: user.tenant?.name || null,
       planTier: user.tenant?.planTier || null,
       maxEmployees: user.tenant?.maxEmployees || null,
+      subscription_status: user.tenant?.status ?? null,
+      subscription_expires_at: user.tenant?.subscriptionExpiresAt?.toISOString() ?? null,
       workspace,
       permissions,
     };

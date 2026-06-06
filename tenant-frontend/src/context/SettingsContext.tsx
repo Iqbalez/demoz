@@ -20,6 +20,14 @@ export interface TenantSettings {
   attendance: any; // Add specific types as we implement Phase 5
   security: any;
   notifications: any;
+  integrations: {
+    chapaApiKey?: string;
+    chapaConnected?: boolean;
+    cbeAccountNumber?: string;
+    awashAccountNumber?: string;
+    ercaRegistrationNumber?: string;
+    psssaRegistrationNumber?: string;
+  };
 }
 
 interface SettingsContextType {
