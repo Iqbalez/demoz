@@ -31,6 +31,7 @@ import { RetentionModule } from './retention/retention.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InvitationModule } from './invitation/invitation.module';
 import { SharedModule } from './shared/shared.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { SharedModule } from './shared/shared.module';
     NotificationsModule,
     OnboardingModule,
     SharedModule,
+    SettingsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

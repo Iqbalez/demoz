@@ -35,15 +35,15 @@ type BracketDef = {
   over: number;
 };
 
-// ERCA Schedule A (monthly employment income), widely used bracket table.
+// ERCA Schedule A (monthly employment income) — Proclamation No. 1395/2025
+// Updated from the now-obsolete Proclamation No. 979/2016.
 const ERCA_BRACKETS: BracketDef[] = [
-  { bracket: 1, upTo: 600, rate: 0.0, baseTax: 0, over: 0 },
-  { bracket: 2, upTo: 1650, rate: 0.1, baseTax: 0, over: 600 },
-  { bracket: 3, upTo: 3200, rate: 0.15, baseTax: 105, over: 1650 },
-  { bracket: 4, upTo: 5250, rate: 0.2, baseTax: 337.5, over: 3200 },
-  { bracket: 5, upTo: 7800, rate: 0.25, baseTax: 747.5, over: 5250 },
-  { bracket: 6, upTo: 10900, rate: 0.3, baseTax: 1385, over: 7800 },
-  { bracket: 7, upTo: null, rate: 0.35, baseTax: 2315, over: 10900 },
+  { bracket: 1, upTo: 2000,  rate: 0.0,  baseTax: 0,    over: 0 },
+  { bracket: 2, upTo: 4000,  rate: 0.15, baseTax: 0,    over: 2000 },
+  { bracket: 3, upTo: 7000,  rate: 0.20, baseTax: 300,  over: 4000 },
+  { bracket: 4, upTo: 10000, rate: 0.25, baseTax: 900,  over: 7000 },
+  { bracket: 5, upTo: 14000, rate: 0.30, baseTax: 1650, over: 10000 },
+  { bracket: 6, upTo: null,  rate: 0.35, baseTax: 2850, over: 14000 },
 ];
 
 function getBracketForTaxableIncome(taxableIncome: number): BracketDef {
@@ -69,8 +69,14 @@ export function calculateErcaEmploymentTax(input: ErcaTaxInput): ErcaTaxResult {
   );
 
   // Pension per blueprint: based on base salary only.
-  const employeePension = round2(baseSalary * 0.07);
-  const employerPension = round2(baseSalary * 0.11);
+  // Now using dynamic DB configuration parameters for rates and cap.
+  const pensionEmployeeRate = input.pensionEmployeeRate ?? 0.07;
+  const pensionEmployerRate = input.pensionEmployerRate ?? 0.11;
+  const pensionCap = input.pensionCap ?? 15000; // POESSA Cap
+  
+  const pensionableSalary = Math.min(baseSalary, pensionCap);
+  const employeePension = round2(pensionableSalary * pensionEmployeeRate);
+  const employerPension = round2(pensionableSalary * pensionEmployerRate);
 
   // Pension reduces taxable income (blueprint requirement).
   const taxableIncome = round2(

@@ -4,8 +4,7 @@ export type ErcaBracket =
   | 3
   | 4
   | 5
-  | 6
-  | 7;
+  | 6;
 
 export type Money = number;
 
@@ -18,6 +17,12 @@ export interface ErcaTaxInput {
   housingAllowance?: Money;
   /** Monthly overtime earnings (ETB). Fully taxable. */
   overtime?: Money;
+  /** Employee pension rate from DB PayrollConfig (e.g. 0.07 for 7%). Defaults to 0.07 */
+  pensionEmployeeRate?: number;
+  /** Employer pension rate from DB PayrollConfig (e.g. 0.11 for 11%). Defaults to 0.11 */
+  pensionEmployerRate?: number;
+  /** Pension calculation salary cap from DB PayrollConfig. Defaults to 5000 */
+  pensionCap?: Money;
 }
 
 export interface ErcaTaxResult {
@@ -31,9 +36,9 @@ export interface ErcaTaxResult {
   taxableIncome: Money;
   /** Monthly income tax (ETB). */
   incomeTax: Money;
-  /** Employee pension contribution (7% of base salary). */
+  /** Employee pension contribution (computed based on base salary, cap, and rate). */
   employeePension: Money;
-  /** Employer pension contribution (11% of base salary). */
+  /** Employer pension contribution (computed based on base salary, cap, and rate). */
   employerPension: Money;
   /** Net salary = grossIncome - incomeTax - employeePension. */
   netSalary: Money;

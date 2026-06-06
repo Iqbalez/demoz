@@ -8,7 +8,7 @@ import type { ErcaTaxInput } from '../../lib/tax-engine/types';
 
 /**
  * Calculates employment income tax using Ethiopia's progressive bracket system
- * defined in Proclamation No. 979/2016 (Schedule A).
+ * defined in Proclamation No. 1395/2025 (Schedule A).
  *
  * @param monthlyGross  Gross monthly salary in ETB
  * @returns             Calculated income tax rounded to 2 decimal places
@@ -23,33 +23,29 @@ export function calculateEthiopianIncomeTax(monthlyGross: number): number {
 
   let tax: number;
 
-  // Bracket 1: 0 – 600 ETB → 0% tax
-  if (monthlyGross <= 600) {
+  // Bracket 1: 0 – 2,000 ETB → 0% tax
+  if (monthlyGross <= 2000) {
     tax = 0;
   }
-  // Bracket 2: 600.01 – 1,650 ETB → 10%
-  else if (monthlyGross <= 1650) {
-    tax = (monthlyGross - 600) * 0.1;
+  // Bracket 2: 2,000.01 – 4,000 ETB → 15%
+  else if (monthlyGross <= 4000) {
+    tax = (monthlyGross - 2000) * 0.15;
   }
-  // Bracket 3: 1,650.01 – 3,200 ETB → 15%
-  else if (monthlyGross <= 3200) {
-    tax = 105 + (monthlyGross - 1650) * 0.15;
+  // Bracket 3: 4,000.01 – 7,000 ETB → 20%
+  else if (monthlyGross <= 7000) {
+    tax = 300 + (monthlyGross - 4000) * 0.20;
   }
-  // Bracket 4: 3,200.01 – 5,250 ETB → 20%
-  else if (monthlyGross <= 5250) {
-    tax = 337.5 + (monthlyGross - 3200) * 0.2;
+  // Bracket 4: 7,000.01 – 10,000 ETB → 25%
+  else if (monthlyGross <= 10000) {
+    tax = 900 + (monthlyGross - 7000) * 0.25;
   }
-  // Bracket 5: 5,250.01 – 7,800 ETB → 25%
-  else if (monthlyGross <= 7800) {
-    tax = 747.5 + (monthlyGross - 5250) * 0.25;
+  // Bracket 5: 10,000.01 – 14,000 ETB → 30%
+  else if (monthlyGross <= 14000) {
+    tax = 1650 + (monthlyGross - 10000) * 0.30;
   }
-  // Bracket 6: 7,800.01 – 10,900 ETB → 30%
-  else if (monthlyGross <= 10900) {
-    tax = 1385 + (monthlyGross - 7800) * 0.3;
-  }
-  // Bracket 7: 10,900.01+ ETB → 35%
+  // Bracket 6: 14,000.01+ ETB → 35%
   else {
-    tax = 2315 + (monthlyGross - 10900) * 0.35;
+    tax = 2850 + (monthlyGross - 14000) * 0.35;
   }
 
   return Math.round(tax * 100) / 100;
@@ -65,23 +61,33 @@ export function calculateEthiopianIncomeTax(monthlyGross: number): number {
  * - Employee contribution: 7% of gross salary
  * - Employer contribution: 11% of gross salary
  *
- * @param monthlyGross  Gross monthly salary in ETB
+ * @param basicSalary   Basic monthly salary in ETB (Pension base)
+ * @param config        Optional dynamic DB config overrides (rates, cap)
  * @returns             { employee, employer } both rounded to 2 decimal places
  */
-export function calculatePensionDeductions(monthlyGross: number): {
+export function calculatePensionDeductions(
+  basicSalary: number,
+  config?: { employeeRate: number; employerRate: number; cap: number }
+): {
   employee: number;
   employer: number;
 } {
-  if (isNaN(monthlyGross)) {
-    throw new Error('Invalid gross salary');
+  if (isNaN(basicSalary)) {
+    throw new Error('Invalid basic salary');
   }
-  if (monthlyGross < 0) {
+  if (basicSalary < 0) {
     return { employee: 0, employer: 0 };
   }
 
+  const employeeRate = config?.employeeRate ?? 0.07;
+  const employerRate = config?.employerRate ?? 0.11;
+  const cap = config?.cap ?? 15000;
+  
+  const pensionableSalary = Math.min(basicSalary, cap);
+
   return {
-    employee: Math.round(monthlyGross * 0.07 * 100) / 100,
-    employer: Math.round(monthlyGross * 0.11 * 100) / 100,
+    employee: Math.round(pensionableSalary * employeeRate * 100) / 100,
+    employer: Math.round(pensionableSalary * employerRate * 100) / 100,
   };
 }
 
@@ -100,20 +106,25 @@ export interface NetSalaryResult {
 /**
  * Combines income tax and pension deductions to produce the final net pay.
  *
- * @param monthlyGross  Gross monthly salary in ETB
+ * @param basicSalary   Basic monthly salary in ETB
+ * @param config        Optional dynamic DB config overrides for pension
  * @returns             Full breakdown including grossSalary, incomeTax,
  *                      pensionEmployee, pensionEmployer, and netSalary
  */
-export function calculateNetSalary(monthlyGross: number): NetSalaryResult {
-  const incomeTax = calculateEthiopianIncomeTax(monthlyGross);
+export function calculateNetSalary(
+  basicSalary: number,
+  config?: { employeeRate: number; employerRate: number; cap: number }
+): NetSalaryResult {
+  const incomeTax = calculateEthiopianIncomeTax(basicSalary);
   const { employee: pensionEmployee, employer: pensionEmployer } = calculatePensionDeductions(
-    monthlyGross,
+    basicSalary,
+    config
   );
 
-  const netSalary = Math.round((monthlyGross - incomeTax - pensionEmployee) * 100) / 100;
+  const netSalary = Math.round((basicSalary - incomeTax - pensionEmployee) * 100) / 100;
 
   return {
-    grossSalary: Math.round(monthlyGross * 100) / 100,
+    grossSalary: Math.round(basicSalary * 100) / 100,
     incomeTax,
     pensionEmployee,
     pensionEmployer,

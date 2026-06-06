@@ -278,4 +278,71 @@ export class WorkspaceService {
     await this.prisma.branch.delete({ where: { id: branchId } });
     return { message: 'Branch removed.' };
   }
+
+  async listDepartments(tenantId: string) {
+    return this.prisma.department.findMany({
+      where: { tenantId },
+      include: {
+        branch: { select: { name: true } },
+        parent: { select: { name: true } },
+        manager: { select: { firstName: true, lastName: true } },
+        _count: { select: { employees: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createDepartment(tenantId: string, data: { name: string; branchId: string; parentId?: string; managerId?: string }) {
+    // verify branch exists and belongs to tenant
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: data.branchId, tenantId },
+    });
+    if (!branch) throw new NotFoundException('Branch not found.');
+
+    if (data.parentId) {
+      const parent = await this.prisma.department.findFirst({
+        where: { id: data.parentId, tenantId },
+      });
+      if (!parent) throw new NotFoundException('Parent department not found.');
+    }
+
+    if (data.managerId) {
+      const manager = await this.prisma.employee.findFirst({
+        where: { id: data.managerId, tenantId },
+      });
+      if (!manager) throw new NotFoundException('Manager (Employee) not found.');
+    }
+
+    const existing = await this.prisma.department.findFirst({
+      where: { tenantId, branchId: data.branchId, name: data.name.trim() },
+    });
+    if (existing) throw new BadRequestException('Department with this name already exists in this branch.');
+
+    return this.prisma.department.create({
+      data: {
+        tenantId,
+        branchId: data.branchId,
+        name: data.name.trim(),
+        parentId: data.parentId || null,
+        managerId: data.managerId || null,
+      },
+    });
+  }
+
+  async deleteDepartment(tenantId: string, departmentId: string) {
+    const existing = await this.prisma.department.findFirst({
+      where: { id: departmentId, tenantId },
+      include: {
+        _count: { select: { employees: true } },
+      },
+    });
+    if (!existing) throw new NotFoundException('Department not found.');
+
+    if (existing._count.employees > 0) {
+      throw new BadRequestException('Cannot remove this department because there are employees assigned to it. Reassign them first.');
+    }
+
+    await this.prisma.department.delete({ where: { id: departmentId } });
+    return { message: 'Department removed.' };
+  }
 }

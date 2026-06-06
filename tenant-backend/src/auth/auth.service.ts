@@ -215,7 +215,12 @@ export class AuthService {
     const user = await withoutTenantIsolation(() =>
       this.prisma.user.findFirst({
         where: { id: userId },
-        include: { tenant: true },
+        include: { 
+          tenant: true,
+          customRole: {
+            include: { permissions: { select: { permission: true } } }
+          }
+        },
       }),
     );
 
@@ -244,6 +249,14 @@ export class AuthService {
       };
     }
 
+    let permissions: string[] = [];
+    if (user.customRole) {
+      permissions = user.customRole.permissions.map(p => p.permission);
+    } else if (user.role) {
+      const { DEFAULT_ROLE_PERMISSIONS } = require('../common/permissions/permissions');
+      permissions = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+    }
+
     return {
       id: user.id,
       email: user.email,
@@ -260,6 +273,7 @@ export class AuthService {
       planTier: user.tenant?.planTier || null,
       maxEmployees: user.tenant?.maxEmployees || null,
       workspace,
+      permissions,
     };
   }
 

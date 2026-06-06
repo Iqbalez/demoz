@@ -43,6 +43,14 @@ model Tenant {
   maxEmployees          Int          @default(10) @db.Integer
   subscriptionExpiresAt DateTime?    @db.Timestamptz(6)
   isActive              Boolean      @default(true) @db.Boolean
+  industry              String?      @db.VarChar(100)
+  companySize           String?      @db.VarChar(50)
+  registrationNumber    String?      @db.VarChar(100)
+  address               Json?        @db.JsonB
+  contactEmail          String?      @db.VarChar(255)
+  contactPhone          String?      @db.VarChar(20)
+  fiscalYearStart       Int          @default(7) @db.Integer // 7 for July by default (Ethiopian FY)
+  logoUrl               String?      @db.VarChar(500) // TODO: replace with S3
   createdAt             DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt             DateTime     @updatedAt @db.Timestamptz(6)
 
@@ -61,6 +69,14 @@ model Tenant {
   leaveRequests        LeaveRequest[]
   paymentTransactions  PaymentTransaction[]
   invitations          Invitation[]
+  payrollConfig        PayrollConfig?
+  attendanceConfig     AttendanceConfig?
+  securityConfig       SecurityConfig?
+  notificationConfig   NotificationConfig?
+  customRoles          CustomRole[]
+  tenantHolidays       TenantHoliday[]
+  userNotificationPreferences UserNotificationPreference[]
+  integrationConfig    IntegrationConfig?
 
   @@index([status, subscriptionExpiresAt])
   @@map("tenants") // Maps Prisma model to plural lowercase PostgreSQL table name
@@ -79,6 +95,7 @@ model User {
   role             UserRole
   /// @encrypted
   twoFactorSecret  String?
+  customRoleId     String?  @db.Uuid
   isActive         Boolean  @default(true) @db.Boolean
   createdAt        DateTime @default(now()) @db.Timestamptz(6)
   updatedAt    DateTime @updatedAt @db.Timestamptz(6)
@@ -86,8 +103,10 @@ model User {
   // Relations
   tenant       Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   employee     Employee?
+  customRole   CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   auditLogs    AuditLog[]
   approvedLeaves LeaveRequest[]
+  notificationPreferences UserNotificationPreference[]
 
   // Indexes & Constraints
   @@unique([tenantId, email], name: "tenant_email_unique") // Strict tenant-level email uniqueness
@@ -122,12 +141,17 @@ model Department {
   tenantId  String     @db.Uuid
   branchId  String     @db.Uuid
   name      String     @db.VarChar(255)
+  parentId  String?    @db.Uuid
+  managerId String?    @db.Uuid
   createdAt DateTime   @default(now()) @db.Timestamptz(6)
   updatedAt DateTime   @updatedAt @db.Timestamptz(6)
 
   // Relations
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  parent    Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Department[] @relation("DepartmentHierarchy")
+  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
   employees Employee[]
 
   @@index([tenantId])
@@ -177,6 +201,7 @@ model Employee {
   tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user               User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   department         Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  managedDepartments Department[]    @relation("DepartmentManager")
   manager            Employee?       @relation("EmployeeToManager", fields: [managerId], references: [id], onDelete: SetNull)
   subordinates       Employee[]      @relation("EmployeeToManager")
   attendances        Attendance[]
@@ -414,6 +439,8 @@ model PublicHoliday {
   isRecurring  Boolean  @default(true) @db.Boolean
   createdAt    DateTime @default(now()) @db.Timestamptz(6)
 
+  tenantHolidays TenantHoliday[]
+
   @@unique([date, year])
   @@index([year])
   @@index([date])
@@ -429,6 +456,14 @@ model LeaveType {
   maxDaysPerYear   Int
   requiresApproval Boolean  @default(true)
   isPaid           Boolean  @default(true)
+  accrualMethod    String   @default("UPFRONT") @db.VarChar(50) // UPFRONT, MONTHLY, MANUAL
+  carryover        Boolean  @default(false) @db.Boolean
+  carryoverMax     Int      @default(0) @db.Integer
+  genderRestriction String? @db.VarChar(20) // MALE, FEMALE
+  minDaysPerReq    Int      @default(1) @db.Integer
+  noticePeriodDays Int      @default(0) @db.Integer
+  requiresDocumentation Boolean @default(false) @db.Boolean
+  isSystem         Boolean  @default(false) @db.Boolean
   createdAt        DateTime @default(now()) @db.Timestamptz(6)
 
   requests         LeaveRequest[]
@@ -525,4 +560,150 @@ model ReportDownloadLog {
 
   @@index([tenantId, reportType, periodYear, periodMonth], name: "idx_report_download")
   @@map("report_download_logs")
+}
+
+model PayrollConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @unique @db.Uuid
+  pensionEmployee  Decimal  @default(7.0) @db.Decimal(5, 2)
+  pensionEmployer  Decimal  @default(11.0) @db.Decimal(5, 2)
+  pensionCap       Decimal  @default(5000) @db.Decimal(12, 2)
+  payFrequency     String   @default("MONTHLY") @db.VarChar(50)
+  cutoffDay        Int      @default(25) @db.Integer
+  payDate          Int      @default(28) @db.Integer
+  overtimeRate     Decimal  @default(1.25) @db.Decimal(5, 2)
+  nightShiftRate   Decimal  @default(0) @db.Decimal(12, 2)
+  nightShiftEnabled Boolean @default(false) @db.Boolean
+  payslipTemplate  Json?    @db.JsonB
+  allowanceTypes   Json?    @db.JsonB
+  deductionTypes   Json?    @db.JsonB
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("payroll_configs")
+}
+
+model AttendanceConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @unique @db.Uuid
+  workHoursPerDay  Int      @default(8) @db.Integer
+  workDays         Json     @default("[\"MON\",\"TUE\",\"WED\",\"THU\",\"FRI\",\"SAT\"]") @db.JsonB
+  dailyOvertimeThresh Int   @default(8) @db.Integer
+  weeklyOvertimeThresh Int  @default(48) @db.Integer
+  gracePeriodMins  Int      @default(15) @db.Integer
+  autoAbsentMins   Int      @default(120) @db.Integer
+  offlineSync      Boolean  @default(true) @db.Boolean
+  shifts           Json?    @db.JsonB
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("attendance_configs")
+}
+
+model SecurityConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @unique @db.Uuid
+  minPasswordLen   Int      @default(8) @db.Integer
+  requireUppercase Boolean  @default(true) @db.Boolean
+  requireNumber    Boolean  @default(true) @db.Boolean
+  requireSpecial   Boolean  @default(false) @db.Boolean
+  passwordExpiryDays Int?   @db.Integer
+  failedLoginLock  Int      @default(5) @db.Integer
+  sessionTimeoutMins Int    @default(60) @db.Integer
+  allowMultiSession Boolean @default(true) @db.Boolean
+  require2FA       String   @default("NONE") @db.VarChar(50) // NONE, ADMINS, ALL
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("security_configs")
+}
+
+model NotificationConfig {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @unique @db.Uuid
+  payrollReminderDays Int   @default(3) @db.Integer
+  leaveApprovalAlert Boolean @default(true) @db.Boolean
+  attendanceAnomalyAlert Boolean @default(true) @db.Boolean
+  taxRemittanceAlert Boolean @default(true) @db.Boolean
+  
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@map("notification_configs")
+}
+
+model CustomRole {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  name             String   @db.VarChar(100)
+  description      String?  @db.Text
+  isSystem         Boolean  @default(false) @db.Boolean
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  
+  permissions      RolePermission[]
+  users            User[]
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@map("custom_roles")
+}
+
+model RolePermission {
+  id               String   @id @default(uuid()) @db.Uuid
+  roleId           String   @db.Uuid
+  permission       String   @db.VarChar(100)
+  
+  role             CustomRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
+  @@map("role_permissions")
+}
+
+model TenantHoliday {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  publicHolidayId  String?  @db.Uuid // Linked if overriding a national holiday
+  date             DateTime @db.Date
+  name             String   @db.VarChar(150)
+  isObserved       Boolean  @default(true) @db.Boolean
+  isCustom         Boolean  @default(true) @db.Boolean
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  publicHoliday    PublicHoliday? @relation(fields: [publicHolidayId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date])
+  @@map("tenant_holidays")
+}
+
+model UserNotificationPreference {
+  id                       String   @id @default(uuid()) @db.Uuid
+  tenantId                 String   @db.Uuid
+  userId                   String   @db.Uuid
+  payrollReminderDays      Int      @default(3) @db.Integer
+  leaveApprovalAlert       Boolean  @default(true) @db.Boolean
+  attendanceAnomalyAlert   Boolean  @default(true) @db.Boolean
+  taxRemittanceAlert       Boolean  @default(true) @db.Boolean
+  subscriptionRenewalAlert Boolean  @default(true) @db.Boolean
+  quietHoursEnabled        Boolean  @default(false) @db.Boolean
+  quietHoursStart          String?  @db.VarChar(5) // HH:mm format
+  quietHoursEnd            String?  @db.VarChar(5) // HH:mm format
+
+  tenant                   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@map("user_notification_preferences")
+}
+
+model IntegrationConfig {
+  id                      String   @id @default(uuid()) @db.Uuid
+  tenantId                String   @unique @db.Uuid
+  chapaApiKey             String?  @db.VarChar(500) // @encrypted
+  chapaConnected          Boolean  @default(false) @db.Boolean
+  cbeAccountNumber        String?  @db.VarChar(50)
+  awashAccountNumber      String?  @db.VarChar(50)
+  ercaRegistrationNumber  String?  @db.VarChar(50)
+  psssaRegistrationNumber String?  @db.VarChar(50)
+  lastWebhookReceived     DateTime? @db.Timestamptz(6)
+  updatedAt               DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("integration_configs")
 }

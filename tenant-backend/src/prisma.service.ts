@@ -173,6 +173,18 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
               decryptFields(result, ['latitude', 'longitude']);
               return result;
             }
+          },
+          integrationConfig: {
+            async $allOperations({ model, operation, args, query }) {
+              const anyArgs = args as any;
+              if (anyArgs.data) {
+                encryptFields(anyArgs.data, ['chapaApiKey']);
+              }
+              const result = await query(args);
+              // NOTE: Do NOT decrypt chapaApiKey on reads — it should never be returned in plaintext.
+              // Service layer will return only the masked last 4 chars.
+              return result;
+            }
           }
         }
       })
@@ -199,6 +211,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
                 'LeaveType',
                 'LeaveRequest',
                 'PaymentTransaction',
+                'TenantHoliday',
+                'UserNotificationPreference',
+                'IntegrationConfig',
               ];
 
               if (tenantScopedModels.includes(model)) {

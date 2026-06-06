@@ -118,4 +118,32 @@ export class WorkspaceController {
     if (!tenantId) throw new BadRequestException('Tenant context missing.');
     return this.workspaceService.deleteBranch(tenantId, id);
   }
+
+  @Get('departments')
+  @Roles(UserRole.HR, UserRole.OWNER, UserRole.EMPLOYEE)
+  async listDepartments() {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.listDepartments(tenantId);
+  }
+
+  @Post('departments')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async createDepartment(
+    @Body() body: { name: string; branchId: string; parentId?: string; managerId?: string },
+  ) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    if (!body.name || !body.branchId) throw new BadRequestException('name and branchId are required.');
+    return this.workspaceService.createDepartment(tenantId, body);
+  }
+
+  @Delete('departments/:id')
+  @Roles(UserRole.HR, UserRole.OWNER)
+  async deleteDepartment(@Param('id') id: string) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.workspaceService.deleteDepartment(tenantId, id);
+  }
 }
