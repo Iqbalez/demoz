@@ -31,6 +31,7 @@ export interface UserPayload {
     faydaOnFile: number;
     faydaMissing: number;
   } | null;
+  permissions?: string[];
 }
 
 interface AuthContextProps {

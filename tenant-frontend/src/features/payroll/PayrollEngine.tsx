@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Employee } from "../employees/HRDirectory";
 import { toast } from "../../components/ui/toast";
 import { usePayrollJobStatus } from "../../hooks/usePayrollJobStatus";
+import { usePermission } from "../../hooks/usePermission";
 
 export interface PayrollEngineProps {
   employees: Employee[];
@@ -26,6 +27,7 @@ export default function PayrollEngine({
   const [payrollStatus, setPayrollStatus] = useState<"DRAFT" | "SUBMITTED" | "DISBURSING" | "PAID">("DRAFT");
   const [isAuditing, setIsAuditing] = useState(false);
   const [showAiAuditReport, setShowAiAuditReport] = useState(false);
+  const { hasPermission } = usePermission();
 
   // Active BullMQ background job state tracking
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
@@ -321,7 +323,7 @@ export default function PayrollEngine({
             {/* HR Maker Trigger */}
             {currentRoleOperator === "HR" && (
               <>
-                {payrollStatus === "DRAFT" && (
+                {payrollStatus === "DRAFT" && hasPermission('run_payroll') && (
                   <button
                     onClick={handleMakerSubmit}
                     className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl shadow-lg shadow-emerald-950/20 font-bold text-xs cursor-pointer active:scale-95"
@@ -340,7 +342,7 @@ export default function PayrollEngine({
             {/* Owner Checker Trigger */}
             {currentRoleOperator === "OWNER" && (
               <>
-                {payrollStatus === "SUBMITTED" && (
+                {payrollStatus === "SUBMITTED" && hasPermission('approve_payroll') && (
                   <button
                     onClick={handleCheckerTriggerDisburse}
                     className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white rounded-xl shadow-lg shadow-emerald-950/20 font-bold text-xs cursor-pointer active:scale-95 flex items-center gap-1.5"

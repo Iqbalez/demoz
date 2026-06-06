@@ -42,53 +42,6 @@ export default function HRDirectory({ employees, maxEmployees, onAddEmployee, on
   const [formError, setFormError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  const handleOpenAddModal = () => {
-    if (employees.length >= maxEmployees) {
-      setFormError(`Plan seat capacity limit reached! You are currently using ${employees.length}/${maxEmployees} seats. Please upgrade your subscription package to add more employees.`);
-      setShowAddModal(true);
-      return;
-    }
-    setFormError("");
-    setFirstName("");
-    setLastName("");
-    setEmpId(`EMP-${Math.floor(1000 + Math.random() * 9000)}`);
-    setPhone("09");
-    setSalary("15000");
-    setFayda("");
-    setShowAddModal(true);
-  };
-
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (employees.length >= maxEmployees) return;
-
-    if (!firstName || !lastName || !empId || !phone || !salary) {
-      setFormError("Please fill in all required fields.");
-      return;
-    }
-
-    const result = onAddEmployee({
-      firstName,
-      lastName,
-      employeeIdNumber: empId,
-      phoneNumber: phone,
-      departmentName: department,
-      baseSalary: parseFloat(salary),
-      faydaNumber: fayda || `FYD-${Math.floor(100000 + Math.random() * 900000)}`,
-      status: "ACTIVE",
-    });
-
-    if (result.success) {
-      setSuccessMsg("Employee onboarded successfully!");
-      setTimeout(() => {
-        setSuccessMsg("");
-        setShowAddModal(false);
-      }, 1000);
-    } else {
-      setFormError(result.message);
-    }
-  };
-
   const handleOpenEditModal = (emp: Employee) => {
     setSelectedEmployee(emp);
     setFirstName(emp.firstName);
@@ -144,15 +97,15 @@ export default function HRDirectory({ employees, maxEmployees, onAddEmployee, on
           <p className="text-sm text-slate-400">Onboard staff, record national Fayda IDs, and manage compliance.</p>
         </div>
         
-        <button
-          onClick={handleOpenAddModal}
+        <a
+          href="/dashboard/employees/onboarding"
           className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-900/10 font-semibold text-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
           </svg>
           Onboard Employee
-        </button>
+        </a>
       </div>
 
       {/* Directory Table */}
@@ -244,89 +197,7 @@ export default function HRDirectory({ employees, maxEmployees, onAddEmployee, on
         </div>
       </div>
 
-      {/* ADD EMPLOYEE MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-slide-up">
-            
-            <div className="p-5 border-b border-slate-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950/20">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-50 font-outfit">Onboard New Employee</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-zinc-100 cursor-pointer">✕</button>
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="p-5 space-y-4">
-              {formError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/25 text-red-600 rounded-xl text-xs">
-                  ⚠️ {formError}
-                </div>
-              )}
-              {successMsg && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 rounded-xl text-xs font-semibold">
-                  ✓ {successMsg}
-                </div>
-              )}
-
-              {employees.length < maxEmployees && (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">First Name</label>
-                      <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs dark:text-zinc-100 focus:outline-none focus:border-emerald-500" placeholder="Abebe" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Last Name</label>
-                      <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs dark:text-zinc-100 focus:outline-none focus:border-emerald-500" placeholder="Kebede" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Employee ID</label>
-                      <input type="text" value={empId} onChange={(e) => setEmpId(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono font-semibold focus:outline-none" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Phone</label>
-                      <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none placeholder-zinc-500" placeholder="0911000000" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Department</label>
-                      <select value={department} onChange={(e) => setDepartment(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none">
-                        <option value="Operations">Operations</option>
-                        <option value="Tech">Tech / Engineering</option>
-                        <option value="Finance">Finance</option>
-                        <option value="HR">HR / Admin</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Base Salary (ETB)</label>
-                      <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs focus:outline-none" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Fayda National ID</label>
-                    <input type="text" value={fayda} onChange={(e) => setFayda(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl text-xs font-mono focus:outline-none" placeholder="FYD-192837..." />
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex gap-2 justify-end">
-                    <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 bg-slate-100 dark:bg-zinc-850 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer active:scale-95">Cancel</button>
-                    <button type="submit" className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs cursor-pointer shadow-md active:scale-95">Onboard</button>
-                  </div>
-                </>
-              )}
-
-              {employees.length >= maxEmployees && (
-                <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex gap-2 justify-end">
-                  <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 bg-slate-100 dark:bg-zinc-855 text-slate-600 dark:text-zinc-300 font-semibold rounded-xl text-xs cursor-pointer">Close</button>
-                </div>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ADD EMPLOYEE MODAL MOVED TO SEPARATE PAGE */}
 
       {/* EDIT EMPLOYEE MODAL */}
       {showEditModal && selectedEmployee && (

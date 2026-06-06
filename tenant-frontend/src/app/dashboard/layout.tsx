@@ -241,6 +241,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const isSubscriptionExpired = user.subscription_status === "PAST_DUE" || user.subscription_status === "SUSPENDED";
+  const isBillingPage = pathname === "/dashboard/settings/billing";
+
   return (
     <div className="workspace-theme flex min-h-screen flex-col bg-white text-[var(--text-primary)]">
       {/* Top bar */}
@@ -335,7 +338,28 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Main */}
-        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-white p-5 lg:p-8 pb-20 md:pb-8">
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-white p-5 lg:p-8 pb-20 md:pb-8 relative">
+          {isSubscriptionExpired && !isBillingPage && (
+            <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+              <div className="bg-white p-8 rounded-2xl shadow-2xl border border-[var(--border)] max-w-md text-center mx-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Subscription Expired</h2>
+                <p className="text-[var(--text-secondary)] mb-6">
+                  Your Demoz subscription has expired. Please update your billing information to restore access to your workspace.
+                </p>
+                <Link 
+                  href="/dashboard/settings/billing" 
+                  className="inline-block w-full py-3 px-4 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-dark)] text-white font-semibold rounded-lg transition-colors"
+                >
+                  Manage Billing
+                </Link>
+              </div>
+            </div>
+          )}
           {children}
         </main>
       </div>

@@ -10,6 +10,7 @@ import {
   getFaydaComplianceStatus,
 } from "../../lib/fayda-status";
 import { EmployeeMobilePinModal } from "../../components/employees/EmployeeMobilePinModal";
+import { usePermission } from "../../hooks/usePermission";
 
 export interface Employee {
   id: string;
@@ -42,6 +43,7 @@ export default function HRDirectory({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const { hasPermission } = usePermission();
   
   // Local optimistic state for employees list
   const [localEmployees, setLocalEmployees] = useState<Employee[]>(employees);
@@ -268,15 +270,17 @@ export default function HRDirectory({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="px-4.5 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white rounded-xl shadow-md shadow-[var(--brand-primary)]/20 font-bold text-xs transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center gap-2"
-        >
-          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          Onboard Biometric Employee
-        </button>
+        {hasPermission('create_employee') && (
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4.5 py-3 bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white rounded-xl shadow-md shadow-[var(--brand-primary)]/20 font-bold text-xs transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            Onboard Biometric Employee
+          </button>
+        )}
       </div>
 
       {/* Grid Filters Panel */}
@@ -424,13 +428,15 @@ export default function HRDirectory({
                     {/* Actions */}
                     <td className="py-4 px-6 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleOpenEditModal(emp)}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-600 dark:hover:text-white text-slate-600 dark:text-zinc-300 rounded-lg text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-[0.96] cursor-pointer shadow-sm border border-zinc-200/30 dark:border-zinc-800/40"
-                        >
-                          Settings
-                        </button>
-                        {emp.status === "ACTIVE" && (
+                        {hasPermission('manage_employees') && (
+                          <button
+                            onClick={() => handleOpenEditModal(emp)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-600 dark:hover:text-white text-slate-600 dark:text-zinc-300 rounded-lg text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-[0.96] cursor-pointer shadow-sm border border-zinc-200/30 dark:border-zinc-800/40"
+                          >
+                            Settings
+                          </button>
+                        )}
+                        {hasPermission('manage_employees') && emp.status === "ACTIVE" && (
                           <button
                             onClick={() => handleOpenSuspendModal(emp)}
                             className="px-3 py-1.5 bg-red-50 hover:bg-red-600 hover:text-white dark:bg-red-900/20 dark:hover:bg-red-600 dark:hover:text-white text-red-600 dark:text-red-400 rounded-lg text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-[0.96] cursor-pointer shadow-sm border border-red-200/30 dark:border-red-900/40"
