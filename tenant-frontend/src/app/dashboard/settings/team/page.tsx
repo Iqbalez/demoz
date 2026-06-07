@@ -38,6 +38,7 @@ export default function TeamManagementPage() {
   const [inviteRole, setInviteRole] = useState('HR');
   const [inviteCustomRoleId, setInviteCustomRoleId] = useState('');
   const [sending, setSending] = useState(false);
+  const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
 
   const loadTeam = useCallback(async () => {
     try {
@@ -54,7 +55,7 @@ export default function TeamManagementPage() {
 
   const loadRoles = useCallback(async () => {
     try {
-      const roles = await apiRequest<CustomRole[]>('/settings/roles');
+      const roles = await apiRequest<CustomRole[]>('/settings/roles/assignable');
       setCustomRoles(roles || []);
     } catch {
       setCustomRoles([]);
@@ -71,7 +72,7 @@ export default function TeamManagementPage() {
     if (!inviteEmail) return;
     setSending(true);
     try {
-      await apiRequest('/invites', {
+      const res = await apiRequest<{ inviteUrl?: string }>('/invites', {
         method: 'POST',
         body: JSON.stringify({
           email: inviteEmail,
@@ -79,7 +80,17 @@ export default function TeamManagementPage() {
           ...(inviteCustomRoleId ? { customRoleId: inviteCustomRoleId } : {}),
         }),
       });
-      toast.success('Invite sent', `Invitation sent to ${inviteEmail}.`);
+      if (res?.inviteUrl) {
+        setLastInviteUrl(res.inviteUrl);
+        try {
+          await navigator.clipboard.writeText(res.inviteUrl);
+          toast.success('Invite link copied', `Share this link with ${inviteEmail} (valid 48 hours).`);
+        } catch {
+          toast.success('Invite created', `Copy the link below and send it to ${inviteEmail}.`);
+        }
+      } else {
+        toast.success('Invite created', `Invitation created for ${inviteEmail}.`);
+      }
       setInviteEmail('');
       setInviteCustomRoleId('');
       setIsInviteModalOpen(false);
@@ -167,6 +178,20 @@ export default function TeamManagementPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {lastInviteUrl && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900 space-y-2">
+          <p className="font-semibold">Invitation link (share with invitee)</p>
+          <code className="block text-xs break-all bg-white border border-green-200 rounded p-2">{lastInviteUrl}</code>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(lastInviteUrl)}
+            className="text-xs font-semibold text-green-800 underline"
+          >
+            Copy link again
+          </button>
         </div>
       )}
 

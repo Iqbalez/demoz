@@ -115,6 +115,7 @@ export class EmployeeService {
       tenantId,
       dto.departmentId,
       dto.departmentName,
+      dto.branchId,
     );
 
     // 1. Phone number global uniqueness check

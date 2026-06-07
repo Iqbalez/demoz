@@ -12,6 +12,15 @@ import { PERMISSIONS } from '../common/permissions/permissions';
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
+  @Get('assignable')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  @RequirePermissions(PERMISSIONS.VIEW_SETTINGS)
+  async listAssignableRoles() {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.rolesService.listRoles(tenantId);
+  }
+
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   @RequirePermissions(PERMISSIONS.MANAGE_ROLES)

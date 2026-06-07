@@ -57,6 +57,15 @@ export class PayrollProcessor extends WorkerHost {
           data: { status: PayrollStatus.PROCESSING },
         });
 
+        const payrollConfig = await this.prisma.payrollConfig.findUnique({
+          where: { tenantId },
+        });
+        const pensionCap = new Prisma.Decimal(payrollConfig?.pensionCap ?? 15000);
+        const pensionEmployeeRate = new Prisma.Decimal(payrollConfig?.pensionEmployee ?? 7).div(100);
+        const pensionEmployerRate = new Prisma.Decimal(payrollConfig?.pensionEmployer ?? 11).div(100);
+        const flexible = (payrollConfig?.flexiblePayrollOptions ?? {}) as Record<string, boolean>;
+        const useLegalDefaults = (payrollConfig?.complianceMode ?? 'LEGAL') === 'LEGAL' && !flexible.skipPensionCap;
+
         // 2. Run the pattern matching AI audit scanner
         const auditReport = await this.aiAudit.runAudit(
           payrollRunId,
@@ -122,13 +131,10 @@ export class PayrollProcessor extends WorkerHost {
             const grossSalary = base.add(transportAllowanceGross).add(positionAllowance);
 
             // --- Pension (POESSA - Proclamation 1268/2022) ---
-            // 7% employee and 11% employer of BASIC SALARY, capped at ETB 15,000
-            // Decimal‑only pension base cap
-            const pensionBase = base.gt(new Prisma.Decimal(15000))
-              ? new Prisma.Decimal(15000)
-              : base;
-            const pensionDeduction = pensionBase.mul(0.07);       // Employee 7%
-            const employerPension = pensionBase.mul(0.11);         // Employer 11%
+            const cap = useLegalDefaults ? pensionCap : base;
+            const pensionBase = base.gt(cap) ? cap : base;
+            const pensionDeduction = pensionBase.mul(pensionEmployeeRate);
+            const employerPension = pensionBase.mul(pensionEmployerRate);
 
             // --- Taxable Income (Schedule A formula from docs) ---
             // Taxable = Gross - Employee Pension - Non-taxable Allowances (transport exempt)

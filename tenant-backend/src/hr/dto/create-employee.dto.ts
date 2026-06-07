@@ -15,6 +15,10 @@ import { PaymentMethod, EmployeeStatus } from '@prisma/client';
 export class CreateEmployeeDto {
   @IsOptional()
   @IsUUID()
+  branchId?: string;
+
+  @IsOptional()
+  @IsUUID()
   departmentId?: string;
 
   @IsOptional()

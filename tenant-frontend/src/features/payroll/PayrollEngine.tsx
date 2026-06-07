@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Employee } from "../employees/HRDirectory";
 import { toast } from "../../components/ui/toast";
 import { usePayrollJobStatus } from "../../hooks/usePayrollJobStatus";
 import { usePermission } from "../../hooks/usePermission";
+import { useSettings } from "../../context/SettingsContext";
+import { apiRequest } from "../../lib/api";
+import { getCurrentPayPeriod } from "../../lib/payroll-period";
 
 export interface PayrollEngineProps {
   employees: Employee[];
@@ -28,6 +31,12 @@ export default function PayrollEngine({
   const [isAuditing, setIsAuditing] = useState(false);
   const [showAiAuditReport, setShowAiAuditReport] = useState(false);
   const { hasPermission } = usePermission();
+  const { settings } = useSettings();
+  const payPeriod = useMemo(
+    () => getCurrentPayPeriod(settings?.payroll ?? {}),
+    [settings?.payroll],
+  );
+  const pensionCap = Number(settings?.payroll?.pensionCap ?? 15000);
 
   // Active BullMQ background job state tracking
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
@@ -61,16 +70,16 @@ export default function PayrollEngine({
 
   const totalPensionEmployee = payrollRun
     ? Number(payrollRun.totalGross || 0) * 0.07 // Visual fallback for processed sets
-    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary || 0, 15000) * 0.07, 0);
+    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary || 0, pensionCap) * 0.07, 0);
 
   const totalPensionEmployer = payrollRun
     ? Number(payrollRun.totalGross || 0) * 0.11
-    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary || 0, 15000) * 0.11, 0);
+    : activeEmployees.reduce((acc, emp) => acc + Math.min(emp.baseSalary || 0, pensionCap) * 0.11, 0);
 
   const totalTax = payrollRun
     ? Number(payrollRun.totalTax || 0)
     : activeEmployees.reduce((acc, emp) => {
-        const pension = Math.min(emp.baseSalary || 0, 15000) * 0.07;
+        const pension = Math.min(emp.baseSalary || 0, pensionCap) * 0.07;
         const taxable = (emp.baseSalary || 0) - pension;
         return acc + calculateEthiopianTax(taxable);
       }, 0);
@@ -92,25 +101,15 @@ export default function PayrollEngine({
   const handleMakerSubmit = async () => {
     try {
       // Dispatch real enqueuing event to NestJS
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}`}/api/v1/payroll/run`, {
+      const data = await apiRequest<{ payrollRunId: string }>("/api/v1/payroll/run", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": "Bearer tenant_id_google"
-        },
         body: JSON.stringify({
-          periodStart: "2026-05-01",
-          periodEnd: "2026-05-31",
+          periodStart: payPeriod.periodStart,
+          periodEnd: payPeriod.periodEnd,
         }),
       });
-
-      if (!res.ok) {
-        throw new Error("NestJS rejected the run parameters or context is unauthenticated.");
-      }
-
-      const data = await res.json();
       setActiveRunId(data.payrollRunId);
-      toast.success("BullMQ job spawned", "Asynchronous generation enqueued: " + data.payrollRunId);
+      toast.success("Payroll run started", `Period ${payPeriod.label} · Pay date ${payPeriod.payDate}`);
     } catch (err: any) {
       // Seamless mock simulation if backend is unreached/offline
       setPayrollStatus("SUBMITTED");
@@ -220,7 +219,9 @@ export default function PayrollEngine({
         <div className="space-y-1">
           <h2 className="text-xl font-bold text-slate-900 dark:text-zinc-50 font-outfit tracking-tight">Compliant Payroll Engine</h2>
           <p className="text-xs text-slate-400 dark:text-zinc-500 font-medium">
-            Process wages, execute federal tax deductions, and authorize bulk disbursements.
+            Current period: <strong className="text-slate-600 dark:text-zinc-300">{payPeriod.label}</strong>
+            {' · '}Pay date: <strong className="text-slate-600 dark:text-zinc-300">{payPeriod.payDate}</strong>
+            {' · '}{payPeriod.payFrequency}
           </p>
         </div>
 
@@ -419,7 +420,7 @@ export default function PayrollEngine({
                     <span className="text-[8px] text-slate-400">POESSA private organization regulations (capped at 15,000 ETB salary).</span>
                   </div>
                   <span className="font-mono font-bold text-amber-600">
-                    -{(Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07).toLocaleString()} ETB
+                    -{(Math.min(selectedBreakdownEmp.baseSalary || 0, pensionCap) * 0.07).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -430,7 +431,7 @@ export default function PayrollEngine({
                     <span className="text-[8px] text-slate-400">Paid directly by the company (capped at 15,000 ETB salary).</span>
                   </div>
                   <span className="font-mono font-bold text-amber-600">
-                    +{(Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.11).toLocaleString()} ETB
+                    +{(Math.min(selectedBreakdownEmp.baseSalary || 0, pensionCap) * 0.11).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -443,7 +444,7 @@ export default function PayrollEngine({
                     </span>
                   </div>
                   <span className="font-mono font-bold text-red-500">
-                    -{calculateEthiopianTax((selectedBreakdownEmp.baseSalary || 0) - Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07).toLocaleString()} ETB
+                    -{calculateEthiopianTax((selectedBreakdownEmp.baseSalary || 0) - Math.min(selectedBreakdownEmp.baseSalary || 0, pensionCap) * 0.07).toLocaleString()} ETB
                   </span>
                 </div>
 
@@ -463,8 +464,8 @@ export default function PayrollEngine({
                 <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                   {(
                     (selectedBreakdownEmp.baseSalary || 0) -
-                    Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07 -
-                    calculateEthiopianTax((selectedBreakdownEmp.baseSalary || 0) - Math.min(selectedBreakdownEmp.baseSalary || 0, 15000) * 0.07)
+                    Math.min(selectedBreakdownEmp.baseSalary || 0, pensionCap) * 0.07 -
+                    calculateEthiopianTax((selectedBreakdownEmp.baseSalary || 0) - Math.min(selectedBreakdownEmp.baseSalary || 0, pensionCap) * 0.07)
                   ).toLocaleString()}{" "}
                   ETB
                 </span>
@@ -494,7 +495,7 @@ export default function PayrollEngine({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/40 text-slate-700 dark:text-zinc-200">
                     {activeEmployees.map((emp) => {
-                      const pension = Math.min(emp.baseSalary || 0, 15000) * 0.07;
+                      const pension = Math.min(emp.baseSalary || 0, pensionCap) * 0.07;
                       const taxable = (emp.baseSalary || 0) - pension;
                       const tax = calculateEthiopianTax(taxable);
                       const net = (emp.baseSalary || 0) - pension - tax;

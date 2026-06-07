@@ -69,11 +69,15 @@ export class InvitationService {
       },
     });
 
-    // In a real system, you would send an email here with the invite link containing the token.
+    const frontendBase = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const inviteUrl = `${frontendBase}/accept-invite?token=${token}`;
+
+    // Email delivery can be wired here; inviteUrl is returned for copy-link flow.
     return {
       message: 'Invitation generated successfully.',
       inviteId: invite.id,
-      token, // Exposing token just for the sake of the API/testing.
+      token,
+      inviteUrl,
     };
   }
 

@@ -158,17 +158,30 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const handleAddEmployee = async (newEmp: Omit<Employee, "id" | "hireDate" | "faydaVerified">): Promise<{ success: boolean; message: string; mobileAppPin?: string }> => {
     if (stats.totalEmployees >= stats.maxEmployees) return { success: false, message: "Seat capacity limit reached." };
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         firstName: newEmp.firstName,
         lastName: newEmp.lastName,
         employeeIdNumber: newEmp.employeeIdNumber,
         phoneNumber: newEmp.phoneNumber,
         baseSalary: newEmp.baseSalary ?? 0,
-        departmentName: newEmp.departmentName || "General",
         status: newEmp.status || "ACTIVE",
-        hireDate: new Date().toISOString().split("T")[0],
+        hireDate: (newEmp as { hireDate?: string }).hireDate || new Date().toISOString().split("T")[0],
         ...(newEmp.faydaNumber ? { faydaNumber: newEmp.faydaNumber } : {}),
       };
+      const ext = newEmp as {
+        departmentId?: string;
+        departmentName?: string;
+        branchId?: string;
+        paymentMethod?: string;
+        bankName?: string;
+        bankAccount?: string;
+      };
+      if (ext.branchId) payload.branchId = ext.branchId;
+      if (ext.departmentId) payload.departmentId = ext.departmentId;
+      else if (ext.departmentName) payload.departmentName = ext.departmentName;
+      if (ext.paymentMethod) payload.paymentMethod = ext.paymentMethod;
+      if (ext.bankName) payload.bankName = ext.bankName;
+      if (ext.bankAccount) payload.bankAccount = ext.bankAccount;
       const created = await apiRequest<Employee & { mobileAppPin?: string }>("/employees", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -189,9 +202,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       const payload: any = { ...updates };
       if (updates.faydaNumber) payload.faydaNumber = updates.faydaNumber;
       await apiRequest<Employee>(`/employees/${id}`, {
-        method: "PUT",
+        method: "PATCH",
         body: JSON.stringify(payload),
       });
+      await refreshTenantData();
       return { success: true, message: "Employee updated." };
     } catch (e: any) {
       return { success: false, message: e.message || "Failed to update employee." };

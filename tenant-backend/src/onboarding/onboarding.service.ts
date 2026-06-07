@@ -7,6 +7,7 @@ import { generateTemporaryPassword, generateUniqueEmail } from './credential-gen
 import { EmployeeStatus, UserRole } from '@prisma/client';
 import { AuditService } from '../settings/audit.service';
 import { DashboardService } from '../dashboard/dashboard.service';
+import { WorkspaceService } from '../hr/workspace.service';
 
 export interface ImportResult {
   imported: number;
@@ -24,6 +25,7 @@ export class OnboardingService {
     private readonly csvParserService: CsvParserService,
     private readonly audit: AuditService,
     private readonly dashboardService: DashboardService,
+    private readonly workspaceService: WorkspaceService,
   ) {}
 
   async importEmployeesFromCSV(tenantId: string, csvBuffer: Buffer, actorUserId?: string): Promise<ImportResult> {
@@ -39,20 +41,7 @@ export class OnboardingService {
     });
     existingUsers.forEach((u) => existingSystemEmails.add(u.email));
 
-    // Ensure there is a default "Onboarding" branch + department for CSV imports
-    // This is the Option B adaptation: we resolve/create the department dynamically
-    let defaultBranch = await this.prisma.branch.findFirst({
-      where: { tenantId, name: 'Main Branch' },
-    });
-    if (!defaultBranch) {
-      defaultBranch = await this.prisma.branch.create({
-        data: {
-          tenantId,
-          name: 'Main Branch',
-          location: 'Headquarters',
-        },
-      });
-    }
+    const { branch: defaultBranch } = await this.workspaceService.ensureDefaultWorkspace(tenantId);
 
     for (const row of rows) {
       // Rows with validation errors are recorded as failed immediately
@@ -68,7 +57,7 @@ export class OnboardingService {
       try {
         // Resolve or auto-create the department by name
         let department = await this.prisma.department.findFirst({
-          where: { tenantId, name: row.department },
+          where: { tenantId, branchId: defaultBranch.id, name: row.department },
         });
         if (!department) {
           department = await this.prisma.department.create({

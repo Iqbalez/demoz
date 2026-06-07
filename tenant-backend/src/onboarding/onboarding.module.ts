@@ -6,6 +6,7 @@ import { CsvParserService } from './csv-parser.service';
 import { PrismaService } from '../prisma.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
+import { WorkspaceService } from '../hr/workspace.service';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { SettingsModule } from '../settings/settings.module';
     MulterModule.register({ limits: { fileSize: 10 * 1024 * 1024 } }), // 10 MB limit
   ],
   controllers: [OnboardingController],
-  providers: [OnboardingService, CsvParserService, PrismaService],
+  providers: [OnboardingService, CsvParserService, PrismaService, WorkspaceService],
   exports: [OnboardingService],
 })
 export class OnboardingModule {}

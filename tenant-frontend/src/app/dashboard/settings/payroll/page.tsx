@@ -9,7 +9,7 @@ import { toast } from '@/components/ui/toast';
 export default function PayrollSettingsPage() {
   const { settings, loading, updateSettings } = useSettings();
   const { hasPermission } = usePermission();
-  const canManage = hasPermission('manage_payroll');
+  const canManage = hasPermission('manage_settings');
   
   const [form, setForm] = useState<any>({});
   const [isDirty, setIsDirty] = useState(false);
@@ -22,7 +22,9 @@ export default function PayrollSettingsPage() {
       setForm({
         pensionEmployee: settings.payroll.pensionEmployee ?? 7,
         pensionEmployer: settings.payroll.pensionEmployer ?? 11,
-        pensionCap: settings.payroll.pensionCap ?? 5000,
+        pensionCap: settings.payroll.pensionCap ?? 15000,
+        complianceMode: settings.payroll.complianceMode ?? 'LEGAL',
+        flexiblePayrollOptions: settings.payroll.flexiblePayrollOptions ?? {},
         payFrequency: settings.payroll.payFrequency ?? 'MONTHLY',
         cutoffDay: settings.payroll.cutoffDay ?? 25,
         payDate: settings.payroll.payDate ?? 28,
@@ -198,6 +200,53 @@ export default function PayrollSettingsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* SECTION: Compliance mode */}
+          <div className="rounded-xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-[var(--border)] bg-[var(--bg-subtle)]/50">
+              <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wider">Compliance &amp; Flexibility</h3>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Default is fully legal (Ethiopian labour &amp; tax law). Owners may enable flexible options for special client arrangements.</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[var(--text-primary)]">Compliance mode</label>
+                <select disabled={!canManage} name="complianceMode" value={form.complianceMode || 'LEGAL'} onChange={handleChange} className="w-full md:w-1/2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm disabled:bg-gray-100">
+                  <option value="LEGAL">Legal (recommended) — ERCA brackets, pension cap, standard schedule</option>
+                  <option value="FLEXIBLE">Flexible — allow overrides below (owner responsibility)</option>
+                </select>
+              </div>
+              {form.complianceMode === 'FLEXIBLE' && (
+                <div className="space-y-2 border border-amber-200 bg-amber-50 rounded-lg p-4">
+                  <p className="text-xs text-amber-800 font-medium">Flexible options (use only when you accept compliance risk):</p>
+                  {[
+                    { key: 'skipPensionCap', label: 'Remove pension salary cap' },
+                    { key: 'allowManualTaxOverride', label: 'Allow manual tax overrides on payslips' },
+                    { key: 'allowOffSchedulePayDate', label: 'Allow pay dates outside statutory window' },
+                    { key: 'includeCashOffBooks', label: 'Track off-books cash supplements (reporting only)' },
+                  ].map((opt) => (
+                    <label key={opt.key} className="flex items-center gap-2 text-sm text-amber-900">
+                      <input
+                        type="checkbox"
+                        disabled={!canManage}
+                        checked={!!form.flexiblePayrollOptions?.[opt.key]}
+                        onChange={(e) => {
+                          setForm({
+                            ...form,
+                            flexiblePayrollOptions: {
+                              ...(form.flexiblePayrollOptions || {}),
+                              [opt.key]: e.target.checked,
+                            },
+                          });
+                          setIsDirty(true);
+                        }}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

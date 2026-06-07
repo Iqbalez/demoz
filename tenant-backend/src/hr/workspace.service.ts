@@ -143,7 +143,12 @@ export class WorkspaceService {
     return { branch, department, branchId: branch.id, departmentId: department.id };
   }
 
-  async resolveDepartmentId(tenantId: string, departmentId?: string, departmentName?: string) {
+  async resolveDepartmentId(
+    tenantId: string,
+    departmentId?: string,
+    departmentName?: string,
+    branchId?: string,
+  ) {
     if (departmentId) {
       const existing = await this.prisma.department.findFirst({
         where: { id: departmentId, tenantId },
@@ -151,7 +156,19 @@ export class WorkspaceService {
       if (existing) return existing.id;
     }
 
-    const { branch, department } = await this.ensureDefaultWorkspace(tenantId);
+    let branch;
+    if (branchId) {
+      branch = await this.prisma.branch.findFirst({ where: { id: branchId, tenantId } });
+      if (!branch) throw new BadRequestException('Branch not found.');
+    } else {
+      const workspace = await this.ensureDefaultWorkspace(tenantId);
+      branch = workspace.branch;
+    }
+
+    const defaultDept = await this.prisma.department.findFirst({
+      where: { tenantId, branchId: branch.id },
+      orderBy: { createdAt: 'asc' },
+    });
 
     if (departmentName?.trim()) {
       const named = await this.prisma.department.findFirst({
@@ -169,7 +186,12 @@ export class WorkspaceService {
       return created.id;
     }
 
-    return department.id;
+    if (defaultDept) return defaultDept.id;
+
+    const created = await this.prisma.department.create({
+      data: { tenantId, branchId: branch.id, name: 'General' },
+    });
+    return created.id;
   }
 
   async listBranches(tenantId: string) {

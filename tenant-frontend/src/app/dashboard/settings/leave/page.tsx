@@ -34,10 +34,27 @@ export default function LeavePoliciesPage() {
   const [editingPolicy, setEditingPolicy] = useState<LeavePolicy | null>(null);
   const [form, setForm] = useState<Partial<LeavePolicy>>({});
   const [saving, setSaving] = useState(false);
+  const [holidays, setHolidays] = useState<{ national: any[]; custom: any[] }>({ national: [], custom: [] });
+  const [holidayForm, setHolidayForm] = useState({ date: '', name: '' });
+  const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
+  const canManageHolidays = hasPermission('manage_settings');
 
   useEffect(() => {
     fetchPolicies();
   }, []);
+
+  const fetchHolidays = async (year = holidayYear) => {
+    try {
+      const data = await apiRequest<{ national: any[]; custom: any[] }>(`/settings/holidays?year=${year}`);
+      setHolidays({ national: data.national || [], custom: data.custom || [] });
+    } catch (err: any) {
+      toast.error('Load Failed', err.message || 'Failed to load holidays.');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'holidays') fetchHolidays();
+  }, [activeTab, holidayYear]);
 
   const fetchPolicies = async () => {
     try {
@@ -252,13 +269,89 @@ export default function LeavePoliciesPage() {
       )}
 
       {activeTab === 'holidays' && (
-        <div className="rounded-xl border border-[var(--border)] bg-white p-6 shadow-sm flex items-center justify-center min-h-[300px]">
-          <div className="text-center space-y-3">
-            <svg className="w-12 h-12 mx-auto text-[var(--text-muted)] opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p className="text-sm font-medium text-[var(--text-secondary)]">Holiday Calendar Coming Soon</p>
-            <p className="text-xs text-[var(--text-muted)]">Configure National and Custom holidays to map with overtime multipliers.</p>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[var(--text-muted)]">National holidays are pre-loaded. Owners can add company-specific days off.</p>
+            <select value={holidayYear} onChange={(e) => setHolidayYear(Number(e.target.value))} className="rounded-lg border px-3 py-1.5 text-sm">
+              {[holidayYear - 1, holidayYear, holidayYear + 1].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          {canManageHolidays && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!holidayForm.date || !holidayForm.name) return;
+                try {
+                  await apiRequest('/settings/holidays', { method: 'POST', body: JSON.stringify(holidayForm) });
+                  toast.success('Holiday added', holidayForm.name);
+                  setHolidayForm({ date: '', name: '' });
+                  fetchHolidays();
+                } catch (err: any) {
+                  toast.error('Failed', err.message);
+                }
+              }}
+              className="rounded-xl border border-[var(--border)] bg-white p-5 grid grid-cols-1 md:grid-cols-3 gap-4 items-end"
+            >
+              <div>
+                <label className="text-sm font-medium block mb-1">Date</label>
+                <input type="date" required value={holidayForm.date} onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })} className="w-full rounded-lg border px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Holiday name</label>
+                <input type="text" required value={holidayForm.name} onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })} placeholder="Company founding day" className="w-full rounded-lg border px-3 py-2 text-sm" />
+              </div>
+              <button type="submit" className="px-4 py-2 bg-[var(--brand-primary)] text-white rounded-lg text-sm font-semibold">Add company holiday</button>
+            </form>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+              <div className="px-5 py-3 border-b bg-[var(--bg-subtle)] font-semibold text-sm">Ethiopian public holidays</div>
+              <ul className="divide-y max-h-80 overflow-y-auto">
+                {holidays.national.length === 0 ? (
+                  <li className="p-4 text-sm text-[var(--text-muted)]">No national holidays loaded for {holidayYear}.</li>
+                ) : holidays.national.map((h) => (
+                  <li key={h.id} className="px-5 py-3 text-sm flex justify-between">
+                    <span>{h.nameEn}</span>
+                    <span className="text-[var(--text-muted)]">{String(h.date).slice(0, 10)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+              <div className="px-5 py-3 border-b bg-[var(--bg-subtle)] font-semibold text-sm">Company holidays</div>
+              <ul className="divide-y max-h-80 overflow-y-auto">
+                {holidays.custom.length === 0 ? (
+                  <li className="p-4 text-sm text-[var(--text-muted)]">No custom holidays yet.</li>
+                ) : holidays.custom.map((h) => (
+                  <li key={h.id} className="px-5 py-3 text-sm flex justify-between items-center gap-2">
+                    <span>{h.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[var(--text-muted)]">{String(h.date).slice(0, 10)}</span>
+                      {canManageHolidays && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await apiRequest(`/settings/holidays/${h.id}`, { method: 'DELETE' });
+                              fetchHolidays();
+                            } catch (err: any) {
+                              toast.error('Delete failed', err.message);
+                            }
+                          }}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       )}

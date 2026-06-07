@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RequireTenant } from '../auth/require-tenant.decorator';
+import { Public } from '../auth/public.decorator';
 import { UserRole } from '@prisma/client';
 
 @Controller('invites')
@@ -31,11 +32,13 @@ export class InvitationController {
     return this.invitationService.getTeam(req.user.tenantId);
   }
 
+  @Public()
   @Get('validate/:token')
   async validateInvite(@Param('token') token: string) {
     return this.invitationService.validateInvite(token);
   }
 
+  @Public()
   @Post('accept/:token')
   async acceptInvite(
     @Param('token') token: string,

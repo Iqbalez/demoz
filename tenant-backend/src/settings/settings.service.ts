@@ -93,8 +93,11 @@ export class SettingsService {
         }
         
         // Backend TIN Validation
-        if (companyUpdateData.tin && !/^\\d{10}$/.test(companyUpdateData.tin)) {
-           throw new BadRequestException('TIN must be exactly 10 digits.');
+        if (companyUpdateData.tin) {
+          companyUpdateData.tin = String(companyUpdateData.tin).trim();
+          if (companyUpdateData.tin && !/^\d{10}$/.test(companyUpdateData.tin)) {
+            throw new BadRequestException('TIN must be exactly 10 digits.');
+          }
         }
 
         result = await this.prisma.tenant.update({
@@ -129,6 +132,7 @@ export class SettingsService {
           'payFrequency', 'cutoffDay', 'payDate',
           'overtimeRate', 'nightShiftRate', 'nightShiftEnabled',
           'payslipTemplate', 'allowanceTypes', 'deductionTypes',
+          'complianceMode', 'flexiblePayrollOptions',
         ];
         const payrollUpdateData: any = {};
         for (const field of allowedPayrollFields) {
@@ -211,7 +215,7 @@ export class SettingsService {
     return {
       pensionEmployee: 7.0,
       pensionEmployer: 11.0,
-      pensionCap: 5000,
+      pensionCap: 15000,
       payFrequency: 'MONTHLY',
       cutoffDay: 25,
       payDate: 28,
@@ -495,5 +499,76 @@ export class SettingsService {
       page,
       totalPages: Math.ceil(total / safeLimit),
     };
+  }
+
+  async getTenantHolidays(tenantId: string, year?: number) {
+    const yearNum = year ?? new Date().getFullYear();
+    const start = new Date(Date.UTC(yearNum, 0, 1));
+    const end = new Date(Date.UTC(yearNum, 11, 31));
+
+    const [national, custom] = await Promise.all([
+      this.prisma.publicHoliday.findMany({
+        where: { year: yearNum },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.tenantHoliday.findMany({
+        where: { tenantId, date: { gte: start, lte: end } },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    return { year: yearNum, national, custom };
+  }
+
+  async createTenantHoliday(
+    tenantId: string,
+    data: { date: string; name: string },
+    userId?: string,
+  ) {
+    const name = data.name?.trim();
+    if (!name) throw new BadRequestException('Holiday name is required.');
+    if (!data.date) throw new BadRequestException('Holiday date is required.');
+
+    const date = new Date(`${data.date}T00:00:00.000Z`);
+
+    const holiday = await this.prisma.tenantHoliday.create({
+      data: {
+        tenantId,
+        date,
+        name,
+        isCustom: true,
+        isObserved: true,
+      },
+    });
+
+    if (userId) {
+      await this.audit.log(tenantId, userId, 'CREATE', {
+        module: 'holidays',
+        entityId: holiday.id,
+        name,
+        date: data.date,
+      });
+    }
+
+    return holiday;
+  }
+
+  async deleteTenantHoliday(tenantId: string, id: string, userId?: string) {
+    const existing = await this.prisma.tenantHoliday.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new BadRequestException('Holiday not found.');
+
+    await this.prisma.tenantHoliday.delete({ where: { id } });
+
+    if (userId) {
+      await this.audit.log(tenantId, userId, 'DELETE', {
+        module: 'holidays',
+        entityId: id,
+        name: existing.name,
+      });
+    }
+
+    return { success: true };
   }
 }

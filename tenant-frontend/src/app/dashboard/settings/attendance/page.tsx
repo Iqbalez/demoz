@@ -19,7 +19,7 @@ const DAYS_OF_WEEK = [
 export default function AttendanceSettingsPage() {
   const { settings, loading, updateSettings } = useSettings();
   const { hasPermission } = usePermission();
-  const canEdit = hasPermission('edit_attendance');
+  const canEdit = hasPermission('manage_settings');
   
   const [form, setForm] = useState<any>({});
   const [isDirty, setIsDirty] = useState(false);

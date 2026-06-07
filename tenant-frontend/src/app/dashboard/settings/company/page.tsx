@@ -66,7 +66,8 @@ export default function CompanyProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (form.tin && !/^\\d{10}$/.test(form.tin)) {
+    const tin = form.tin?.trim();
+    if (tin && !/^\d{10}$/.test(tin)) {
       toast.error('Validation Error', 'Ethiopian TIN must be exactly 10 numeric digits.');
       return;
     }
@@ -75,6 +76,7 @@ export default function CompanyProfilePage() {
     try {
       await updateSettings('company', {
         ...form,
+        tin: tin || form.tin,
         fiscalYearStart: parseInt(form.fiscalYearStart, 10)
       });
       setIsDirty(false);

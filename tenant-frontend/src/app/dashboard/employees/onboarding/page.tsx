@@ -18,10 +18,12 @@ const ETHIOPIAN_BANKS = [
   { name: "Zemen Bank", prefix: "", minLength: 10, maxLength: 13, placeholder: "1234567890" },
 ];
 
+type DeptRow = { id: string; name: string; branchId: string; branch?: { name: string } };
+
 export default function OnboardingPage() {
-  const { handleAddEmployee, stats } = useDashboard();
+  const { handleAddEmployee, stats, branches } = useDashboard();
   const queryClient = useQueryClient();
-  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
+  const [departments, setDepartments] = useState<DeptRow[]>([]);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -32,7 +34,8 @@ export default function OnboardingPage() {
     paymentMethod: "BANK",
     bankName: ETHIOPIAN_BANKS[0].name,
     bankAccount: "",
-    departmentName: "",
+    branchId: "",
+    departmentId: "",
     hireDate: new Date().toISOString().slice(0, 10),
   });
   const [submitting, setSubmitting] = useState(false);
@@ -41,17 +44,34 @@ export default function OnboardingPage() {
   useEffect(() => {
     async function loadDepts() {
       try {
-        const data = await apiRequest<{ id: string; name: string }[]>('/departments');
+        const data = await apiRequest<DeptRow[]>('/departments');
         setDepartments(data || []);
-        if (data && data.length > 0) {
-          setForm(prev => ({ ...prev, departmentName: data[0].name }));
-        }
       } catch (err) {
         console.error("Failed to load departments", err);
       }
     }
     loadDepts();
   }, []);
+
+  useEffect(() => {
+    if (branches.length > 0 && !form.branchId) {
+      const headOffice = branches.find((b) => /head office/i.test(b.name)) ?? branches[0];
+      setForm((prev) => ({ ...prev, branchId: headOffice.id }));
+    }
+  }, [branches, form.branchId]);
+
+  const branchDepartments = departments.filter((d) => d.branchId === form.branchId);
+
+  useEffect(() => {
+    if (branchDepartments.length > 0) {
+      const stillValid = branchDepartments.some((d) => d.id === form.departmentId);
+      if (!stillValid) {
+        setForm((prev) => ({ ...prev, departmentId: branchDepartments[0].id }));
+      }
+    } else {
+      setForm((prev) => ({ ...prev, departmentId: "" }));
+    }
+  }, [form.branchId, branchDepartments, form.departmentId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -99,7 +119,8 @@ export default function OnboardingPage() {
         paymentMethod: form.paymentMethod as "BANK" | "CHAPA_WALLET",
         bankName: form.bankName || undefined,
         bankAccount: form.bankAccount || undefined,
-        departmentName: form.departmentName || undefined,
+        branchId: form.branchId || undefined,
+        departmentId: form.departmentId || undefined,
         hireDate: form.hireDate,
         status: "ACTIVE",
       } as any);
@@ -116,7 +137,7 @@ export default function OnboardingPage() {
           setForm({
             firstName: "", lastName: "", employeeIdNumber: "", phoneNumber: "",
             baseSalary: "", paymentMethod: "BANK", bankName: ETHIOPIAN_BANKS[0].name, bankAccount: "",
-            departmentName: departments.length > 0 ? departments[0].name : "", hireDate: new Date().toISOString().slice(0, 10),
+            branchId: form.branchId, departmentId: branchDepartments[0]?.id ?? "", hireDate: new Date().toISOString().slice(0, 10),
           });
         } else {
           toast.success("Employee onboarded", `${form.firstName} has been added.`);
@@ -186,15 +207,33 @@ export default function OnboardingPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-[var(--text-primary)]">Department</label>
-            {departments.length > 0 ? (
-              <select name="departmentName" value={form.departmentName} onChange={handleChange} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]">
-                {departments.map(d => (
-                  <option key={d.id} value={d.name}>{d.name}</option>
+            <label className="text-sm font-medium text-[var(--text-primary)]">Branch / Location *</label>
+            {branches.length > 0 ? (
+              <select name="branchId" value={form.branchId} onChange={handleChange} required className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]">
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}{b.location ? ` — ${b.location}` : ""}</option>
                 ))}
               </select>
             ) : (
-              <input name="departmentName" type="text" value={form.departmentName} onChange={handleChange} placeholder="General" className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]" />
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                No branches yet. Add one under Attendance → Branches, then return here.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-[var(--text-primary)]">Department</label>
+            {branchDepartments.length > 0 ? (
+              <select name="departmentId" value={form.departmentId} onChange={handleChange} className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]">
+                {branchDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-[var(--text-muted)]">
+                No departments for this branch.{" "}
+                <Link href="/dashboard/settings/departments" className="text-[var(--brand-primary)] underline">Create one in Settings</Link>
+              </p>
             )}
           </div>
           

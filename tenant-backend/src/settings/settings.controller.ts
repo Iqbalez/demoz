@@ -144,6 +144,35 @@ export class SettingsController {
     return this.settingsService.deleteLeavePolicy(tenantId, id, req.user?.userId);
   }
 
+  // --- Company holidays ---
+  @Get('holidays')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  @RequirePermissions(PERMISSIONS.VIEW_SETTINGS)
+  async getHolidays(@Query('year') year?: string) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    const yearNum = year ? parseInt(year, 10) : undefined;
+    return this.settingsService.getTenantHolidays(tenantId, yearNum);
+  }
+
+  @Post('holidays')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER)
+  @RequirePermissions(PERMISSIONS.MANAGE_SETTINGS)
+  async createHoliday(@Req() req: any, @Body() body: { date: string; name: string }) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.settingsService.createTenantHoliday(tenantId, body, req.user?.userId);
+  }
+
+  @Delete('holidays/:id')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER)
+  @RequirePermissions(PERMISSIONS.MANAGE_SETTINGS)
+  async deleteHoliday(@Req() req: any, @Param('id') id: string) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.settingsService.deleteTenantHoliday(tenantId, id, req.user?.userId);
+  }
+
   // --- Audit Logs ---
   @Get('audit-logs')
   @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
