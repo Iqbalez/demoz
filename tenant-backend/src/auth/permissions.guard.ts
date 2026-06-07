@@ -36,11 +36,12 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    if (!user?.id || !user?.tenantId) {
+    const userId = user?.userId ?? user?.id;
+    if (!userId || !user?.tenantId) {
       throw new ForbiddenException('Access Denied: Missing authentication context.');
     }
 
-    const userPermissions = await this.rolesService.resolvePermissions(user.id, user.tenantId);
+    const userPermissions = await this.rolesService.resolvePermissions(userId, user.tenantId);
 
     const hasAll = requiredPermissions.every(p => userPermissions.includes(p));
     if (!hasAll) {

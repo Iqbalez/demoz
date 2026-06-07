@@ -18,8 +18,9 @@ export class InvitationController {
     @Request() req,
     @Body('email') email: string,
     @Body('role') role: UserRole,
+    @Body('customRoleId') customRoleId?: string,
   ) {
-    return this.invitationService.createInvite(req.user.tenantId, email, role);
+    return this.invitationService.createInvite(req.user.tenantId, email, role, customRoleId);
   }
 
   @Get('team')

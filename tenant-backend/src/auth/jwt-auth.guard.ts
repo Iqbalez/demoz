@@ -69,27 +69,28 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     const tenantIdHeader = request.headers['x-tenant-id'];
 
-    if (requireTenant && !tenantIdHeader) {
-      throw new UnauthorizedException('Missing X-Tenant-ID header. This endpoint requires an active workspace.');
+    if (tenantIdHeader && dbUser.tenantId && dbUser.tenantId !== tenantIdHeader) {
+      throw new UnauthorizedException('Access Denied. You do not belong to the requested workspace.');
     }
 
-    if (tenantIdHeader) {
-      if (dbUser.tenantId !== tenantIdHeader) {
-        throw new UnauthorizedException('Access Denied. You do not belong to the requested workspace.');
-      }
+    request.user.id = user.userId;
+    request.user.userId = user.userId;
 
-      // Attach current role and tenant context to request
+    const resolvedTenantId = dbUser.tenantId ?? null;
+
+    if (requireTenant && !resolvedTenantId) {
+      throw new UnauthorizedException('This endpoint requires an active workspace.');
+    }
+
+    if (resolvedTenantId) {
       request.user.role = dbUser.role;
-      request.user.tenantId = dbUser.tenantId;
-
-      // Activate Prisma RLS Context
-      tenantStorage.enterWith(dbUser.tenantId!);
+      request.user.tenantId = resolvedTenantId;
+      tenantStorage.enterWith(resolvedTenantId);
     } else {
-      // If no tenant header is provided and it's not required, proceed with global user context
-      request.user.role = null;
+      request.user.role = dbUser.role;
       request.user.tenantId = null;
     }
-    
+
     return true;
   }
 }

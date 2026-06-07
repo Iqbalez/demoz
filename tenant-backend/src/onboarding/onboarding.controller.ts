@@ -9,6 +9,7 @@ import {
   BadRequestException,
   HttpStatus,
   Logger,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { OnboardingService } from './onboarding.service';
@@ -27,7 +28,7 @@ export class OnboardingController {
    */
   @Post('import-employees')
   @UseInterceptors(FileInterceptor('file'))
-  async importEmployees(@UploadedFile() file: Express.Multer.File, @Res() res: any) {
+  async importEmployees(@UploadedFile() file: Express.Multer.File, @Req() req: any, @Res() res: any) {
     try {
       if (!file) {
         throw new BadRequestException('No file uploaded. Send the CSV as multipart field "file".');
@@ -45,7 +46,7 @@ export class OnboardingController {
         return res.status(HttpStatus.UNAUTHORIZED).json({ message: 'Missing tenant context.' });
       }
 
-      const result = await this.onboardingService.importEmployeesFromCSV(tenantId, file.buffer);
+      const result = await this.onboardingService.importEmployeesFromCSV(tenantId, file.buffer, req.user?.userId);
 
       return res.status(HttpStatus.OK).json({
         success: true,

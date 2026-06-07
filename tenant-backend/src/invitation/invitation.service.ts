@@ -20,7 +20,7 @@ export class InvitationService {
     return { users, pendingInvites };
   }
 
-  async createInvite(tenantId: string, email: string, role: UserRole) {
+  async createInvite(tenantId: string, email: string, role: UserRole, customRoleId?: string) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Check if user is already a member
@@ -36,6 +36,15 @@ export class InvitationService {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 48); // 48 hours expiry
 
+    if (customRoleId) {
+      const customRole = await this.prisma.customRole.findFirst({
+        where: { id: customRoleId, tenantId },
+      });
+      if (!customRole) {
+        throw new BadRequestException('Custom role not found.');
+      }
+    }
+
     const invite = await this.prisma.invitation.upsert({
       where: {
         tenantId_email: {
@@ -46,6 +55,7 @@ export class InvitationService {
       update: {
         token,
         role,
+        customRoleId: customRoleId ?? null,
         status: 'PENDING',
         expiresAt,
       },
@@ -54,6 +64,7 @@ export class InvitationService {
         email: normalizedEmail,
         token,
         role,
+        customRoleId: customRoleId ?? null,
         expiresAt,
       },
     });
@@ -115,6 +126,7 @@ export class InvitationService {
             phoneNumber: body.phoneNumber,
             tenantId: invite.tenantId,
             role: invite.role,
+            customRoleId: invite.customRoleId,
           },
         });
       } else {
@@ -123,6 +135,7 @@ export class InvitationService {
           data: {
             tenantId: invite.tenantId,
             role: invite.role,
+            customRoleId: invite.customRoleId,
           },
         });
       }

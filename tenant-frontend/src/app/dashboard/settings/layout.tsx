@@ -9,6 +9,7 @@ import { SettingsProvider } from '@/context/SettingsContext';
 const navItems = [
   { name: 'Company Profile', href: '/dashboard/settings/company', permission: 'manage_settings' },
   { name: 'Roles & Permissions', href: '/dashboard/settings/roles', permission: 'manage_roles' },
+  { name: 'Team Management', href: '/dashboard/settings/team', permission: 'manage_roles' },
   { name: 'Departments & Branches', href: '/dashboard/settings/departments', permission: 'manage_settings' },
   { name: 'Payroll Configuration', href: '/dashboard/settings/payroll', permission: 'manage_settings' },
   { name: 'Leave Policies', href: '/dashboard/settings/leave', permission: 'manage_settings' },
@@ -16,7 +17,7 @@ const navItems = [
   { name: 'Notifications', href: '/dashboard/settings/notifications', permission: 'manage_settings' },
   { name: 'Integrations', href: '/dashboard/settings/integrations', permission: 'manage_settings' },
   { name: 'Security', href: '/dashboard/settings/security', permission: 'manage_settings' },
-  { name: 'Audit Log', href: '/dashboard/settings/audit-log', permission: 'manage_settings' },
+  { name: 'Audit Log', href: '/dashboard/settings/audit-log', permission: 'view_audit_log' },
   { name: 'Billing & Subscription', href: '/dashboard/settings/billing', permission: 'manage_billing' },
 ];
 

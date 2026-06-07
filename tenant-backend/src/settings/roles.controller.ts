@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, BadRequestException, UseGuards, Req } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { Roles } from '../auth/roles.decorator';
 import { RequirePermissions } from '../auth/permissions.decorator';
@@ -13,7 +13,7 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   @RequirePermissions(PERMISSIONS.MANAGE_ROLES)
   async listRoles() {
     const tenantId = tenantStorage.getStore();
@@ -22,7 +22,7 @@ export class RolesController {
   }
 
   @Post()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   @RequirePermissions(PERMISSIONS.MANAGE_ROLES)
   async createRole(
     @Body() body: { name: string; description?: string; permissions: string[] },
@@ -33,7 +33,7 @@ export class RolesController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   @RequirePermissions(PERMISSIONS.MANAGE_ROLES)
   async updateRole(
     @Param('id') id: string,
@@ -45,11 +45,23 @@ export class RolesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
   @RequirePermissions(PERMISSIONS.MANAGE_ROLES)
   async deleteRole(@Param('id') id: string) {
     const tenantId = tenantStorage.getStore();
     if (!tenantId) throw new BadRequestException('Tenant context missing.');
     return this.rolesService.deleteRole(tenantId, id);
+  }
+
+  @Patch('users/:userId/assign')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OWNER, UserRole.HR)
+  @RequirePermissions(PERMISSIONS.MANAGE_ROLES)
+  async assignUserRole(
+    @Param('userId') userId: string,
+    @Body() body: { customRoleId?: string | null; role?: string },
+  ) {
+    const tenantId = tenantStorage.getStore();
+    if (!tenantId) throw new BadRequestException('Tenant context missing.');
+    return this.rolesService.assignUserRole(tenantId, userId, body);
   }
 }

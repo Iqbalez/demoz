@@ -67,6 +67,7 @@ export class WorkspaceService {
           email: true,
           role: true,
           isActive: true,
+          customRole: { select: { id: true, name: true } },
         },
       }),
     );
@@ -81,6 +82,7 @@ export class WorkspaceService {
           role: true,
           status: true,
           expiresAt: true,
+          customRole: { select: { id: true, name: true } },
         },
       }),
     );
@@ -89,15 +91,17 @@ export class WorkspaceService {
       members: users.map(u => ({
         id: u.id,
         email: u.email,
-        role: u.role,
+        role: u.customRole?.name ?? u.role,
         status: u.isActive ? 'ACTIVE' : 'INACTIVE',
+        customRoleId: u.customRole?.id ?? null,
       })),
       pendingInvitations: invitations.map(inv => ({
         id: inv.id,
         email: inv.email,
-        role: inv.role,
+        role: inv.customRole?.name ?? inv.role,
         status: 'PENDING_INVITE',
         expiresAt: inv.expiresAt,
+        customRoleId: inv.customRole?.id ?? null,
       })),
     };
   }

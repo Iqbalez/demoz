@@ -80,7 +80,7 @@ function BiometricLoginContent() {
     setIsLoading(true);
     setWorkspaceDenied(false);
     try {
-      const data = await apiRequest<{ accessToken: string; user: { role: UserRole } }>(
+      const data = await apiRequest<{ accessToken: string; user: { role: UserRole; defaultTenantId?: string | null } }>(
         "/api/v1/auth/login",
         {
           method: "POST",
@@ -88,6 +88,9 @@ function BiometricLoginContent() {
         },
       );
       if (data?.accessToken) {
+        if (data.user?.defaultTenantId && typeof window !== "undefined") {
+          localStorage.setItem("demoz_tenant_id", data.user.defaultTenantId);
+        }
         toast.success("Welcome back", "You are signed in.");
         finishLogin(data.user.role);
       } else {
@@ -105,13 +108,16 @@ function BiometricLoginContent() {
     setIsLoading(true);
     setWorkspaceDenied(false);
     try {
-      const data = await apiRequest<{ accessToken: string; user: { role: UserRole } }>(
+      const data = await apiRequest<{ accessToken: string; user: { role: UserRole; defaultTenantId?: string | null } }>(
         "/api/v1/auth/google",
         {
           method: "POST",
           body: JSON.stringify({ credential: response.credential }),
         },
       );
+      if (data.user?.defaultTenantId && typeof window !== "undefined") {
+        localStorage.setItem("demoz_tenant_id", data.user.defaultTenantId);
+      }
       toast.success("Welcome back", "Signed in with Google.");
       finishLogin(data.user.role);
     } catch (err: unknown) {

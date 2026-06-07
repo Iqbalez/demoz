@@ -100,9 +100,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiRequest("/workspace/bootstrap").catch(() => undefined);
 
-      const [brnRes, auditRes] = await Promise.allSettled([
+      const [brnRes, auditRes, kpiRes] = await Promise.allSettled([
         apiRequest<Branch[]>("/branches"),
         apiRequest<AuditLog[]>("/dashboard/audit-logs"),
+        apiRequest<{
+          headcount?: number;
+          totalEmployees?: number;
+          monthlyPayroll?: number;
+          attendanceRate?: number;
+        }>("/dashboard/kpis"),
       ]);
 
       if (brnRes.status === "fulfilled") {
@@ -113,9 +119,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         setAuditLogs(auditRes.value);
       }
 
+      if (kpiRes.status === "fulfilled") {
+        const kpis = kpiRes.value;
+        setStats((prev) => ({
+          ...prev,
+          totalEmployees: kpis.totalEmployees ?? kpis.headcount ?? prev.totalEmployees,
+          monthlyPayroll: kpis.monthlyPayroll ?? prev.monthlyPayroll,
+          attendanceRate: kpis.attendanceRate ?? prev.attendanceRate,
+        }));
+      }
+
       if (
         brnRes.status === "fulfilled" ||
-        auditRes.status === "fulfilled"
+        auditRes.status === "fulfilled" ||
+        kpiRes.status === "fulfilled"
       ) {
         setBackendStatus("CONNECTED");
       }
@@ -157,7 +174,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(payload),
       });
       
-      setStats(prev => ({ ...prev, totalEmployees: prev.totalEmployees + 1, monthlyPayroll: prev.monthlyPayroll + (created.baseSalary ?? 0) }));
+      await refreshTenantData();
       const pinMsg = created.mobileAppPin
         ? ` Mobile app PIN: ${created.mobileAppPin} (share with employee; also sent by SMS if configured).`
         : "";

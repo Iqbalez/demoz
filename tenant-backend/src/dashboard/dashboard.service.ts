@@ -26,7 +26,7 @@ export class DashboardService {
 
     const todayStart = startOfDay(new Date());
 
-    const [headcount, pendingLeave, payrollRun, presentToday] = await Promise.all([
+    const [headcount, pendingLeave, payrollRun, presentToday, payrollSum] = await Promise.all([
       this.prisma.employee.count({ where: { tenantId, status: 'ACTIVE' } }),
       this.prisma.leaveRequest.count({ where: { tenantId, status: 'PENDING' } }),
       this.prisma.payrollRun.findFirst({
@@ -36,13 +36,23 @@ export class DashboardService {
       this.prisma.attendance.count({
         where: { tenantId, checkInTime: { gte: todayStart } },
       }),
+      this.prisma.employee.aggregate({
+        where: { tenantId, status: 'ACTIVE' },
+        _sum: { baseSalary: true },
+      }),
     ]);
+
+    const monthlyPayroll = Number(payrollSum._sum.baseSalary ?? 0);
+    const attendanceRate = headcount > 0 ? Math.round((presentToday / headcount) * 100) : 0;
 
     const result = {
       headcount,
+      totalEmployees: headcount,
       pendingLeave,
       payrollDue: !!payrollRun,
       presentToday,
+      monthlyPayroll,
+      attendanceRate,
       cachedAt: new Date().toISOString(),
     };
 

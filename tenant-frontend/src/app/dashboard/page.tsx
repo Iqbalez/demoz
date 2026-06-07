@@ -36,7 +36,25 @@ export default function DashboardOverviewPage() {
   });
   const firstName = user?.email?.split("@")[0]?.split(/[._]/)[0] ?? "there";
   const greetingName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-  const seatPercentage = Math.min((stats.totalEmployees / stats.maxEmployees) * 100, 100);
+  const activeEmployees = useMemo(
+    () => employees.filter((e) => e.status === "ACTIVE"),
+    [employees],
+  );
+  const totalEmployees = activeEmployees.length;
+  const monthlyPayroll = useMemo(
+    () => activeEmployees.reduce((sum, e) => sum + (Number(e.baseSalary) || 0), 0),
+    [activeEmployees],
+  );
+  const attendanceRate = useMemo(() => {
+    if (activeEmployees.length === 0 || logs.length === 0) return stats.attendanceRate;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayClockIns = logs.filter(
+      (l) => l.type === "CLOCK_IN" && l.timestamp.startsWith(todayStr),
+    ).length;
+    return Math.round((todayClockIns / activeEmployees.length) * 100);
+  }, [activeEmployees, logs, stats.attendanceRate]);
+
+  const seatPercentage = Math.min((totalEmployees / stats.maxEmployees) * 100, 100);
 
   const weeklyChartData = useMemo(() => {
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -120,7 +138,7 @@ export default function DashboardOverviewPage() {
         <div className="bento-tile flex flex-col gap-3 p-5">
           <span className="kpi-label">Employees</span>
           <p className="kpi-stat text-3xl tracking-tight">
-            {stats.totalEmployees}{" "}
+            {totalEmployees}{" "}
             <span className="text-base font-medium text-[var(--text-muted)]">/ {stats.maxEmployees}</span>
           </p>
           <div className="w-full bg-[var(--bg-elevated)] h-1.5 rounded-full overflow-hidden border border-[var(--border)]">
@@ -141,7 +159,7 @@ export default function DashboardOverviewPage() {
               </span>
             )}
           </div>
-          <p className="kpi-stat text-3xl tracking-tight">{stats.attendanceRate}%</p>
+          <p className="kpi-stat text-3xl tracking-tight">{attendanceRate}%</p>
           <p className="kpi-footnote">
             {logs.length > 0 ? `${logs.length} total check-ins` : "No check-ins recorded yet"}
           </p>
@@ -155,7 +173,7 @@ export default function DashboardOverviewPage() {
             )}
           </div>
           <p className="kpi-stat text-3xl tracking-tight">
-            {stats.monthlyPayroll.toLocaleString()}{" "}
+            {monthlyPayroll.toLocaleString()}{" "}
             <span className="text-base font-medium text-[var(--text-muted)]">ETB</span>
           </p>
           <p className="kpi-footnote">Tax &amp; pension compliant</p>
@@ -252,7 +270,9 @@ export default function DashboardOverviewPage() {
                       >
                         {log.type}
                       </span>
-                      <span className="text-[10px] text-[var(--text-muted)]">{log.timestamp}</span>
+                      <span className="text-[10px] text-[var(--text-muted)]">
+                        {log.timestamp ? new Date(log.timestamp).toLocaleString() : ""}
+                      </span>
                     </div>
                     <p className="text-[var(--text-secondary)]">
                       <span className="text-[var(--text-primary)] font-medium">{log.user}</span> {log.action}

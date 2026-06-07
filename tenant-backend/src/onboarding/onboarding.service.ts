@@ -5,6 +5,8 @@ import { AfromessageService } from '../notifications/afromessage.service';
 import { CsvParserService } from './csv-parser.service';
 import { generateTemporaryPassword, generateUniqueEmail } from './credential-generator';
 import { EmployeeStatus, UserRole } from '@prisma/client';
+import { AuditService } from '../settings/audit.service';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 export interface ImportResult {
   imported: number;
@@ -20,9 +22,11 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly afromessageService: AfromessageService,
     private readonly csvParserService: CsvParserService,
+    private readonly audit: AuditService,
+    private readonly dashboardService: DashboardService,
   ) {}
 
-  async importEmployeesFromCSV(tenantId: string, csvBuffer: Buffer): Promise<ImportResult> {
+  async importEmployeesFromCSV(tenantId: string, csvBuffer: Buffer, actorUserId?: string): Promise<ImportResult> {
     const rows = await this.csvParserService.parseEmployeeCSV(csvBuffer);
     const total = rows.length;
     const details: ImportResult['details'] = [];
@@ -141,6 +145,17 @@ export class OnboardingService {
     const failed   = details.filter((d) => d.status === 'failed').length;
 
     this.logger.log(`[Onboarding] Imported ${imported}/${total} employees for tenant ${tenantId}`);
+
+    await this.dashboardService.invalidateTenantKPICache(tenantId);
+
+    if (actorUserId && imported > 0) {
+      await this.audit.log(tenantId, actorUserId, 'employees_bulk_imported', {
+        module: 'onboarding',
+        imported,
+        failed,
+        total,
+      });
+    }
 
     return { imported, failed, details };
   }

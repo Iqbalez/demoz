@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { useDashboard } from "../../../../context/DashboardContext";
 import { toast } from "../../../../components/ui/toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -107,6 +108,7 @@ export default function OnboardingPage() {
         toast.error("Onboarding failed", (res as any).message || "Could not onboard employee.");
       } else {
         queryClient.invalidateQueries({ queryKey: ['employees'] });
+        queryClient.invalidateQueries({ queryKey: ['attendanceLogs'] });
         
         if (res && typeof res === "object" && "mobileAppPin" in res) {
           setResult(res as any);
@@ -132,7 +134,17 @@ export default function OnboardingPage() {
       <div>
         <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Onboard New Employee</h1>
         <p className="text-sm text-[var(--text-muted)] mt-1">
-          Add a new team member to your workspace. Seats used: {stats.totalEmployees}/{stats.maxEmployees}.
+          Add a field employee to your workforce (mobile/USSD access). Seats used: {stats.totalEmployees}/{stats.maxEmployees}.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+        <p className="font-semibold">Dashboard access vs. field employees</p>
+        <p className="mt-1 text-blue-800">
+          This form onboards payroll employees with mobile clock-in credentials. To invite HR, Finance, or other dashboard users with custom permissions, use{" "}
+          <Link href="/dashboard/settings/team" className="font-semibold underline">Settings → Team Management</Link>
+          {" "}after creating roles under{" "}
+          <Link href="/dashboard/settings/roles" className="font-semibold underline">Roles &amp; Permissions</Link>.
         </p>
       </div>
 

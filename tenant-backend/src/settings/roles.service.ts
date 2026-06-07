@@ -250,4 +250,39 @@ export class RolesService {
 
     return { message: 'Role deleted.' };
   }
+
+  async assignUserRole(
+    tenantId: string,
+    userId: string,
+    data: { customRoleId?: string | null; role?: string },
+  ) {
+    const target = await this.prisma.user.findFirst({
+      where: { id: userId, tenantId },
+    });
+    if (!target) {
+      throw new BadRequestException('User not found in this workspace.');
+    }
+
+    if (data.customRoleId) {
+      const customRole = await this.prisma.customRole.findFirst({
+        where: { id: data.customRoleId, tenantId },
+      });
+      if (!customRole) {
+        throw new BadRequestException('Custom role not found.');
+      }
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.role ? { role: data.role as any } : {}),
+        ...(data.customRoleId !== undefined ? { customRoleId: data.customRoleId } : {}),
+      },
+      select: { id: true, email: true, role: true, customRoleId: true },
+    });
+
+    await this.invalidatePermissionCache(tenantId, userId);
+
+    return updated;
+  }
 }

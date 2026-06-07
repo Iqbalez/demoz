@@ -100,8 +100,8 @@ export class EmployeeController {
   @Post()
   @Roles(UserRole.HR, UserRole.OWNER) // Only HR managers or corporate owners can onboard employees
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async createEmployee(@Body() dto: CreateEmployeeDto, @Req() req: { user?: { role?: UserRole } }) {
-    const emp = await this.employeeService.create(dto);
+  async createEmployee(@Body() dto: CreateEmployeeDto, @Req() req: { user?: { role?: UserRole; userId?: string } }) {
+    const emp = await this.employeeService.create(dto, req.user?.userId);
     const { mobileAppPin, ...rest } = emp as typeof emp & { mobileAppPin?: string };
     return {
       ...formatEmployeeResponse(rest, req.user?.role),
@@ -157,9 +157,9 @@ export class EmployeeController {
   async updateEmployee(
     @Param('id') id: string,
     @Body() dto: UpdateEmployeeDto,
-    @Req() req: { user?: { role?: UserRole } },
+    @Req() req: { user?: { role?: UserRole; userId?: string } },
   ) {
-    const emp = await this.employeeService.update(id, dto);
+    const emp = await this.employeeService.update(id, dto, req.user?.userId);
     return formatEmployeeResponse(emp, req.user?.role);
   }
 

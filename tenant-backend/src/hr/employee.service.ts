@@ -11,6 +11,7 @@ import { DashboardService } from '../dashboard/dashboard.service';
 import { AfromessageService } from '../notifications/afromessage.service';
 import { WorkspaceService } from './workspace.service';
 import { normalizeEthiopianPhone } from '../lib/phone';
+import { AuditService } from '../settings/audit.service';
 
 @Injectable()
 export class EmployeeService {
@@ -20,6 +21,7 @@ export class EmployeeService {
     private readonly dashboardService: DashboardService,
     private readonly afromessageService: AfromessageService,
     private readonly workspaceService: WorkspaceService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -95,7 +97,7 @@ export class EmployeeService {
   /**
    * Onboards a single employee, strictly enforcing deduplication on Fayda ID, employee ID and phone number.
    */
-  async create(dto: CreateEmployeeDto) {
+  async create(dto: CreateEmployeeDto, actorUserId?: string) {
     const tenantId = tenantStorage.getStore();
     if (!tenantId) {
       throw new BadRequestException('Active tenant context is missing.');
@@ -169,6 +171,15 @@ export class EmployeeService {
 
     await this.dashboardService.invalidateTenantKPICache(tenantId);
 
+    if (actorUserId) {
+      await this.audit.log(tenantId, actorUserId, 'employee_created', {
+        module: 'employees',
+        entityId: emp.id,
+        employeeIdNumber: emp.employeeIdNumber,
+        name: `${emp.firstName} ${emp.lastName}`,
+      });
+    }
+
     this.afromessageService.sendEmployeeMobileCredentials(emp.phoneNumber, emp.firstName, pin).catch((e) =>
       console.error(e),
     );
@@ -193,7 +204,7 @@ export class EmployeeService {
   /**
    * Updates an employee, verifying that unique fields do not overlap with other records.
    */
-  async update(id: string, dto: UpdateEmployeeDto) {
+  async update(id: string, dto: UpdateEmployeeDto, actorUserId?: string) {
     if (dto.phoneNumber) {
       dto.phoneNumber = dto.phoneNumber.replace(/\s+/g, '');
       const existingPhone = await this.prisma.employee.findFirst({
@@ -233,6 +244,15 @@ export class EmployeeService {
     const tenantId = tenantStorage.getStore();
     if (tenantId) {
       await this.dashboardService.invalidateTenantKPICache(tenantId);
+      if (actorUserId) {
+        await this.audit.log(tenantId, actorUserId, 'employee_updated', {
+          module: 'employees',
+          entityId: updatedEmp.id,
+          employeeIdNumber: updatedEmp.employeeIdNumber,
+          fields: Object.keys(dto),
+          status: updatedEmp.status,
+        });
+      }
     }
     
     return updatedEmp;

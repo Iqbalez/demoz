@@ -12,12 +12,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { WorkspaceService } from './workspace.service';
 import { WorkspaceController } from './workspace.controller';
 import { LeaveModule } from '../leave/leave.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
     SubscriptionModule,
     NotificationsModule,
     LeaveModule,
+    SettingsModule,
     JwtModule.register({}),
     BullModule.registerQueue({
       name: 'fayda-queue',
