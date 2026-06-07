@@ -7,9 +7,7 @@ import { PayrollGateway } from '../realtime/payroll.gateway';
 import { PayrollStatus, PayoutStatus } from '@prisma/client';
 import { tenantStorage } from '../tenant-context';
 import { Prisma } from '@prisma/client';
-import { BULL_WORKER_OPTIONS } from '../redis/redis.config';
-
-@Processor('payroll-disburse', BULL_WORKER_OPTIONS)
+@Processor('payroll-disburse')
 export class PayrollDisburseProcessor extends WorkerHost {
   private readonly logger = new Logger(PayrollDisburseProcessor.name);
 

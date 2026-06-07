@@ -7,8 +7,6 @@ import { Logger } from '@nestjs/common';
 import { tenantStorage } from '../tenant-context';
 
 import { DashboardService } from '../dashboard/dashboard.service';
-import { BULL_WORKER_OPTIONS } from '../redis/redis.config';
-
 // IMPORTANT: verify these brackets annually. Source: ERCA / Proc. 1395/2025
 // Ethiopian Income Tax Schedule A — Proclamation No. 1395/2025
 // Monthly employment income brackets (ETB)
@@ -22,7 +20,7 @@ export const ETHIOPIAN_INCOME_TAX_BRACKETS = [
   { min: 10901,  max: Infinity, rate: 0.35, fixedDeduction: 1500 },
 ] as const;
 
-@Processor('payroll-queue', BULL_WORKER_OPTIONS)
+@Processor('payroll-queue')
 export class PayrollProcessor extends WorkerHost {
   private readonly logger = new Logger(PayrollProcessor.name);
 

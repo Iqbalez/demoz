@@ -13,8 +13,6 @@ import { WorkspaceService } from './workspace.service';
 import { WorkspaceController } from './workspace.controller';
 import { LeaveModule } from '../leave/leave.module';
 import { SettingsModule } from '../settings/settings.module';
-import { bullWorkerProviders } from '../redis/bull-worker.providers';
-
 @Module({
   imports: [
     SubscriptionModule,
@@ -27,7 +25,7 @@ import { bullWorkerProviders } from '../redis/bull-worker.providers';
     }),
   ],
   controllers: [EmployeeController, WorkspaceController],
-  providers: [EmployeeService, WorkspaceService, PrismaService, ...bullWorkerProviders(FaydaProcessor), FaydaOidcService],
+  providers: [EmployeeService, WorkspaceService, PrismaService, FaydaProcessor, FaydaOidcService],
   exports: [WorkspaceService, EmployeeService],
 })
 export class HrModule {}

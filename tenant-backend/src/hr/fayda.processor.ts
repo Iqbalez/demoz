@@ -2,9 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { PrismaService } from '../prisma.service';
 import { Logger } from '@nestjs/common';
-import { BULL_WORKER_OPTIONS } from '../redis/redis.config';
-
-@Processor('fayda-queue', BULL_WORKER_OPTIONS)
+@Processor('fayda-queue')
 export class FaydaProcessor extends WorkerHost {
   private readonly logger = new Logger(FaydaProcessor.name);
 

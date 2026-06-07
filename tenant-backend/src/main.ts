@@ -6,18 +6,9 @@ import cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import * as Sentry from '@sentry/node';
 import { validateEnv } from './config/env.validation';
-import { isBullWorkersEnabled } from './redis/redis.config';
 
 async function bootstrap() {
   validateEnv();
-
-  if (isBullWorkersEnabled()) {
-    console.log('[BullMQ] Background workers enabled (ENABLE_BULL_WORKERS=true).');
-  } else {
-    console.warn(
-      '[BullMQ] Background workers DISABLED. Payroll/Fayda queue jobs will not run until ENABLE_BULL_WORKERS=true on Render.',
-    );
-  }
 
   if (process.env.SENTRY_DSN) {
     Sentry.init({
