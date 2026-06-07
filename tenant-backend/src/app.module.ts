@@ -23,6 +23,7 @@ import { TenantLifecycleGuard } from './auth/tenant-lifecycle.guard';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 
 import { RedisModule } from './redis/redis.module';
+import { createBullConnection } from './redis/redis.config';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -48,9 +49,7 @@ import { SettingsModule } from './settings/settings.module';
     UssdModule,
     InvitationModule,
     BullModule.forRoot({
-      connection: {
-        url: process.env.UPSTASH_REDIS_URL,
-      },
+      connection: createBullConnection(),
     }),
     PaymentsModule,
     PayrollModule,

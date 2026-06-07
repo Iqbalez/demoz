@@ -143,7 +143,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshTenantData();
-    const poll = setInterval(refreshTenantData, 20000);
+    const poll = setInterval(refreshTenantData, 60000);
     return () => clearInterval(poll);
   }, [refreshTenantData, backendStatus]);
 

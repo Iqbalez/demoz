@@ -15,6 +15,7 @@ import { RealtimeModule } from '../realtime/realtime.module';
 import { ErcaReportService } from './reports/erca-report.service';
 import { PoessaReportService } from './reports/poessa-report.service';
 import { EthiopianCalendarService } from '../shared/ethiopian-calendar/ethiopian-calendar.service';
+import { bullWorkerProviders } from '../redis/bull-worker.providers';
 
 @Module({
   imports: [
@@ -28,8 +29,7 @@ import { EthiopianCalendarService } from '../shared/ethiopian-calendar/ethiopian
   ],
   controllers: [PayrollController, ReportsController],
   providers: [
-    PayrollProcessor,
-    PayrollDisburseProcessor,
+    ...bullWorkerProviders(PayrollProcessor, PayrollDisburseProcessor),
     AiAuditService,
     OvertimeService,
     PrismaService,

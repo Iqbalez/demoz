@@ -70,6 +70,7 @@ Service: **demoz** → Environment. Set or update:
 | `JWT_PRIVATE_KEY` | RSA private key (multiline PEM) |
 | `JWT_PUBLIC_KEY` | RSA public key (multiline PEM) |
 | `UPSTASH_REDIS_URL` | Upstash rediss URL |
+| `ENABLE_BULL_WORKERS` | `false` on free Upstash (see section 8). Set `true` only when you need payroll/Fayda background jobs and have Redis quota. |
 | `CHAPA_SECRET_KEY` | Live secret |
 | `CHAPA_WEBHOOK_SECRET` | Webhook secret |
 | `PRISMA_FIELD_ENCRYPTION_KEY` | Same as local |
@@ -146,10 +147,25 @@ If you pasted Neon passwords in chat or commits, **rotate the Neon database pass
 
 ---
 
+## 8. Upstash Redis (BullMQ / background jobs)
+
+The backend uses Upstash for KPI cache, session invalidation, and **BullMQ** queues (`payroll-disburse`, `payroll-queue`, `payment-verification`, `fayda-queue`). Idle Bull workers poll Redis aggressively and can burn through the **free tier** (500k commands/month).
+
+**If deploy logs show** `ERR max requests limit exceeded` **or** repeated `bull:payroll-disburse` / `evalsha` errors:
+
+1. In [Upstash Console](https://console.upstash.com/) → your database → wait for the monthly quota reset **or** upgrade the plan.
+2. On Render, set **`ENABLE_BULL_WORKERS=false`** (or leave unset). Redeploy. The API will start; background payroll/Fayda jobs will not run until workers are re-enabled.
+3. After quota is available, set **`ENABLE_BULL_WORKERS=true`** and redeploy if you need automated payroll disbursement and Fayda sync.
+
+Workers use a 2-minute idle poll interval when enabled to reduce Upstash usage.
+
+---
+
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
+| Render deploy timeout + `max requests limit exceeded` | Section 8: set `ENABLE_BULL_WORKERS=false`, reset/upgrade Upstash, redeploy |
 | Render build fails on `migrate deploy` | Run Neon steps in section 2 from your PC first |
 | Login works locally but not on Vercel | Check `FRONTEND_URL` on Render and cookie fix is deployed |
 | CORS error | `FRONTEND_URL` must exactly match Vercel URL (no trailing slash) |

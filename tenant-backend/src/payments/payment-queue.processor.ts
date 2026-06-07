@@ -5,8 +5,9 @@ import { Logger } from '@nestjs/common';
 import axios from 'axios';
 import { addMonths } from 'date-fns';
 import { PaymentStatus, TenantStatus } from '@prisma/client';
+import { BULL_WORKER_OPTIONS } from '../redis/redis.config';
 
-@Processor('payment-verification')
+@Processor('payment-verification', BULL_WORKER_OPTIONS)
 export class PaymentQueueProcessor extends WorkerHost {
   private readonly logger = new Logger(PaymentQueueProcessor.name);
 

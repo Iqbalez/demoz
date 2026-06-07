@@ -55,7 +55,7 @@ export class AuthService {
   /** Reject access/refresh tokens issued before password reset or forced logout. */
   async assertSessionValid(userId: string, tokenIssuedAt?: number) {
     if (!tokenIssuedAt) return;
-    const invalidatedAt = await this.redis.get(this.getUserInvalidatedAtKey(userId));
+    const invalidatedAt = await this.redis.get(this.getUserInvalidatedAtKey(userId)).catch(() => null);
     if (invalidatedAt && tokenIssuedAt * 1000 < Number(invalidatedAt)) {
       throw new UnauthorizedException('Session invalidated. Please sign in again.');
     }
@@ -365,7 +365,7 @@ export class AuthService {
       }
 
       if (decoded.jti) {
-        const isBlocked = await this.redis.get(this.getRefreshBlocklistKey(decoded.jti));
+        const isBlocked = await this.redis.get(this.getRefreshBlocklistKey(decoded.jti)).catch(() => null);
         if (isBlocked) {
           throw new UnauthorizedException('Refresh token revoked.');
         }
