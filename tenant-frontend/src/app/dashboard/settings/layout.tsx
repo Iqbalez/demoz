@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePermission } from '@/hooks/usePermission';
 
-import { SettingsProvider } from '@/context/SettingsContext';
 
 const navItems = [
   { name: 'Company Profile', href: '/dashboard/settings/company', permission: 'manage_settings' },
@@ -26,8 +25,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const { hasPermission } = usePermission();
 
   return (
-    <SettingsProvider>
-      <div className="flex h-full w-full flex-col lg:flex-row gap-6 p-6">
+    <div className="flex h-full w-full flex-col lg:flex-row gap-6 p-6">
         <aside className="w-full lg:w-64 flex-shrink-0">
           <nav className="flex flex-col gap-1.5">
             <h2 className="mb-4 text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] px-2">
@@ -64,6 +62,5 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           {children}
         </main>
       </div>
-    </SettingsProvider>
   );
 }

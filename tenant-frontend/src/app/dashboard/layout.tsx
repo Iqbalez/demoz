@@ -8,6 +8,7 @@ import { DashboardProvider, useDashboard } from "../../context/DashboardContext"
 import { AuthProvider, useAuth } from "../../context/AuthContext";
 import { DemozLogo } from "../../components/brand/DemozLogo";
 import { getBillingGateState, isBillingRoute } from "@/lib/subscription-billing";
+import { SettingsProvider } from "../../context/SettingsContext";
 
 const NAV_GROUPS = [
   { path: "/dashboard", label: "Home", icon: "home" },
@@ -432,7 +433,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ToastProvider>
       <AuthProvider>
         <DashboardProvider>
-          <DashboardLayoutContent>{children}</DashboardLayoutContent>
+          <SettingsProvider>
+            <DashboardLayoutContent>{children}</DashboardLayoutContent>
+          </SettingsProvider>
         </DashboardProvider>
       </AuthProvider>
     </ToastProvider>
