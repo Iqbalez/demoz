@@ -6,7 +6,7 @@ let socket: Socket | null = null;
 export function getSocket(): Socket {
   if (socket) return socket;
 
-  const url = env.NEXT_PUBLIC_SOCKET_URL ?? env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const url = env.NEXT_PUBLIC_SOCKET_URL;
   socket = io(url, {
     withCredentials: true,
     transports: ["websocket", "polling"],

@@ -50,7 +50,7 @@ export async function apiRequest<T>(
   init?: RequestInit,
   retried = false,
 ): Promise<T> {
-  const baseUrl = env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const baseUrl = env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const tenantId = typeof window !== 'undefined' ? localStorage.getItem('demoz_tenant_id') : null;
   const response = await fetch(`${baseUrl}${endpoint}`, {
     credentials: "include",
@@ -76,12 +76,16 @@ export async function apiRequest<T>(
     let message = `API error ${response.status}`;
     let errorCode: string | undefined;
     try {
-      const body = (await response.json()) as { message?: string; errorCode?: string };
-      if (body.message) message = body.message;
-      errorCode = body.errorCode;
-    } catch {
       const text = await response.text();
-      if (text) message = text;
+      try {
+        const body = JSON.parse(text) as { message?: string; errorCode?: string };
+        if (body.message) message = body.message;
+        errorCode = body.errorCode;
+      } catch {
+        if (text) message = text;
+      }
+    } catch {
+      // body unreadable – keep default message
     }
 
     if (response.status === 401 && !retried) {

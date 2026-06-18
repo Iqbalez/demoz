@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { PrismaClient, UserRole } from '@prisma/client';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { env } from '../config/env';
 
 @Injectable()
 export class InvitationService {
@@ -69,7 +70,7 @@ export class InvitationService {
       },
     });
 
-    const frontendBase = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const frontendBase = env.FRONTEND_URL.replace(/\/$/, '');
     const inviteUrl = `${frontendBase}/accept-invite?token=${token}`;
 
     // Email delivery can be wired here; inviteUrl is returned for copy-link flow.

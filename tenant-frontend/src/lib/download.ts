@@ -6,17 +6,21 @@ export async function downloadWithSession(
   filename: string,
   options?: { openHtmlInNewTab?: boolean },
 ): Promise<void> {
-  const baseUrl = env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  const baseUrl = env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const response = await fetch(`${baseUrl}${path}`, { credentials: "include" });
 
   if (!response.ok) {
     let message = `Download failed (${response.status})`;
     try {
-      const body = (await response.json()) as { message?: string };
-      if (body.message) message = body.message;
-    } catch {
       const text = await response.text();
-      if (text) message = text;
+      try {
+        const body = JSON.parse(text) as { message?: string };
+        if (body.message) message = body.message;
+      } catch {
+        if (text) message = text;
+      }
+    } catch {
+      // body unreadable
     }
     throw new Error(message);
   }

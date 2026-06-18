@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { AttendanceSource, AttendanceType } from '@prisma/client';
 import { USSD_MESSAGES, formatMessage } from './ussd.messages';
+import { env } from '../config/env';
 
 type UssdSessionState = 
   | 'WELCOME'
@@ -49,9 +50,9 @@ export class UssdService implements OnModuleInit {
       this.redisClient = upstashUrl
         ? new Redis(upstashUrl)
         : new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT || '6379', 10),
-            password: process.env.REDIS_PASSWORD || undefined,
+            host: env.REDIS_HOST,
+            port: env.REDIS_PORT,
+            password: env.REDIS_PASSWORD || undefined,
             tls:
               process.env.REDIS_TLS === 'true' ||
               process.env.REDIS_HOST?.includes('upstash.io')

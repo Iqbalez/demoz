@@ -26,6 +26,7 @@ import { UserRole } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { FaydaOidcService } from './fayda-oidc.service';
+import { env } from '../config/env';
 
 function canViewHrSensitiveFields(role?: UserRole) {
   return role === UserRole.HR || role === UserRole.OWNER;
@@ -184,7 +185,7 @@ export class EmployeeController {
     @Query('state') state?: string,
   ) {
     const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
-    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees`;
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${env.FRONTEND_URL}/dashboard/employees`;
     return {
       url: this.oidcService.getAuthUrl(cid, ruri, state),
     };
@@ -207,7 +208,7 @@ export class EmployeeController {
     }
     const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
     const csec = clientSecret || process.env.FAYDA_CLIENT_SECRET || 'demoz_secret';
-    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees`;
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${env.FRONTEND_URL}/dashboard/employees`;
 
     return this.oidcService.exchangeCodeAndGetClaims(code, cid, csec, ruri);
   }
@@ -225,7 +226,7 @@ export class EmployeeController {
     }
     const cid = clientId || process.env.FAYDA_CLIENT_ID || 'demoz_client';
     const csec = clientSecret || process.env.FAYDA_CLIENT_SECRET || 'demoz_secret';
-    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/employees`;
+    const ruri = redirectUri || process.env.FAYDA_REDIRECT_URI || `${env.FRONTEND_URL}/dashboard/employees`;
 
     return this.oidcService.exchangeCodeAndGetClaims(code, cid, csec, ruri);
   }

@@ -24,7 +24,7 @@ export const useAttendance = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const clockIn = async (branchId: string, lat: number, lng: number, accuracy: number): Promise<{ success: boolean, message: string }> => {
+  const clockIn = async (branchId: string | null | undefined, lat: number, lng: number, accuracy: number): Promise<{ success: boolean, message: string }> => {
     if (accuracy > 120) {
       return Promise.reject({ success: false, message: 'GPS accuracy too low. Please try again outdoors.' });
     }
@@ -59,7 +59,7 @@ export const useAttendance = () => {
     }
   };
 
-  const clockOut = async (branchId: string, lat: number = 0, lng: number = 0, accuracy: number = 999): Promise<{ success: boolean, message: string }> => {
+  const clockOut = async (branchId: string | null | undefined, lat: number = 0, lng: number = 0, accuracy: number = 999): Promise<{ success: boolean, message: string }> => {
     const payload = {
       type: 'CLOCK_OUT' as const,
       lat,
@@ -90,7 +90,7 @@ export const useAttendance = () => {
     }
   };
 
-  const manualClockIn = async (branchId: string): Promise<{ success: boolean, message: string }> => {
+  const manualClockIn = async (branchId: string | null | undefined): Promise<{ success: boolean, message: string }> => {
     const payload = {
       type: 'CLOCK_IN' as const,
       lat: 0,

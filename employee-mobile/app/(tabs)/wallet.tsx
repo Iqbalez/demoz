@@ -8,10 +8,11 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useAuthStore } from "../../store/authStore";
 import { useTranslation } from "react-i18next";
+import { env } from "../../config/env";
 
 interface PayslipData {
   id: string;
@@ -94,7 +95,7 @@ export default function WalletScreen() {
   useEffect(() => {
     const fetchPayslips = async () => {
       try {
-        const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+        const baseUrl = env.EXPO_PUBLIC_API_URL;
         const res = await fetch(`${baseUrl}/api/v1/payroll/runs`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -133,7 +134,7 @@ export default function WalletScreen() {
     setDownloadingId(slip.id);
 
     try {
-      const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+      const baseUrl = env.EXPO_PUBLIC_API_URL;
       const url = `${baseUrl}/api/v1/payroll/runs/${slip.payrollRunId}/payslips/${slip.id}`;
 
       // Download to local filesystem

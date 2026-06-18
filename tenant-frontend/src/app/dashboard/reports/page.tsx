@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
+import { env } from '@/lib/env';
 
 interface PayrollRun {
   id: string;
@@ -34,12 +35,12 @@ export default function ReportsPage() {
   }, []);
 
   const downloadReport = (runId: string, type: 'erca' | 'psssa') => {
-    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/payroll/reports/${type}/${runId}`;
+    const url = `${env.NEXT_PUBLIC_API_URL}/payroll/reports/${type}/${runId}`;
     window.open(url, '_blank');
   };
 
   const downloadLeaveLiability = () => {
-    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/leave/reports/liability`;
+    const url = `${env.NEXT_PUBLIC_API_URL}/leave/reports/liability`;
     window.open(url, '_blank');
   };
 
@@ -144,7 +145,7 @@ export default function ReportsPage() {
 
                   {run.sampleLineItemId && (
                     <a 
-                      href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/payroll/reports/payslip/${run.sampleLineItemId}`}
+                      href={`${env.NEXT_PUBLIC_API_URL}/payroll/reports/payslip/${run.sampleLineItemId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 w-full px-4 py-2 bg-[var(--brand-primary-muted)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white transition-colors rounded-lg text-sm font-semibold text-left"

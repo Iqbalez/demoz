@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { tenantStorage } from '../tenant-context';
 import { Public } from '../auth/public.decorator';
 import * as crypto from 'crypto';
+import { env } from '../config/env';
 
 interface CheckoutState {
   tenantId: string;
@@ -121,7 +122,7 @@ export class SubscriptionController {
     if (CHAPA_SECRET_KEY === 'CHASECK_TEST_KEY') {
       // In offline demonstration / mock sandbox mode:
       // Return a simulated checkout URL that automatically bypasses and clears payment.
-      const simulatedReturnUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?signup_success=true&checkout_token=${checkoutToken}`;
+      const simulatedReturnUrl = `${env.FRONTEND_URL}/login?signup_success=true&checkout_token=${checkoutToken}`;
       return res.status(HttpStatus.OK).json({
         success: true,
         txRef,
@@ -147,8 +148,8 @@ export class SubscriptionController {
           last_name: 'Tenant Owner',
           phone: phone,
           tx_ref: txRef,
-          callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/subscription/webhook`,
-          return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?signup_success=true&checkout_token=${checkoutToken}`,
+          callback_url: `${env.BACKEND_URL}/subscription/webhook`,
+          return_url: `${env.FRONTEND_URL}/login?signup_success=true&checkout_token=${checkoutToken}`,
         }),
       });
 
@@ -238,7 +239,7 @@ export class SubscriptionController {
 
     const txRef = `sub_upgrade_${tenantId}_${Date.now()}`;
     const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST_KEY';
-    let checkoutUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/settings/billing?payment_success=true&ref=${txRef}`;
+    let checkoutUrl = `${env.FRONTEND_URL}/dashboard/settings/billing?payment_success=true&ref=${txRef}`;
 
     if (CHAPA_SECRET_KEY !== 'CHASECK_TEST_KEY') {
       try {
@@ -257,7 +258,7 @@ export class SubscriptionController {
             last_name: 'Workspace Owner',
             phone: ownerUser?.phoneNumber || '0900000000',
             tx_ref: txRef,
-            callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/subscription/webhook`,
+            callback_url: `${env.BACKEND_URL}/subscription/webhook`,
             return_url: checkoutUrl,
           }),
         });

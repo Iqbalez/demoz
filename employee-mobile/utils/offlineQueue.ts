@@ -7,7 +7,7 @@ export interface AttendanceEvent {
   lat: number;
   lng: number;
   accuracy: number;
-  branchId: string;
+  branchId?: string | null;
   deviceId?: string;
   clientTime: string;
   method?: string;

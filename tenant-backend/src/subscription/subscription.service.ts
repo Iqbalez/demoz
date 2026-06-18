@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma.service';
 import { TenantStatus, EmployeeStatus, UserRole } from '@prisma/client';
+import { env } from '../config/env';
 
 @Injectable()
 export class SubscriptionService {
@@ -128,7 +129,7 @@ export class SubscriptionService {
 
       const txRef = `sub_renewal_${invoice.id}_${Date.now()}`;
       const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY || 'CHASECK_TEST_KEY';
-      let checkoutUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/billing?payment_success=true&ref=${txRef}`;
+      let checkoutUrl = `${env.FRONTEND_URL}/dashboard/billing?payment_success=true&ref=${txRef}`;
 
       if (CHAPA_SECRET_KEY !== 'CHASECK_TEST_KEY') {
         try {
@@ -151,8 +152,8 @@ export class SubscriptionService {
               last_name: 'Workspace Owner',
               phone: ownerUser?.phoneNumber || '0900000000',
               tx_ref: txRef,
-              callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/subscription/webhook`,
-              return_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/billing?payment_success=true&ref=${txRef}`,
+              callback_url: `${env.BACKEND_URL}/subscription/webhook`,
+              return_url: `${env.FRONTEND_URL}/dashboard/billing?payment_success=true&ref=${txRef}`,
             }),
           });
 

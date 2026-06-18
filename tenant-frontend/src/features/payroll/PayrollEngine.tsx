@@ -6,6 +6,7 @@ import { usePermission } from "../../hooks/usePermission";
 import { useSettings } from "../../context/SettingsContext";
 import { apiRequest } from "../../lib/api";
 import { getCurrentPayPeriod } from "../../lib/payroll-period";
+import { env } from "../../lib/env";
 
 export interface PayrollEngineProps {
   employees: Employee[];
@@ -150,7 +151,7 @@ export default function PayrollEngine({
   const handleDownloadPayslip = async (employeeId: string) => {
     if (!activeRunId) return;
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const baseUrl = env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${baseUrl}/api/v1/payroll/runs/${activeRunId}/payslips/${employeeId}`, {
         credentials: 'include',
       });
@@ -171,7 +172,7 @@ export default function PayrollEngine({
   const handleBulkDownload = async () => {
     if (!activeRunId) return;
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const baseUrl = env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${baseUrl}/api/v1/payroll/runs/${activeRunId}/payslips-bulk`, {
         credentials: 'include',
       });
@@ -194,7 +195,7 @@ export default function PayrollEngine({
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth() + 1;
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const baseUrl = env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${baseUrl}/api/v1/payroll/reports/erca-monthly/${year}/${month}`, {
         credentials: 'include',
       });

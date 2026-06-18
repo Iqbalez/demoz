@@ -24,7 +24,7 @@ function AcceptInviteForm() {
     }
     (async () => {
       try {
-        const baseUrl = env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+        const baseUrl = env.NEXT_PUBLIC_API_URL;
         const res = await fetch(`${baseUrl}/invites/validate/${token}`);
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -44,7 +44,7 @@ function AcceptInviteForm() {
     setSubmitting(true);
     setError('');
     try {
-      const baseUrl = env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+      const baseUrl = env.NEXT_PUBLIC_API_URL;
       const res = await fetch(`${baseUrl}/invites/accept/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

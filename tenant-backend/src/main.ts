@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { env } from './config/env';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as express from 'express';
@@ -18,9 +19,14 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
-  const frontendOrigin = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const frontendOrigin = env.FRONTEND_URL.replace(/\/$/, '');
+  const allowedOrigins = [
+    frontendOrigin,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+  ];
   app.enableCors({
-    origin: frontendOrigin,
+    origin: allowedOrigins,
     credentials: true,
   });
   
@@ -34,6 +40,6 @@ async function bootstrap() {
     verify: (req: any, res, buf) => { req.rawBody = buf; }
   }));
   app.useGlobalFilters(new AllExceptionsFilter());
-  await app.listen(process.env.PORT ?? 3001);
+  await app.listen(env.PORT, '0.0.0.0');
 }
 bootstrap();

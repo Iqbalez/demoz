@@ -6,6 +6,7 @@ import { AttendanceLog, Branch } from "../features/attendance/AttendanceTracker"
 import { toast } from "../components/ui/toast";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "./AuthContext";
+import { env } from "../lib/env";
 
 export interface AuditLog {
   id: string;
@@ -82,7 +83,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     const checkBackend = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/company-data/login-test`,
+          `${env.NEXT_PUBLIC_API_URL}/company-data/login-test`,
           { method: "GET" }
         );
         if (res.ok) setBackendStatus("CONNECTED");

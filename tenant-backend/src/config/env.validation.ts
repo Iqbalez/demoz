@@ -4,13 +4,13 @@ export function validateEnv() {
     // Prefer RS256 in production (required by blueprint)
     'JWT_PRIVATE_KEY',
     'JWT_PUBLIC_KEY',
-    'UPSTASH_REDIS_URL',
     'CHAPA_SECRET_KEY',
     'CHAPA_WEBHOOK_SECRET',
   ];
 
   const optionalVars = [
     'NODE_ENV',
+    'UPSTASH_REDIS_URL',
     'AFROMESSAGE_API_KEY',
     'AFROMESSAGE_SENDER_NAME',
     'SENTRY_DSN',

@@ -1,11 +1,13 @@
 import { Redis, type RedisOptions } from 'ioredis';
 
 export function getRedisUrl(): string {
-  const url = process.env.UPSTASH_REDIS_URL?.trim();
-  if (!url) {
-    throw new Error('UPSTASH_REDIS_URL is not defined. Check your .env file.');
-  }
-  return url;
+  const upstashUrl = process.env.UPSTASH_REDIS_URL?.trim();
+  const redisUrl = process.env.REDIS_URL?.trim();
+  
+  if (redisUrl) return redisUrl;
+  if (upstashUrl) return upstashUrl;
+  
+  return 'redis://localhost:6379';
 }
 
 export function createRedisConnectionOptions(): RedisOptions {
